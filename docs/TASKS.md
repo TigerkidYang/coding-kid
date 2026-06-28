@@ -23,3 +23,5 @@
 - 2026-06-29: Added initial AI-agent memory policy in `AGENTS.md`.
 - 2026-06-29: Defined the project direction as a Python SWE Agent with parallel
   research and teaching-content tracks.
+- 2026-06-29: Captured initial core and advanced SWE Agent research topics in
+  `docs/RESEARCH.md`.
