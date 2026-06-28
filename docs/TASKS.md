@@ -29,3 +29,4 @@
   Claude Code source archive and OpenAI Codex.
 - 2026-06-29: Produced first-pass source reports for Claude Code, Codex, and
   their comparison under `docs/reports/`.
+- 2026-06-29: Added Chinese versions of the three first-pass source reports.

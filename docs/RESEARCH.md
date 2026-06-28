@@ -73,8 +73,11 @@ Useful takeaways:
 
 Reports:
 - `docs/reports/claude-code-source-report.md`
+- `docs/reports/claude-code-source-report-zh.md`
 - `docs/reports/codex-source-report.md`
+- `docs/reports/codex-source-report-zh.md`
 - `docs/reports/claude-code-vs-codex-comparison.md`
+- `docs/reports/claude-code-vs-codex-comparison-zh.md`
 
 ## Claude Code source archive
 
