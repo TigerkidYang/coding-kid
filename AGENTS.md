@@ -21,6 +21,8 @@ Use these files as the project's durable memory:
 - `docs/ARCHITECTURE.md`: technical design, module boundaries, data flow, and tradeoffs.
 - `docs/DECISIONS.md`: important decisions with date, context, decision, and consequence.
 - `docs/TASKS.md`: active backlog, next actions, and known open questions.
+- `docs/RESEARCH.md`: notes from reading and comparing open-source agent projects.
+- `docs/CONTENT_STRATEGY.md`: teaching article plan, narrative structure, and publishing notes.
 
 If a file does not exist yet, create it when the information becomes useful.
 Do not create empty documentation just to satisfy the list.
@@ -79,5 +81,6 @@ Secrets belong in local environment files that are ignored by Git.
 
 - Repository was cleared on 2026-06-29 for a fresh rebuild.
 - Remote `origin/main` was also cleared and now matches the local empty project baseline.
-- No application architecture has been chosen yet.
-
+- The project direction is to build a Python SWE Agent / Coding Agent from scratch.
+- The project also includes source-code study and teaching-content creation.
+- No detailed application architecture has been chosen yet.
