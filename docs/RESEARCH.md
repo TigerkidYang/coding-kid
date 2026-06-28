@@ -96,6 +96,37 @@ Questions:
 - How are terminal commands and file edits handled?
 - Which parts are product workflow, and which parts are core agent mechanics?
 
+Initial assessment:
+- The author's README says the repository is a backup of source recovered from
+  an npm sourcemap, not an official Anthropic repository.
+- The author says they did not leak the files and collected public findings for
+  research/archival use.
+- The root only contains `README.md`, `assets/`, and `src/`; there is no
+  `package.json` or `tsconfig.json`, so this should be treated as a source
+  archive rather than a directly runnable project.
+- The `src/` tree is substantial: 1902 source files, about 30.9 MB, mostly
+  TypeScript and TSX.
+- The source tree contains plausible implementations for the README's major
+  claims: `main.tsx`, `QueryEngine.ts`, `Tool.ts`, `tools/`, `services/`,
+  `coordinator/`, `buddy/`, `services/autoDream/`, `utils/undercover.ts`, and
+  feature gates such as `KAIROS`, `ULTRAPLAN`, and `COORDINATOR_MODE`.
+- This source archive looks useful for architecture study, but it should not be
+  treated as a clean, buildable upstream dependency.
+
+Good first files to read:
+- `src/query.ts`: async generator core loop and model/tool-message flow.
+- `src/QueryEngine.ts`: high-level query orchestration and app state wiring.
+- `src/Tool.ts`: tool abstraction, permission context, and `buildTool`.
+- `src/tools.ts`: built-in tool registration and tool-set selection.
+- `src/tools/BashTool/BashTool.tsx`: terminal execution, permissions, sandbox,
+  and background execution behavior.
+- `src/tools/FileReadTool/FileReadTool.ts`: file read behavior and limits.
+- `src/tools/FileEditTool/FileEditTool.ts`: edit workflow and validation.
+- `src/services/autoDream/`: long-term memory consolidation.
+- `src/services/compact/`: context compaction.
+- `src/tools/AgentTool/`: subagent/multi-agent mechanics.
+- `src/services/mcp/`: MCP connection and tool/resource integration.
+
 ## OpenAI Codex
 
 Repository:
