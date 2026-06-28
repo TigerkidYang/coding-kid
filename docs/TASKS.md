@@ -25,3 +25,5 @@
   research and teaching-content tracks.
 - 2026-06-29: Captured initial core and advanced SWE Agent research topics in
   `docs/RESEARCH.md`.
+- 2026-06-29: Cloned the first parallel study set into `research/repos/`:
+  Claude Code source archive and OpenAI Codex.

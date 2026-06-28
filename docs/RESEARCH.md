@@ -69,4 +69,55 @@ Useful takeaways:
 
 ## Candidates
 
-No source projects have been selected yet.
+### First Parallel Study Set
+
+## Claude Code source archive
+
+Repository:
+https://github.com/yasasbanukaofficial/claude-code
+
+Local path:
+`research/repos/claude-code`
+
+Snapshot:
+- Stars checked on 2026-06-29: 3612.
+- Default branch: `main`.
+- Local HEAD: `a371abb`.
+
+Why study it:
+Use this repository to study Claude Code's extracted implementation shape and
+compare it with Codex. Focus especially on agent loop, tool calling, prompt
+assembly, permission flow, and terminal/file interaction.
+
+Questions:
+- How is the main loop organized?
+- How are tools represented and dispatched?
+- How is context assembled and compressed?
+- How are terminal commands and file edits handled?
+- Which parts are product workflow, and which parts are core agent mechanics?
+
+## OpenAI Codex
+
+Repository:
+https://github.com/openai/codex
+
+Local path:
+`research/repos/codex`
+
+Snapshot:
+- Stars checked on 2026-06-29: 94189.
+- Default branch: `main`.
+- Local HEAD: `bdd282f`.
+
+Why study it:
+Use Codex as the main open-source reference for a modern terminal coding agent.
+Focus on architecture, sandboxing, approval flow, tool execution, patch/edit
+workflow, CLI design, and how the agent turns user intent into repository
+changes.
+
+Questions:
+- Where is the core agent loop implemented?
+- How are model calls, tools, approvals, and sandboxing connected?
+- How does Codex represent file edits and patches?
+- How does Codex keep terminal UI, task state, and execution state synchronized?
+- Which architectural ideas should be adapted into the Python implementation?
