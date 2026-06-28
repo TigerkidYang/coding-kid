@@ -27,3 +27,5 @@
   `docs/RESEARCH.md`.
 - 2026-06-29: Cloned the first parallel study set into `research/repos/`:
   Claude Code source archive and OpenAI Codex.
+- 2026-06-29: Produced first-pass source reports for Claude Code, Codex, and
+  their comparison under `docs/reports/`.

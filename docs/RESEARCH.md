@@ -71,6 +71,11 @@ Useful takeaways:
 
 ### First Parallel Study Set
 
+Reports:
+- `docs/reports/claude-code-source-report.md`
+- `docs/reports/codex-source-report.md`
+- `docs/reports/claude-code-vs-codex-comparison.md`
+
 ## Claude Code source archive
 
 Repository:
