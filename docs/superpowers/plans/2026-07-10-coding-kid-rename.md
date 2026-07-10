@@ -78,19 +78,19 @@ Expected: The article remains present and its direct brand references use the ne
 - Consumes: Tasks 1 and 2.
 - Produces: A clean content-level rename and a clear report of host-level items that remain external.
 
-- [ ] **Step 1: Scan for legacy names**
+- [x] **Step 1: Scan for legacy names**
 
 Run: `$legacy = 'mini' + 'code'; rg -n --hidden -g '!.git/**' -i -e $legacy .`
 
 Expected: No matches in repository-controlled content.
 
-- [ ] **Step 2: Inspect changes and repository state**
+- [x] **Step 2: Inspect changes and repository state**
 
 Run: `git diff --check` and `git status --short --branch`
 
 Expected: No whitespace errors; only rename-related files are modified or newly added, while pre-existing untracked article drafts remain clearly identifiable.
 
-- [ ] **Step 3: Commit tracked rename changes**
+- [x] **Step 3: Commit tracked rename changes**
 
 Stage only tracked project-memory changes and this plan, excluding pre-existing untracked article drafts unless the user explicitly requests adding them to Git.
 
@@ -98,7 +98,7 @@ Run: `git commit -m "docs: rename project to Coding Kid"`
 
 Expected: A local commit containing only the tracked repository rename.
 
-- [ ] **Step 4: Rename and verify the hosted repository**
+- [x] **Step 4: Rename and verify the hosted repository**
 
 Run: `gh repo rename coding-kid --repo TigerkidYang/<current-name> --yes`
 

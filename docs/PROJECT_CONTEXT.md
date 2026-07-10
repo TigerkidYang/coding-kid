@@ -66,6 +66,8 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its future Python package is `coding_kid`.
+- The canonical repository is
+  `https://github.com/TigerkidYang/coding-kid`.
 - There is no project implementation in the repository.
 - The first version has not been defined.
 - Git and completed-version archive management is defined in
