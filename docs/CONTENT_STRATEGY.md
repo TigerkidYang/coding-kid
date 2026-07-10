@@ -1,45 +1,23 @@
 # Content Strategy
 
-This project includes a teaching-content track alongside implementation and
-research.
+## Status
 
-## Goals
+Article work is inactive while the Coding Agent implementation is the project's
+focus.
 
-- Help the user clarify their own understanding of SWE Agent internals.
-- Turn the from-scratch build process into educational GitHub articles.
-- Adapt the same ideas into X Articles for public publishing.
-- Make the repository a portfolio artifact that demonstrates practical depth.
+Existing drafts under `docs/articles/` are preserved as working material. Do not
+extend, revise, publish, or create Git checkpoints for them unless the user
+explicitly resumes article work.
 
-## Assistant Role
+## When Article Work Resumes
 
-The assistant should act as:
+The user owns the article's structure, claims, voice, and final text. The
+assistant may research, explain, discuss, and perform specifically requested
+editing or publishing operations.
 
-- Drafter: produce first drafts based on the user's thinking and explanations.
-- Editor: revise Markdown files directly and help polish text for publication.
-- Tutor: explain technical details clearly enough that they can become teaching
-  material.
+Article structure, publishing plans, and presentation choices should be decided
+from the actual implementation state at that time. Do not maintain them in
+advance.
 
-The user owns the taste, structure, claims, and final voice of the articles.
-
-## Article Sources
-
-Good article material can come from:
-
-- Source-code reading notes in `docs/RESEARCH.md`.
-- Implementation decisions in `docs/DECISIONS.md`.
-- Architecture notes in `docs/ARCHITECTURE.md`.
-- Step-by-step coding sessions.
-- Mistakes, debugging sessions, and design changes.
-
-## Publishing Targets
-
-- GitHub repository Markdown articles.
-- X Articles on the user's account.
-
-## Open Questions
-
-- What should the first article explain?
-- Should the series start from agent concepts, a code walkthrough, or a build log?
-- Should GitHub articles and X Articles share the same structure or be adapted
-  separately?
-
+When articles resume, historical code should be referenced through stable paths
+under `versions/NN-short-name/`. See `docs/VERSIONING.md` for the archive policy.

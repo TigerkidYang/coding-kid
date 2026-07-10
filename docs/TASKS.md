@@ -1,32 +1,39 @@
 # Tasks
 
-## Active
+## Current Version
 
-- Define the first MVP scope for the Python SWE Agent.
-- Choose the first open-source agent projects to study.
-- Choose the initial Python project structure and development tooling.
-- Draft the first teaching article outline.
-- Create `README.md` once the project direction is clear.
-- Update `docs/ARCHITECTURE.md` after the first architecture decision is made.
+No version is currently defined.
 
-## Open Questions
+## Next Action
 
-- What should the MVP be able to do in its first working demo?
-- Should the first interface be CLI-only, or should it also expose a small local UI?
-- Which open-source agents should be studied first?
-- What article series structure should be used for GitHub and X?
-- What level of self-improvement should be attempted first?
+- Discuss and define the first version when the user is ready.
+- Record its goal, included scope, excluded scope, and completion criteria before
+  implementation begins.
 
-## Done
+## Current Constraints
 
-- 2026-06-29: Cleared the old project locally and remotely.
-- 2026-06-29: Added initial AI-agent memory policy in `AGENTS.md`.
-- 2026-06-29: Defined the project direction as a Python SWE Agent with parallel
-  research and teaching-content tracks.
-- 2026-06-29: Captured initial core and advanced SWE Agent research topics in
-  `docs/RESEARCH.md`.
-- 2026-06-29: Cloned the first parallel study set into `research/repos/`:
-  Claude Code source archive and OpenAI Codex.
-- 2026-06-29: Produced first-pass source reports for Claude Code, Codex, and
-  their comparison under `docs/reports/`.
-- 2026-06-29: Added Chinese versions of the three first-pass source reports.
+- Do not define later versions.
+- Do not implement project code until the user has defined the current version
+  or explicitly delegates a concrete implementation task.
+- Research only as needed to answer questions raised by the current version.
+- Do not work on articles unless the user explicitly resumes article work.
+- Follow `docs/VERSIONING.md` for routine commits and completed-version
+  archives.
+
+## Established Project Operations
+
+- `main` holds the continuously evolving implementation.
+- Coherent, verified increments receive small local commits.
+- A user-declared version completion or transition triggers an archive under
+  `versions/` and a matching annotated Git tag.
+- The agent performs this local Git maintenance automatically within the limits
+  defined in `docs/VERSIONING.md`.
+
+## Available Research
+
+- General research notes: `docs/RESEARCH.md`.
+- Claude Code source reports: `docs/reports/claude-code-source-report.md` and its
+  Chinese version.
+- Codex source reports: `docs/reports/codex-source-report.md` and its Chinese
+  version.
+- Claude Code and Codex comparison reports under `docs/reports/`.

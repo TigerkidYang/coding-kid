@@ -1,63 +1,72 @@
 # Project Context
 
-## Current Purpose
+## Purpose
 
-This repository is being rebuilt from scratch as a hands-on SWE Agent / Coding
-Agent project.
+This repository is a hands-on project for building a Python Coding Agent from
+scratch.
 
-The project has three parallel tracks:
+The immediate objective is to implement a sequence of complete, understandable
+versions. Only the current version matters during implementation. The contents
+of later versions are intentionally left undecided until the user is ready to
+start them.
 
-- Learning and exploration: study strong open-source agent products and explain
-  their implementation details through guided code reading.
-- From-scratch implementation: hand-write a Python agent step by step, starting
-  with an MVP and iterating toward a more modern engineering-grade system.
-- Teaching content creation: turn the learning and implementation process into a
-  series of educational articles for GitHub and X Articles.
+## Working Model
 
-The deeper purpose is not only to ship an MVP. The project should help the user
-thoroughly understand agent internals, produce teaching material that clarifies
-that understanding, and become a portfolio artifact that demonstrates depth in
-SWE agent engineering.
+The project follows an implementation-first, one-version-at-a-time workflow:
 
-## Product Scope
+1. The user decides what the next version should contain.
+2. The version's scope and completion criteria are recorded.
+3. Relevant source code and technical questions are researched as needed.
+4. The user implements the version with the assistant acting as tutor and
+   thinking partner.
+5. The agent maintains small, coherent local commits throughout the work.
+6. The version is verified and archived under `versions/` with a matching Git
+   tag when the user declares it complete or starts the next version.
+7. Only then is the following version discussed.
 
-The target product is a Python SWE Agent / Coding Agent built from scratch.
+There is no standing roadmap for later versions.
 
-Expected long-term capabilities may include:
+The root project on `main` is the continuously evolving implementation. See
+`docs/VERSIONING.md` for the complete Git and teaching-archive policy.
 
-- Understanding a repository and maintaining project memory.
-- Planning and executing coding tasks.
-- Reading, editing, and testing code.
-- Using tools safely.
-- Iterating on itself over time.
-- Approaching the shape of a modern engineering product rather than remaining a
-  toy demo.
+## Research Role
 
-The first implementation target should still be a small MVP.
+Source-code research remains part of the project because implementation may
+depend on understanding how mature Coding Agents solve specific problems.
+
+Research is driven by the needs of the current version. Existing reports under
+`docs/reports/` remain available, and `docs/RESEARCH.md` can be extended when a
+concrete implementation question requires it.
+
+## Article Status
+
+Article work is inactive. Existing drafts under `docs/articles/` are preserved
+without further development. Writing and publishing will resume only when the
+user explicitly chooses to return to them.
 
 ## Collaboration Model
 
-The user is the project lead. The AI assistant supports the user in three roles:
+The user is the project lead and sole implementer of project code unless a
+specific task is explicitly delegated.
 
-- Tutor: answer questions, explain logic, implementation details, and source
-  code while the user learns and writes code by hand.
-- Drafter: turn the user's detailed explanations and teaching direction into
-  article drafts.
-- Text editor: directly edit Markdown files in the repository, and when needed,
-  help edit X Articles through the user's browser tooling.
+The assistant acts as:
 
-## Working Preference
+- Research assistant for source-code and technical questions relevant to the
+  current version.
+- Coding tutor who explains structure, logic, and tradeoffs.
+- Thinking partner who helps the user define version scope and completion
+  criteria.
+- Execution assistant for concrete file or operational changes when directly
+  requested.
 
-The user wants to work in separate chats, each focused on a specific part of the
-project. Each chat should be able to reconstruct the important project context by
-reading versioned files.
+The assistant must not choose future version contents or write project code
+without explicit permission.
 
-The memory system should stay practical:
+## Current State
 
-- Store stable project knowledge.
-- Keep notes short and factual.
-- Update memory when decisions or architecture change.
-- Avoid duplicating details that are obvious from source code.
-
-Because the project spans code, research, and writing, future agents should keep
-these tracks connected but separately documented.
+- There is no project implementation in the repository.
+- The first version has not been defined.
+- Git and completed-version archive management is defined in
+  `docs/VERSIONING.md`.
+- Research notes and reports are available for use during implementation.
+- Article drafts are preserved but inactive.
