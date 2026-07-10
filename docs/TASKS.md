@@ -4,6 +4,9 @@
 
 No version is currently defined.
 
+The project is named Coding Kid. Naming uses `coding-kid` for repository and
+distribution identifiers and `coding_kid` for the future Python package.
+
 ## Next Action
 
 - Discuss and define the first version when the user is ready.

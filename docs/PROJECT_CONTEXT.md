@@ -1,8 +1,8 @@
-# Project Context
+# Coding Kid Project Context
 
 ## Purpose
 
-This repository is a hands-on project for building a Python Coding Agent from
+Coding Kid is a hands-on project for building a Python coding agent from
 scratch.
 
 The immediate objective is to implement a sequence of complete, understandable
@@ -64,6 +64,8 @@ without explicit permission.
 
 ## Current State
 
+- The project is named Coding Kid. Its repository/distribution identifier is
+  `coding-kid`, and its future Python package is `coding_kid`.
 - There is no project implementation in the repository.
 - The first version has not been defined.
 - Git and completed-version archive management is defined in

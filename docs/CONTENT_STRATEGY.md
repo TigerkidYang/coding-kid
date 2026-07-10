@@ -2,7 +2,7 @@
 
 ## Status
 
-Article work is inactive while the Coding Agent implementation is the project's
+Article work is inactive while the Coding Kid implementation is the project's
 focus.
 
 Existing drafts under `docs/articles/` are preserved as working material. Do not

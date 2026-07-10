@@ -3,6 +3,20 @@
 This file records decisions that govern current and future work. Replace or
 remove entries when they no longer describe the project.
 
+## Name the project Coding Kid
+
+Decision:
+Use `Coding Kid` as the human-facing project name, `coding-kid` for repository
+and distribution identifiers, and `coding_kid` for the future Python import
+package.
+
+Consequence:
+Documentation and UI copy use `Coding Kid`. Future repository URLs, package
+metadata, commands that require a distribution name, and archive references use
+`coding-kid` where applicable. Python source paths and imports use `coding_kid`.
+Generic references to the broader coding-agent category remain descriptive and
+are not replaced with the project name.
+
 ## Use repository files as project memory
 
 Decision:

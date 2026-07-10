@@ -5,7 +5,8 @@ Read it at the start of every new chat before changing files.
 
 ## Project Goal
 
-Build a Python Coding Agent from scratch, one complete version at a time.
+Build Coding Kid, a Python coding agent, from scratch, one complete version at a
+time.
 
 The project is implementation-first. Do not create a multi-version roadmap in
 advance. Before work begins on a version, the user will decide what that version
@@ -166,6 +167,7 @@ In particular:
 
 ## Current State
 
+- The project is named Coding Kid.
 - The repository contains no project implementation.
 - The first version has not been defined.
 - Existing source-code research is available to support implementation.
