@@ -65,7 +65,7 @@ without explicit permission.
 ## Current State
 
 - The project is named Coding Kid. Its repository/distribution identifier is
-  `coding-kid`, and its future Python package is `coding_kid`.
+  `coding-kid`, and its Python package is `coding_kid`.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
 - Version 01 is defined as a minimal complete terminal coding agent. Its scope

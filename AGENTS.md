@@ -168,7 +168,10 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
-- The repository contains no project implementation.
-- The first version has not been defined.
+- Version 01 is implemented as a minimal complete terminal coding agent and is
+  locally verified.
+- The root project contains the current implementation, tests, and usage
+  documentation.
+- Version 01 has not yet been archived or tagged as a completed version.
 - Existing source-code research is available to support implementation.
 - Existing article drafts are preserved, and article work is inactive.
