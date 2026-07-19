@@ -74,7 +74,11 @@ without explicit permission.
 - The root implementation now contains the terminal interface, OpenRouter
   provider, output parser, model/tool loop, six local tools, tests, and user
   documentation.
-- Version 01 passes its local automated checks and live OpenRouter smoke tests.
+- Version 01 passed its automated checks and live GPT-5.6 Luna tests. It is
+  preserved under `versions/01-minimal-agent/` and by the annotated tag
+  `version-01-minimal-agent`.
+- No version is currently active. The user will define the next version before
+  implementation resumes.
 - Git and completed-version archive management is defined in
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.

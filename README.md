@@ -85,3 +85,9 @@ Tools run with the permissions of the current user. Use it only in a local test
 project you control.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
+
+## Completed Version
+
+The independently runnable Version 01 checkpoint is preserved at
+[`versions/01-minimal-agent/`](versions/01-minimal-agent/README.md) and by the
+annotated Git tag `version-01-minimal-agent`.

@@ -1,12 +1,11 @@
 # Tasks
 
-## Current Version
+## Most Recently Completed Version
 
 Version 01 is the minimal complete Coding Kid agent.
 
-Implementation status: complete and locally verified. The completed-version
-archive and tag have not been created because the user has not yet declared the
-version complete or started the next version.
+Completion status: verified and archived under `versions/01-minimal-agent/`.
+The matching annotated Git tag is `version-01-minimal-agent`.
 
 ### Goal
 
@@ -57,9 +56,8 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Let the user review and run Version 01.
-- When the user declares the version complete, follow the archive and tag
-  procedure in `docs/VERSIONING.md`.
+- Wait for the user to define the next version's goal, included scope, excluded
+  scope, and completion criteria.
 
 ## Verification
 
@@ -96,8 +94,9 @@ results back to the model, and returns a final response to the user.
 ## Current Constraints
 
 - Do not define later versions.
-- Keep implementation limited to Version 01 as defined above.
-- Research only as needed to answer questions raised by the current version.
+- Do not begin implementation until the user defines the next version.
+- Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
+- Research only as needed to answer a concrete question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.
