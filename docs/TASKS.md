@@ -11,15 +11,15 @@ version complete or started the next version.
 ### Goal
 
 Build a small, understandable Python coding agent that accepts terminal input,
-calls OpenAI, executes local tools when requested, feeds tool results back to
-the model, and returns a final response to the user.
+calls a model through OpenRouter, executes local tools when requested, feeds tool
+results back to the model, and returns a final response to the user.
 
 ### Included Scope
 
 - A plain terminal entry point with a process-local conversation history.
 - Minimal context assembly: system prompt, conversation history, and tool
   definitions.
-- A single OpenAI-backed `provider` that sends a request and returns the raw
+- A single OpenRouter-backed `provider` that sends a request and returns the raw
   response without streaming.
 - Output parsing for assistant text and one or more tool calls.
 - Sequential tool execution and continuation of the agent loop.
@@ -38,7 +38,7 @@ the model, and returns a final response to the user.
 - Persistent conversations, long-term memory, and context compaction.
 - Streaming output and parallel tool execution.
 - TUI, background tasks, plugins, skills, MCP, and advanced observability.
-- Provider abstraction for model vendors other than OpenAI.
+- Abstraction for additional API providers alongside OpenRouter.
 - Sandbox, approval flow, path confinement, and other security boundaries.
 
 ### Completion Criteria
@@ -62,14 +62,15 @@ the model, and returns a final response to the user.
 
 ## Verification
 
-- `uv run --extra dev pytest -q`: 16 tests passed.
+- `uv run --extra dev pytest -q`: 17 tests passed.
 - `uv run --extra dev ruff check src tests`: passed.
 - `uv run --extra dev ruff format --check src tests`: passed.
 - `uv run python -m compileall -q src`: passed.
 - Both `uv run python -m coding_kid` and `uv run coding-kid` started and exited
   normally in terminal smoke tests.
-- A real OpenAI request reached the service but the configured account returned
-  `insufficient_quota`; no live model answer was available for manual testing.
+- A real OpenRouter request returned the expected text response.
+- A real OpenRouter model/tool/model loop called the `read` tool and returned a
+  final answer.
 
 ## Current Constraints
 

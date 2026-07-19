@@ -105,12 +105,12 @@ require explicit permission. The complete policy is in `docs/VERSIONING.md`.
 ## Keep Version 01 minimal and function-based
 
 Decision:
-Build Version 01 as a synchronous terminal agent with one OpenAI provider, an
-in-memory message list, a direct model/tool loop, and ordinary Python tool
+Build Version 01 as a synchronous terminal agent with one OpenRouter provider,
+an in-memory message list, a direct model/tool loop, and ordinary Python tool
 functions stored in an explicit registration dictionary.
 
 Consequence:
-Version 01 does not introduce model-vendor abstractions, tool classes,
+Version 01 does not introduce multiple API-provider abstractions, tool classes,
 streaming, persistence, planning, sandboxing, or TUI infrastructure. It includes
 only the structure required to teach and demonstrate a complete coding-agent
 workflow.

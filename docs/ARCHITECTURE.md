@@ -30,8 +30,9 @@ their results, and repeats until the model returns no more tool calls.
 
 ### `provider.py`
 
-Makes one non-streaming OpenAI request and returns the raw response. It does not
-parse output, manage history, execute tools, or abstract other model vendors.
+Makes one non-streaming OpenRouter request through its OpenAI-compatible API and
+returns the raw response. It does not parse output, manage history, execute
+tools, or abstract a second API provider.
 
 ### `parser.py`
 

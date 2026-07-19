@@ -4,7 +4,7 @@ Coding Kid is a small Python coding agent built for learning. The first version
 shows the complete loop without hiding it behind a framework:
 
 ```text
-user input -> OpenAI -> tool call -> local tool -> OpenAI -> final answer
+user input -> OpenRouter -> tool call -> local tool -> OpenRouter -> final answer
 ```
 
 It runs as a plain terminal conversation and keeps history only while the
@@ -14,14 +14,15 @@ process is running.
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/)
-- An `OPENAI_API_KEY` environment variable
+- `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` environment variables
 
 The API key must stay in the environment. Do not put it in this repository or
 in a committed `.env` file. After setting a user-level environment variable on
 Windows, open a new terminal so Python can inherit it.
 
-Coding Kid uses `gpt-5.4-mini` by default. Set `OPENAI_MODEL` to choose another
-OpenAI model.
+`OPENROUTER_MODEL` must contain an OpenRouter model slug that supports tool
+calling. Coding Kid uses the OpenAI Python SDK only as the small HTTP client for
+OpenRouter's compatible API.
 
 ## Setup
 
@@ -64,7 +65,7 @@ uv run --extra dev ruff format --check src tests
 ```
 
 The tests use a fake provider for the complete agent loop, so they do not call
-OpenAI or spend API credits.
+OpenRouter or spend API credits.
 
 ## First-Version Limits
 
