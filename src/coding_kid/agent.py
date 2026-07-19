@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from coding_kid.parser import parse_output
 from coding_kid.provider import generate
 from coding_kid.tools import dispatch_tool, tool_definitions
 
-SYSTEM_PROMPT = """You are Coding Kid, a coding agent working in the current directory.
+SYSTEM_PROMPT = f"""You are Coding Kid, a coding agent working in the current directory.
 Use the available tools to inspect, change, and verify code when needed.
 Read or search before changing code you have not inspected.
-When the task is complete, explain the result clearly and briefly."""
+When the task is complete, explain the result clearly and briefly.
+Current working directory: {Path.cwd()}
+Configured model (OPENROUTER_MODEL): {os.getenv("OPENROUTER_MODEL", "not set")}
+The execute tool runs commands through Windows cmd.exe. Use Windows commands."""
 
 Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]

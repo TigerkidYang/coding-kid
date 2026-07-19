@@ -63,7 +63,7 @@ results back to the model, and returns a final response to the user.
 
 ## Verification
 
-- `uv run --extra dev pytest -q`: 19 tests passed.
+- `uv run --extra dev pytest -q`: 23 tests passed.
 - `uv run --extra dev ruff check src tests`: passed.
 - `uv run --extra dev ruff format --check src tests`: passed.
 - `uv run python -m compileall -q src`: passed.
@@ -74,6 +74,10 @@ results back to the model, and returns a final response to the user.
   final answer.
 - A live terminal read showed the compact tool action without printing the raw
   file contents.
+- A live request to list the repository root used the Windows `dir` command,
+  completed the model/tool/model loop, and returned a concise final answer.
+- Empty searches are rejected, search results stop after 100 matches, and
+  interrupting an active task returns to the prompt without a traceback.
 
 ## Current Constraints
 

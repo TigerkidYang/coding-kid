@@ -37,6 +37,7 @@ uv run python -m coding_kid
 ```
 
 Enter a coding task at the `You>` prompt. Enter `/exit` or `/quit` to stop.
+Press `Ctrl+C` during an active task to interrupt it and return to the prompt.
 
 Tool actions are printed before the final answer. Normal tool results stay in
 the model context instead of filling the terminal; tool errors are still shown.
@@ -49,10 +50,11 @@ Coding Kid> Created hello.txt.
 
 ## Tools
 
-- `execute`: run one foreground shell command with a 30-second timeout.
+- `execute`: run one foreground Windows `cmd.exe` command with a 30-second
+  timeout.
 - `read`: read a UTF-8 text file.
 - `write`: create or completely overwrite a UTF-8 text file.
-- `search`: search file names and text contents.
+- `search`: search file names and text contents, returning at most 100 matches.
 - `patch`: replace one unique, exact text fragment in a file.
 - `delete`: delete one file.
 

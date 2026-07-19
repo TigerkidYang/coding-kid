@@ -44,7 +44,8 @@ tool call contains its call ID, name, and decoded argument dictionary.
 Contains ordinary functions for command execution and file operations. The
 explicit `TOOLS` dictionary associates each function with the description and
 parameter schema shown to the model. `dispatch_tool` calls the selected function
-and converts exceptions into text the model can use to recover.
+and converts exceptions into text the model can use to recover. Search rejects
+empty queries and caps each result at 100 matches.
 
 ## Context
 
@@ -53,6 +54,9 @@ Each model request contains only:
 - The small system prompt in `agent.py`.
 - The process-local conversation and tool history list.
 - Tool definitions generated from the `TOOLS` dictionary.
+
+The system prompt also tells the model the current working directory, configured
+model, and that command execution uses Windows `cmd.exe`.
 
 There is no persistent session, automatic context trimming, repository
 instruction loading, or long-term memory.

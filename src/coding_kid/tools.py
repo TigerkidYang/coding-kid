@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 ToolFunction = Callable[..., str]
 ToolEntry = dict[str, Any]
+MAX_SEARCH_RESULTS = 100
 
 
 def execute(command: str) -> str:
@@ -42,6 +43,9 @@ def write(path: str, content: str) -> str:
 
 def search(query: str, path: str = ".") -> str:
     """Search file names and UTF-8 text contents below a path."""
+    if not query:
+        raise ValueError("search query must not be empty")
+
     root = Path(path)
     files = (
         [root]
@@ -56,6 +60,8 @@ def search(query: str, path: str = ".") -> str:
         )
         if query in file_path.name:
             matches.append(f"FILE {display_path}")
+            if len(matches) == MAX_SEARCH_RESULTS:
+                return _truncated_search_result(matches)
 
         try:
             lines = file_path.read_text(encoding="utf-8").splitlines()
@@ -65,8 +71,16 @@ def search(query: str, path: str = ".") -> str:
         for line_number, line in enumerate(lines, start=1):
             if query in line:
                 matches.append(f"TEXT {display_path}:{line_number}:{line}")
+                if len(matches) == MAX_SEARCH_RESULTS:
+                    return _truncated_search_result(matches)
 
     return "\n".join(matches) if matches else "No matches found."
+
+
+def _truncated_search_result(matches: list[str]) -> str:
+    """Mark a bounded search result so the model knows more matches exist."""
+    matches.append(f"... search results truncated at {MAX_SEARCH_RESULTS} matches")
+    return "\n".join(matches)
 
 
 def patch(path: str, old_text: str, new_text: str) -> str:
@@ -94,7 +108,9 @@ def delete(path: str) -> str:
 # definitions. Keeping it explicit makes the first version easy to inspect.
 TOOLS: dict[str, ToolEntry] = {
     "execute": {
-        "description": "Run one foreground shell command in the current directory.",
+        "description": (
+            "Run one foreground Windows cmd.exe command in the current directory."
+        ),
         "parameters": {
             "type": "object",
             "properties": {"command": {"type": "string"}},
@@ -131,7 +147,7 @@ TOOLS: dict[str, ToolEntry] = {
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string"},
+                "query": {"type": "string", "minLength": 1},
                 "path": {"type": "string", "default": "."},
             },
             "required": ["query", "path"],

@@ -53,6 +53,9 @@ def chat(
         messages.append({"role": "user", "content": user_input})
         try:
             answer = run_turn(messages, on_tool=show_tool)
+        except KeyboardInterrupt:
+            output_function("\nTask interrupted. You can enter another request.")
+            continue
         except Exception as error:
             output_function(f"Error: {error}")
             continue

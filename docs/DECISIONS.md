@@ -126,3 +126,14 @@ Consequence:
 Users can follow what the agent is doing without printing file contents, search
 matches, command output, write content, or patch text. This is a presentation
 rule in `cli.py`; tool behavior and model context remain unchanged.
+
+## Bound search results before they enter model context
+
+Decision:
+Reject an empty search query and return at most 100 matches from one search tool
+call.
+
+Consequence:
+An accidental empty or broad search cannot recursively copy the repository into
+the next model request. Truncated results are marked so the model can narrow its
+next search.

@@ -47,6 +47,24 @@ def test_chat_reports_an_error_and_keeps_running(monkeypatch: Any) -> None:
     assert any("model unavailable" in line for line in outputs)
 
 
+def test_chat_handles_task_interruption_without_a_traceback(monkeypatch: Any) -> None:
+    inputs = iter(["long task", "/exit"])
+    outputs: list[str] = []
+
+    def interrupted_run_turn(messages: list[Any], on_tool: Any) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "run_turn", interrupted_run_turn)
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=outputs.append,
+    )
+
+    assert any("Task interrupted" in line for line in outputs)
+    assert outputs[-1] == "Goodbye."
+
+
 def test_chat_hides_tool_results_but_shows_tool_errors(monkeypatch: Any) -> None:
     inputs = iter(["inspect files", "/exit"])
     outputs: list[str] = []

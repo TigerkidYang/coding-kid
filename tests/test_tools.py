@@ -57,6 +57,24 @@ def test_search_finds_file_names_and_text(tmp_path: Path) -> None:
     assert "TEXT other.py:1:a needle in text" in result
 
 
+def test_search_rejects_an_empty_query() -> None:
+    result = dispatch_tool("search", {"query": "", "path": "."})
+
+    assert result == "ERROR: ValueError: search query must not be empty"
+
+
+def test_search_truncates_large_results(tmp_path: Path) -> None:
+    path = tmp_path / "many.txt"
+    path.write_text(
+        "\n".join(f"match {number}" for number in range(150)), encoding="utf-8"
+    )
+
+    result = dispatch_tool("search", {"query": "match", "path": str(tmp_path)})
+
+    assert len(result.splitlines()) == 101
+    assert result.endswith("... search results truncated at 100 matches")
+
+
 def test_delete_removes_file(tmp_path: Path) -> None:
     path = tmp_path / "temporary.txt"
     path.write_text("temporary", encoding="utf-8")
@@ -91,3 +109,4 @@ def test_every_tool_has_model_visible_metadata() -> None:
         assert tool["description"]
         assert tool["parameters"]["type"] == "object"
         assert callable(tool["function"]), name
+    assert TOOLS["search"]["parameters"]["properties"]["query"]["minLength"] == 1

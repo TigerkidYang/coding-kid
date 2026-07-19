@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -104,3 +105,9 @@ def test_run_turn_stops_after_maximum_steps() -> None:
 
     with pytest.raises(RuntimeError, match="maximum"):
         run_turn([], endless_provider, max_steps=2)
+
+
+def test_system_prompt_describes_the_runtime() -> None:
+    assert str(Path.cwd()) in SYSTEM_PROMPT
+    assert "OPENROUTER_MODEL" in SYSTEM_PROMPT
+    assert "cmd.exe" in SYSTEM_PROMPT
