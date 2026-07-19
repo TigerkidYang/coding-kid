@@ -143,7 +143,8 @@ def test_execute_returns_exit_code_stdout_and_stderr() -> None:
 
 def test_execute_timeout_becomes_a_tool_error(monkeypatch: Any) -> None:
     def time_out(*args: Any, **kwargs: Any) -> None:
-        raise subprocess.TimeoutExpired("slow command", 30)
+        assert kwargs["timeout"] == 120
+        raise subprocess.TimeoutExpired("slow command", 120)
 
     monkeypatch.setattr(subprocess, "run", time_out)
 

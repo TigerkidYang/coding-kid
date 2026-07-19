@@ -55,7 +55,8 @@ parameter schema shown to the model. `dispatch_tool` calls the selected function
 and converts exceptions into text the model can use to recover. Search rejects
 empty queries, skips common generated directories and files larger than 1 MB,
 and caps each result at 100 matches. Every tool result is capped at 50,000
-characters before it enters model context.
+characters before it enters model context. Foreground commands have a fixed
+two-minute timeout.
 
 ## Context
 

@@ -52,7 +52,7 @@ Coding Kid> Created hello.txt.
 
 ## Tools
 
-- `execute`: run one foreground Windows `cmd.exe` command with a 30-second
+- `execute`: run one foreground Windows `cmd.exe` command with a 2-minute
   timeout.
 - `read`: read a UTF-8 text file.
 - `write`: create or completely overwrite a UTF-8 text file.
@@ -95,6 +95,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 The independently runnable Version 01 checkpoint is preserved at
 [`versions/01-minimal-agent/`](versions/01-minimal-agent/README.md) and by the
-original annotated Git tag `version-01-minimal-agent`. The verified maintenance
-correction is tagged `version-01-minimal-agent-fix1` without moving the original
-tag.
+original annotated Git tag `version-01-minimal-agent`. The final verified
+checkpoint is tagged `version-01-minimal-agent-fix2` without moving either
+earlier tag.

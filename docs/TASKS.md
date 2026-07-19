@@ -5,8 +5,8 @@
 Version 01 is the minimal complete Coding Kid agent.
 
 Completion status: verified and archived under `versions/01-minimal-agent/`.
-The original annotated Git tag is `version-01-minimal-agent`; the verified
-maintenance correction is `version-01-minimal-agent-fix1`.
+The original annotated Git tag is `version-01-minimal-agent`; the final verified
+checkpoint is `version-01-minimal-agent-fix2`.
 
 ### Goal
 
@@ -80,6 +80,8 @@ results back to the model, and returns a final response to the user.
 - Empty final responses, partial-history rollback, bounded tool output, search
   pruning, provider timeouts, and compact terminal rendering have regression
   coverage.
+- Foreground commands have a fixed two-minute execution timeout, with regression
+  coverage for the configured value and timeout error path.
 - An eight-turn live GPT-5.6 Luna matrix passed pure chat, directory listing,
   write/read, patch/read, search, missing-file recovery, delete verification,
   and multi-turn recall with nine tool calls.

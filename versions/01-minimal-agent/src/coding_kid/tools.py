@@ -33,7 +33,7 @@ def execute(command: str) -> str:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=30,
+        timeout=120,
         check=False,
     )
     stdout = completed.stdout.rstrip()
