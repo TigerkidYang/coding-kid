@@ -17,6 +17,7 @@ results back to the model, and returns a final response to the user.
 ### Included Scope
 
 - A plain terminal entry point with a process-local conversation history.
+- Compact tool activity that hides successful raw results but shows errors.
 - Minimal context assembly: system prompt, conversation history, and tool
   definitions.
 - A single OpenRouter-backed `provider` that sends a request and returns the raw
@@ -62,7 +63,7 @@ results back to the model, and returns a final response to the user.
 
 ## Verification
 
-- `uv run --extra dev pytest -q`: 17 tests passed.
+- `uv run --extra dev pytest -q`: 19 tests passed.
 - `uv run --extra dev ruff check src tests`: passed.
 - `uv run --extra dev ruff format --check src tests`: passed.
 - `uv run python -m compileall -q src`: passed.
@@ -71,6 +72,8 @@ results back to the model, and returns a final response to the user.
 - A real OpenRouter request returned the expected text response.
 - A real OpenRouter model/tool/model loop called the `read` tool and returned a
   final answer.
+- A live terminal read showed the compact tool action without printing the raw
+  file contents.
 
 ## Current Constraints
 

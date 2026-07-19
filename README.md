@@ -38,12 +38,12 @@ uv run python -m coding_kid
 
 Enter a coding task at the `You>` prompt. Enter `/exit` or `/quit` to stop.
 
-Tool calls and their results are printed before the final answer:
+Tool actions are printed before the final answer. Normal tool results stay in
+the model context instead of filling the terminal; tool errors are still shown.
 
 ```text
 You> Create hello.txt containing Hello
-[tool] write {"path": "hello.txt", "content": "Hello"}
-Wrote hello.txt
+[tool] write: hello.txt
 Coding Kid> Created hello.txt.
 ```
 

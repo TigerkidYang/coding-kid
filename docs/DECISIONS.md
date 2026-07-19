@@ -114,3 +114,15 @@ Version 01 does not introduce multiple API-provider abstractions, tool classes,
 streaming, persistence, planning, sandboxing, or TUI infrastructure. It includes
 only the structure required to teach and demonstrate a complete coding-agent
 workflow.
+
+## Keep raw tool results inside the agent loop
+
+Decision:
+Show each tool's action and target in the terminal, but keep successful raw
+results inside the model context. Show the complete result only when it is an
+error.
+
+Consequence:
+Users can follow what the agent is doing without printing file contents, search
+matches, command output, write content, or patch text. This is a presentation
+rule in `cli.py`; tool behavior and model context remain unchanged.

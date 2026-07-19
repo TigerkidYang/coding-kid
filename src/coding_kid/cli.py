@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from typing import Any
 
@@ -10,6 +9,19 @@ from coding_kid.agent import run_turn
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
+
+
+def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
+    """Describe a tool action without exposing its input or output contents."""
+    if name == "execute":
+        return f"[tool] execute: {arguments.get('command', '?')}"
+    if name == "search":
+        query = arguments.get("query", "?")
+        path = arguments.get("path", ".")
+        return f'[tool] search: "{query}" in {path}'
+    if name in {"read", "write", "patch", "delete"}:
+        return f"[tool] {name}: {arguments.get('path', '?')}"
+    return f"[tool] {name}"
 
 
 def chat(
@@ -21,9 +33,9 @@ def chat(
     output_function("Coding Kid is ready. Type /exit to quit.")
 
     def show_tool(name: str, arguments: dict[str, Any], result: str) -> None:
-        rendered_arguments = json.dumps(arguments, ensure_ascii=False)
-        output_function(f"[tool] {name} {rendered_arguments}")
-        output_function(result)
+        output_function(format_tool_call(name, arguments))
+        if result.startswith("ERROR:"):
+            output_function(result)
 
     while True:
         try:
