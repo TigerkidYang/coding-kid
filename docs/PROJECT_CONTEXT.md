@@ -71,6 +71,10 @@ without explicit permission.
 - Version 01 is defined as a minimal complete terminal coding agent. Its scope
   and completion criteria are recorded in `docs/TASKS.md`.
 - The user explicitly delegated implementation of Version 01 to the assistant.
+- The root implementation now contains the terminal interface, OpenAI provider,
+  output parser, model/tool loop, six local tools, tests, and user documentation.
+- Version 01 passes its local automated checks. A live provider request is
+  currently prevented by insufficient OpenAI account quota.
 - Git and completed-version archive management is defined in
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.

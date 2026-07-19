@@ -4,6 +4,10 @@
 
 Version 01 is the minimal complete Coding Kid agent.
 
+Implementation status: complete and locally verified. The completed-version
+archive and tag have not been created because the user has not yet declared the
+version complete or started the next version.
+
 ### Goal
 
 Build a small, understandable Python coding agent that accepts terminal input,
@@ -52,7 +56,20 @@ the model, and returns a final response to the user.
 
 ## Next Action
 
-- Implement and verify Version 01 against its completion criteria.
+- Let the user review and run Version 01.
+- When the user declares the version complete, follow the archive and tag
+  procedure in `docs/VERSIONING.md`.
+
+## Verification
+
+- `uv run --extra dev pytest -q`: 16 tests passed.
+- `uv run --extra dev ruff check src tests`: passed.
+- `uv run --extra dev ruff format --check src tests`: passed.
+- `uv run python -m compileall -q src`: passed.
+- Both `uv run python -m coding_kid` and `uv run coding-kid` started and exited
+  normally in terminal smoke tests.
+- A real OpenAI request reached the service but the configured account returned
+  `insufficient_quota`; no live model answer was available for manual testing.
 
 ## Current Constraints
 
