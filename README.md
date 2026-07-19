@@ -77,6 +77,11 @@ model to continue. Repeated empty responses become a visible error instead of a
 blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
 history before the next prompt.
 
+Each user turn executes at most 12 tool calls. Calls beyond that budget are
+skipped internally and the model is instructed to answer from evidence already
+collected. Repository-overview requests are guided toward selective inspection
+instead of recursive trees, dependency scans, test runs, or Git archaeology.
+
 ## First-Version Limits
 
 This teaching version intentionally has no TUI, persistent history, streaming,
@@ -90,4 +95,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 The independently runnable Version 01 checkpoint is preserved at
 [`versions/01-minimal-agent/`](versions/01-minimal-agent/README.md) and by the
-annotated Git tag `version-01-minimal-agent`.
+original annotated Git tag `version-01-minimal-agent`. The verified maintenance
+correction is tagged `version-01-minimal-agent-fix1` without moving the original
+tag.

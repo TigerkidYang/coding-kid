@@ -18,7 +18,7 @@ def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
         rendered = f"[tool] execute: {arguments.get('command', '?')}"
     elif name == "search":
         query = arguments.get("query", "?")
-        path = arguments.get("path", ".")
+        path = arguments.get("path") or "."
         rendered = f'[tool] search: "{query}" in {path}'
     elif name in {"read", "write", "patch", "delete"}:
         rendered = f"[tool] {name}: {arguments.get('path', '?')}"

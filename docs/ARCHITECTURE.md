@@ -30,7 +30,10 @@ the raw model output in history, executes requested tools sequentially, appends
 their results, and repeats until the model returns no more tool calls. Changes
 to conversation history are committed only after a successful final answer. A
 single empty model response is retried; a repeated empty response becomes an
-explicit error.
+explicit error. The retry receives a direct recovery instruction rather than
+the unchanged prompt. A turn executes at most 12 tools; later requested calls
+receive matched skipped outputs and the model is instructed to answer from the
+evidence already available.
 
 ### `provider.py`
 
@@ -63,7 +66,10 @@ Each model request contains only:
 - Tool definitions generated from the `TOOLS` dictionary.
 
 The system prompt also tells the model the current working directory, configured
-model, and that command execution uses Windows `cmd.exe`.
+model, and that command execution uses Windows `cmd.exe`. It requires registered
+tool names and non-empty parameters, and gives repository-overview tasks a
+selective inspection strategy that avoids recursive trees, dependencies, tests,
+Git state, and version archives unless requested.
 
 There is no persistent session, automatic context trimming, repository
 instruction loading, or long-term memory.
@@ -78,5 +84,6 @@ instruction loading, or long-term memory.
 6. The agent calls the provider again.
 7. A response without tool calls becomes the final answer.
 
-The loop stops with an error after 20 model/tool steps to avoid an accidental
-infinite loop.
+The loop stops with an error after 20 model/tool steps and stops executing new
+tools after 12 calls in one turn. These separate limits bound both repeated
+model rounds and large parallel tool batches.

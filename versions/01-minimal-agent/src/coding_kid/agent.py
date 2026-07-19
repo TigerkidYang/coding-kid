@@ -12,16 +12,38 @@ from coding_kid.provider import generate
 from coding_kid.tools import dispatch_tool, tool_definitions
 
 SYSTEM_PROMPT = f"""You are Coding Kid, a coding agent working in the current directory.
+Only call the tools provided in the current request. Never invent tool names.
 Use the available tools to inspect, change, and verify code when needed.
 Read or search before changing code you have not inspected.
+Use "." for the current directory; never send an empty path or search query.
+Use the fewest tool calls needed and stop gathering once you can answer.
+For repository overviews, inspect only the top level, README, project configuration,
+one relevant architecture/context document, and source/test file names. Do not read
+every file, run tests, inspect Git state or diffs, inspect version archives, run
+recursive tree commands, or inspect virtual environments, caches, or dependencies
+unless the user specifically asks.
+After using tools, always answer the user with the useful result. Never finish
+with only internal reasoning or an empty response.
 When the task is complete, explain the result clearly and briefly.
 Current working directory: {Path.cwd()}
 Configured model (OPENROUTER_MODEL): {os.getenv("OPENROUTER_MODEL", "not set")}
 The execute tool runs commands through Windows cmd.exe. Use Windows commands."""
 
+EMPTY_RESPONSE_RECOVERY = """
+
+Recovery instruction: The previous response was empty. Use the information and
+tool results already available, and answer the user now. Do not return only
+reasoning. Call another provided tool only if a specific missing fact requires it."""
+
+TOOL_BUDGET_RECOVERY = """
+
+Tool-call budget reached: Do not call any more tools in this turn. Use the
+evidence already available and answer the user now."""
+
 Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
 MAX_EMPTY_RESPONSES = 2
+MAX_TOOL_CALLS_PER_TURN = 12
 
 
 def run_turn(
@@ -35,9 +57,11 @@ def run_turn(
     tools = tool_definitions()
     working_messages = list(messages)
     empty_responses = 0
+    tool_calls_executed = 0
+    instructions = SYSTEM_PROMPT
 
     for _ in range(max_steps):
-        response = call_provider(SYSTEM_PROMPT, working_messages, tools)
+        response = call_provider(instructions, working_messages, tools)
 
         # Parse before changing history so malformed provider output cannot
         # leave an incomplete turn behind.
@@ -54,15 +78,29 @@ def run_turn(
             empty_responses += 1
             if empty_responses >= MAX_EMPTY_RESPONSES:
                 raise RuntimeError("Model returned repeated empty responses")
+            instructions = f"{SYSTEM_PROMPT}{EMPTY_RESPONSE_RECOVERY}"
+            if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
             continue
 
         empty_responses = 0
+        tool_budget_reached = tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
 
         # Multiple calls are deliberately sequential in this first version.
         for tool_call in parsed.tool_calls:
-            result = dispatch_tool(tool_call.name, tool_call.arguments)
-            if on_tool is not None:
-                on_tool(tool_call.name, tool_call.arguments, result)
+            if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                result = (
+                    "Tool call skipped: the per-turn tool-call budget was reached. "
+                    "Use the results already available and answer the user."
+                )
+                tool_budget_reached = True
+            else:
+                result = dispatch_tool(tool_call.name, tool_call.arguments)
+                tool_calls_executed += 1
+                if on_tool is not None:
+                    on_tool(tool_call.name, tool_call.arguments, result)
+                if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                    tool_budget_reached = True
             working_messages.append(
                 {
                     "type": "function_call_output",
@@ -70,5 +108,9 @@ def run_turn(
                     "output": result,
                 }
             )
+
+        instructions = SYSTEM_PROMPT
+        if tool_budget_reached:
+            instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
 
     raise RuntimeError("Agent reached the maximum number of model/tool steps")

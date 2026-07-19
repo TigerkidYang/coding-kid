@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 import coding_kid.agent as agent_module
-from coding_kid.agent import SYSTEM_PROMPT, run_turn
+from coding_kid.agent import MAX_TOOL_CALLS_PER_TURN, SYSTEM_PROMPT, run_turn
 
 
 def tool_call(call_id: str, name: str, arguments: dict[str, Any]) -> SimpleNamespace:
@@ -107,6 +107,57 @@ def test_run_turn_stops_after_maximum_steps() -> None:
         run_turn([], endless_provider, max_steps=2)
 
 
+def test_run_turn_stops_executing_tools_at_the_per_turn_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_calls = [
+        tool_call(f"call-{number}", "read", {"path": f"file-{number}.py"})
+        for number in range(MAX_TOOL_CALLS_PER_TURN + 3)
+    ]
+    responses = iter(
+        [
+            SimpleNamespace(output=requested_calls),
+            SimpleNamespace(output=[text_message("Enough evidence.")]),
+        ]
+    )
+    executed: list[str] = []
+    observed: list[str] = []
+    provider_inputs: list[tuple[str, list[Any]]] = []
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        provider_inputs.append((instructions, list(messages)))
+        return next(responses)
+
+    def dispatch(name: str, arguments: dict[str, Any]) -> str:
+        executed.append(arguments["path"])
+        return "read result"
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", dispatch)
+
+    answer = run_turn(
+        [],
+        provider,
+        on_tool=lambda name, arguments, result: observed.append(arguments["path"]),
+    )
+
+    assert answer == "Enough evidence."
+    assert len(executed) == MAX_TOOL_CALLS_PER_TURN
+    assert observed == executed
+    assert "tool-call budget" in provider_inputs[1][0].lower()
+    skipped_outputs = [
+        item["output"]
+        for item in provider_inputs[1][1]
+        if isinstance(item, dict)
+        and item.get("type") == "function_call_output"
+        and item["output"].startswith("Tool call skipped")
+    ]
+    assert len(skipped_outputs) == 3
+
+
 def test_run_turn_retries_one_empty_model_response() -> None:
     responses = iter(
         [
@@ -117,21 +168,23 @@ def test_run_turn_retries_one_empty_model_response() -> None:
             ),
         ]
     )
-    provider_calls = 0
+    provider_instructions: list[str] = []
 
     def sometimes_empty_provider(
         instructions: str,
         messages: list[Any],
         tools: list[dict[str, Any]],
     ) -> SimpleNamespace:
-        nonlocal provider_calls
-        provider_calls += 1
+        provider_instructions.append(instructions)
         return next(responses)
 
     answer = run_turn([], sometimes_empty_provider)
 
     assert answer == "Recovered answer."
-    assert provider_calls == 2
+    assert len(provider_instructions) == 2
+    assert provider_instructions[0] == SYSTEM_PROMPT
+    assert "previous response was empty" in provider_instructions[1].lower()
+    assert "answer the user now" in provider_instructions[1].lower()
 
 
 def test_run_turn_recovers_from_an_empty_response_after_a_tool(
@@ -149,15 +202,14 @@ def test_run_turn_recovers_from_an_empty_response_after_a_tool(
             ),
         ]
     )
-    provider_calls = 0
+    provider_instructions: list[str] = []
 
     def provider(
         instructions: str,
         messages: list[Any],
         tools: list[dict[str, Any]],
     ) -> SimpleNamespace:
-        nonlocal provider_calls
-        provider_calls += 1
+        provider_instructions.append(instructions)
         return next(responses)
 
     monkeypatch.setattr(agent_module, "dispatch_tool", lambda name, arguments: "files")
@@ -165,7 +217,28 @@ def test_run_turn_recovers_from_an_empty_response_after_a_tool(
     answer = run_turn([], provider)
 
     assert answer == "Directory described."
-    assert provider_calls == 3
+    assert len(provider_instructions) == 3
+    assert provider_instructions[:2] == [SYSTEM_PROMPT, SYSTEM_PROMPT]
+    assert "answer the user now" in provider_instructions[2].lower()
+
+
+def test_run_turn_recovers_after_an_unknown_tool_call() -> None:
+    responses = iter(
+        [
+            SimpleNamespace(output=[tool_call("call-1", "print_tree", {"path": "."})]),
+            SimpleNamespace(output=[text_message("Repository understood.")]),
+        ]
+    )
+    observed: list[tuple[str, str]] = []
+
+    answer = run_turn(
+        [],
+        lambda instructions, messages, tools: next(responses),
+        on_tool=lambda name, arguments, result: observed.append((name, result)),
+    )
+
+    assert answer == "Repository understood."
+    assert observed == [("print_tree", "ERROR: Unknown tool: print_tree")]
 
 
 def test_run_turn_rejects_repeated_empty_model_responses() -> None:
@@ -215,3 +288,9 @@ def test_system_prompt_describes_the_runtime() -> None:
     assert str(Path.cwd()) in SYSTEM_PROMPT
     assert "OPENROUTER_MODEL" in SYSTEM_PROMPT
     assert "cmd.exe" in SYSTEM_PROMPT
+    assert "only call the tools provided" in SYSTEM_PROMPT.lower()
+    assert "recursive tree commands" in SYSTEM_PROMPT.lower()
+    assert 'use "."' in SYSTEM_PROMPT.lower()
+    assert "use the fewest tool calls" in SYSTEM_PROMPT.lower()
+    assert "every file" in SYSTEM_PROMPT.lower()
+    assert "run tests" in SYSTEM_PROMPT.lower()

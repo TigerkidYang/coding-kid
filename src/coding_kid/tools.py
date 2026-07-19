@@ -170,7 +170,10 @@ TOOLS: dict[str, ToolEntry] = {
         "function": write,
     },
     "search": {
-        "description": "Search file names and text contents below a path.",
+        "description": (
+            "Search for a literal non-empty substring in file names and text "
+            "contents below a path. This is not a glob search."
+        ),
         "parameters": {
             "type": "object",
             "properties": {

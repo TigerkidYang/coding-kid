@@ -172,7 +172,8 @@ In particular:
 - The root project contains the current implementation, tests, and usage
   documentation.
 - Version 01 is preserved under `versions/01-minimal-agent/` and by the
-  annotated tag `version-01-minimal-agent`.
+  original annotated tag `version-01-minimal-agent`. Its verified maintenance
+  correction is tagged `version-01-minimal-agent-fix1`.
 - No later version is currently defined. Wait for the user to define it.
 - Existing source-code research is available to support implementation.
 - Existing article drafts are preserved, and article work is inactive.

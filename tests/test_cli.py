@@ -189,3 +189,9 @@ def test_format_tool_call_bounds_and_flattens_model_arguments() -> None:
     assert "\n" not in rendered
     assert len(rendered) <= 140
     assert rendered.endswith("...")
+
+
+def test_format_search_call_displays_an_empty_path_as_current_directory() -> None:
+    rendered = cli.format_tool_call("search", {"query": "def ", "path": ""})
+
+    assert rendered == '[tool] search: "def " in .'

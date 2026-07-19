@@ -76,7 +76,8 @@ without explicit permission.
   documentation.
 - Version 01 passed its automated checks and live GPT-5.6 Luna tests. It is
   preserved under `versions/01-minimal-agent/` and by the annotated tag
-  `version-01-minimal-agent`.
+  `version-01-minimal-agent`. The verified maintenance correction is tagged
+  `version-01-minimal-agent-fix1`; the original tag remains unchanged.
 - No version is currently active. The user will define the next version before
   implementation resumes.
 - Git and completed-version archive management is defined in

@@ -59,6 +59,17 @@ def test_search_finds_file_names_and_text(tmp_path: Path) -> None:
     assert "TEXT other.py:1:a needle in text" in result
 
 
+def test_search_treats_an_empty_path_as_the_current_directory(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "module.py").write_text("needle\n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": ""})
+
+    assert "TEXT module.py:1:needle" in result
+
+
 def test_search_rejects_an_empty_query() -> None:
     result = dispatch_tool("search", {"query": "", "path": "."})
 
@@ -153,6 +164,8 @@ def test_every_tool_has_model_visible_metadata() -> None:
         assert tool["parameters"]["type"] == "object"
         assert callable(tool["function"]), name
     assert TOOLS["search"]["parameters"]["properties"]["query"]["minLength"] == 1
+    assert "literal" in TOOLS["search"]["description"]
+    assert "not a glob" in TOOLS["search"]["description"]
     assert TOOLS["execute"]["parameters"]["properties"]["command"]["minLength"] == 1
     for name in {"read", "write", "search", "patch", "delete"}:
         assert TOOLS[name]["parameters"]["properties"]["path"]["minLength"] == 1

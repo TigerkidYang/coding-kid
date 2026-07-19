@@ -44,8 +44,8 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-The first version is currently undefined. Agents may help the user think through
-it but must not choose its contents in advance.
+Version 01 is complete. No later version is currently defined; agents wait for
+the user to choose its contents before implementation resumes.
 
 ## Use research to support the current implementation
 
@@ -149,3 +149,16 @@ finishes successfully, and roll back failed or interrupted CLI turns.
 Consequence:
 The terminal never presents a blank `Coding Kid>` response as success, and an
 incomplete provider response cannot corrupt the following conversation turn.
+
+## Bound tool calls as well as tool output
+
+Decision:
+Execute at most 12 model-requested tools in one user turn. Provide a matched
+skipped result for later calls and explicitly instruct the model to answer from
+evidence already collected. Guide broad repository-overview requests toward a
+small, selective evidence set.
+
+Consequence:
+A model cannot turn a simple overview into an unbounded recursive inspection or
+large parallel batch. Skipped calls preserve the provider's function-call
+protocol without appearing in the terminal as completed work.

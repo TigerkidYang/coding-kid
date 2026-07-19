@@ -5,7 +5,8 @@
 Version 01 is the minimal complete Coding Kid agent.
 
 Completion status: verified and archived under `versions/01-minimal-agent/`.
-The matching annotated Git tag is `version-01-minimal-agent`.
+The original annotated Git tag is `version-01-minimal-agent`; the verified
+maintenance correction is `version-01-minimal-agent-fix1`.
 
 ### Goal
 
@@ -61,7 +62,7 @@ results back to the model, and returns a final response to the user.
 
 ## Verification
 
-- `uv run --extra dev pytest -q`: 38 tests passed.
+- `uv run --extra dev pytest -q`: 42 tests passed.
 - `uv run --extra dev ruff check src tests`: passed.
 - `uv run --extra dev ruff format --check src tests`: passed.
 - `uv run python -m compileall -q src`: passed.
@@ -90,6 +91,12 @@ results back to the model, and returns a final response to the user.
   returned its final answer without requiring a second user prompt.
 - A live identity check returned `openai/gpt-5.6-luna` instead of inventing a
   different model name.
+- Three strict live runs of `理解一下这个仓库` completed in 25.2–31.5 seconds
+  with 9–12 executed tools, no unknown tools, empty parameters, recursive tree,
+  tests, Git inspection, tool errors, or blank final answers.
+- The same repository-understanding request passed through the real CLI with a
+  direct evidence-based final answer. Tool-budget recovery was exercised in
+  both automated and live tests.
 
 ## Current Constraints
 

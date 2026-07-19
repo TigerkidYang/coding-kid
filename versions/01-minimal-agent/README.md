@@ -1,8 +1,9 @@
 # Coding Kid — Version 01: Minimal Agent
 
 This directory is the independently runnable checkpoint for the first complete
-version of Coding Kid. The matching annotated Git tag is
-`version-01-minimal-agent`.
+version of Coding Kid. The original annotated tag is
+`version-01-minimal-agent`. A post-completion reliability correction is captured
+by `version-01-minimal-agent-fix1`; the original tag remains unchanged.
 
 ## Goal
 
@@ -17,6 +18,7 @@ prints a final answer.
 - One OpenRouter provider using the OpenAI-compatible Responses API.
 - Parsing for assistant text and multiple function calls.
 - A sequential model/tool loop with empty-response recovery.
+- A 12-call per-turn tool budget and selective repository-overview behavior.
 - Function-based `execute`, `read`, `write`, `search`, `patch`, and `delete`
   tools.
 - Compact terminal tool activity with bounded model-visible tool results.
@@ -61,10 +63,12 @@ uv run --extra dev ruff format --check src tests
 uv run python -m compileall -q src
 ```
 
-At completion, all 38 tests and all listed quality checks passed. Live GPT-5.6
+After the maintenance correction, all 42 tests and all listed quality checks
+passed. Live GPT-5.6
 Luna verification covered pure conversation, directory inspection, every file
 tool, command execution, tool-error recovery, multiple actions in one turn,
-multi-turn recall, and repeated non-empty final answers.
+multi-turn recall, repeated non-empty final answers, and three strict runs of
+the open-ended `理解一下这个仓库` task.
 
 ## Historical Status
 
