@@ -20,19 +20,24 @@ cli.py
 
 Owns the outer conversation loop. It reads terminal input, appends user
 messages to one in-memory list, shows tool activity, and prints the final model
-answer.
+answer. Failed or interrupted turns are rolled back before accepting the next
+prompt, and blank answers are never printed as successful responses.
 
 ### `agent.py`
 
 Owns the inner agent loop. It sends the current context to the provider, keeps
 the raw model output in history, executes requested tools sequentially, appends
-their results, and repeats until the model returns no more tool calls.
+their results, and repeats until the model returns no more tool calls. Changes
+to conversation history are committed only after a successful final answer. A
+single empty model response is retried; a repeated empty response becomes an
+explicit error.
 
 ### `provider.py`
 
 Makes one non-streaming OpenRouter request through its OpenAI-compatible API and
 returns the raw response. It does not parse output, manage history, execute
-tools, or abstract a second API provider.
+tools, or abstract a second API provider. Requests use a 120-second timeout and
+the client's two automatic retries.
 
 ### `parser.py`
 
@@ -45,7 +50,9 @@ Contains ordinary functions for command execution and file operations. The
 explicit `TOOLS` dictionary associates each function with the description and
 parameter schema shown to the model. `dispatch_tool` calls the selected function
 and converts exceptions into text the model can use to recover. Search rejects
-empty queries and caps each result at 100 matches.
+empty queries, skips common generated directories and files larger than 1 MB,
+and caps each result at 100 matches. Every tool result is capped at 50,000
+characters before it enters model context.
 
 ## Context
 

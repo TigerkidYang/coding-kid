@@ -9,19 +9,26 @@ from coding_kid.agent import run_turn
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
+MAX_TOOL_DISPLAY_CHARS = 140
 
 
 def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
     """Describe a tool action without exposing its input or output contents."""
     if name == "execute":
-        return f"[tool] execute: {arguments.get('command', '?')}"
-    if name == "search":
+        rendered = f"[tool] execute: {arguments.get('command', '?')}"
+    elif name == "search":
         query = arguments.get("query", "?")
         path = arguments.get("path", ".")
-        return f'[tool] search: "{query}" in {path}'
-    if name in {"read", "write", "patch", "delete"}:
-        return f"[tool] {name}: {arguments.get('path', '?')}"
-    return f"[tool] {name}"
+        rendered = f'[tool] search: "{query}" in {path}'
+    elif name in {"read", "write", "patch", "delete"}:
+        rendered = f"[tool] {name}: {arguments.get('path', '?')}"
+    else:
+        rendered = f"[tool] {name}"
+
+    rendered = " ".join(str(rendered).splitlines())
+    if len(rendered) > MAX_TOOL_DISPLAY_CHARS:
+        return f"{rendered[: MAX_TOOL_DISPLAY_CHARS - 3]}..."
+    return rendered
 
 
 def chat(
@@ -50,13 +57,18 @@ def chat(
         if not user_input:
             continue
 
+        turn_start = len(messages)
         messages.append({"role": "user", "content": user_input})
         try:
             answer = run_turn(messages, on_tool=show_tool)
+            if not answer.strip():
+                raise RuntimeError("Model returned an empty answer")
         except KeyboardInterrupt:
+            del messages[turn_start:]
             output_function("\nTask interrupted. You can enter another request.")
             continue
         except Exception as error:
+            del messages[turn_start:]
             output_function(f"Error: {error}")
             continue
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -9,6 +10,18 @@ from typing import Any, Callable
 ToolFunction = Callable[..., str]
 ToolEntry = dict[str, Any]
 MAX_SEARCH_RESULTS = 100
+MAX_SEARCH_FILE_BYTES = 1_000_000
+MAX_TOOL_OUTPUT_CHARS = 50_000
+SKIPPED_SEARCH_DIRECTORIES = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+}
 
 
 def execute(command: str) -> str:
@@ -47,14 +60,12 @@ def search(query: str, path: str = ".") -> str:
         raise ValueError("search query must not be empty")
 
     root = Path(path)
-    files = (
-        [root]
-        if root.is_file()
-        else sorted(item for item in root.rglob("*") if item.is_file())
-    )
+    if not root.exists():
+        raise FileNotFoundError(f"Search path does not exist: {root}")
+
     matches: list[str] = []
 
-    for file_path in files:
+    for file_path in _search_files(root):
         display_path = (
             file_path.name if root.is_file() else str(file_path.relative_to(root))
         )
@@ -64,6 +75,8 @@ def search(query: str, path: str = ".") -> str:
                 return _truncated_search_result(matches)
 
         try:
+            if file_path.stat().st_size > MAX_SEARCH_FILE_BYTES:
+                continue
             lines = file_path.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
             continue
@@ -75,6 +88,20 @@ def search(query: str, path: str = ".") -> str:
                     return _truncated_search_result(matches)
 
     return "\n".join(matches) if matches else "No matches found."
+
+
+def _search_files(root: Path):
+    """Yield files deterministically without descending into generated trees."""
+    if root.is_file():
+        yield root
+        return
+
+    for directory, directory_names, file_names in os.walk(root):
+        directory_names[:] = sorted(
+            name for name in directory_names if name not in SKIPPED_SEARCH_DIRECTORIES
+        )
+        for file_name in sorted(file_names):
+            yield Path(directory) / file_name
 
 
 def _truncated_search_result(matches: list[str]) -> str:
@@ -113,7 +140,7 @@ TOOLS: dict[str, ToolEntry] = {
         ),
         "parameters": {
             "type": "object",
-            "properties": {"command": {"type": "string"}},
+            "properties": {"command": {"type": "string", "minLength": 1}},
             "required": ["command"],
             "additionalProperties": False,
         },
@@ -123,7 +150,7 @@ TOOLS: dict[str, ToolEntry] = {
         "description": "Read a UTF-8 text file.",
         "parameters": {
             "type": "object",
-            "properties": {"path": {"type": "string"}},
+            "properties": {"path": {"type": "string", "minLength": 1}},
             "required": ["path"],
             "additionalProperties": False,
         },
@@ -134,7 +161,7 @@ TOOLS: dict[str, ToolEntry] = {
         "parameters": {
             "type": "object",
             "properties": {
-                "path": {"type": "string"},
+                "path": {"type": "string", "minLength": 1},
                 "content": {"type": "string"},
             },
             "required": ["path", "content"],
@@ -148,7 +175,7 @@ TOOLS: dict[str, ToolEntry] = {
             "type": "object",
             "properties": {
                 "query": {"type": "string", "minLength": 1},
-                "path": {"type": "string", "default": "."},
+                "path": {"type": "string", "minLength": 1, "default": "."},
             },
             "required": ["query", "path"],
             "additionalProperties": False,
@@ -160,8 +187,8 @@ TOOLS: dict[str, ToolEntry] = {
         "parameters": {
             "type": "object",
             "properties": {
-                "path": {"type": "string"},
-                "old_text": {"type": "string"},
+                "path": {"type": "string", "minLength": 1},
+                "old_text": {"type": "string", "minLength": 1},
                 "new_text": {"type": "string"},
             },
             "required": ["path", "old_text", "new_text"],
@@ -173,7 +200,7 @@ TOOLS: dict[str, ToolEntry] = {
         "description": "Delete one file.",
         "parameters": {
             "type": "object",
-            "properties": {"path": {"type": "string"}},
+            "properties": {"path": {"type": "string", "minLength": 1}},
             "required": ["path"],
             "additionalProperties": False,
         },
@@ -204,6 +231,18 @@ def dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
 
     function: ToolFunction = entry["function"]
     try:
-        return function(**arguments)
+        result = function(**arguments)
     except Exception as error:  # The model needs the error so it can recover.
-        return f"ERROR: {type(error).__name__}: {error}"
+        result = f"ERROR: {type(error).__name__}: {error}"
+    return _bounded_tool_output(result)
+
+
+def _bounded_tool_output(result: str) -> str:
+    """Keep any single tool result from overwhelming the next model request."""
+    if len(result) <= MAX_TOOL_OUTPUT_CHARS:
+        return result
+
+    half = MAX_TOOL_OUTPUT_CHARS // 2
+    omitted = len(result) - (half * 2)
+    marker = f"\n... tool output truncated ({omitted} characters omitted) ...\n"
+    return f"{result[:half]}{marker}{result[-half:]}"

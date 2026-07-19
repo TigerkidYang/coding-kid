@@ -21,6 +21,7 @@ The execute tool runs commands through Windows cmd.exe. Use Windows commands."""
 
 Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
+MAX_EMPTY_RESPONSES = 2
 
 
 def run_turn(
@@ -32,23 +33,37 @@ def run_turn(
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     tools = tool_definitions()
+    working_messages = list(messages)
+    empty_responses = 0
 
     for _ in range(max_steps):
-        response = call_provider(SYSTEM_PROMPT, messages, tools)
+        response = call_provider(SYSTEM_PROMPT, working_messages, tools)
+
+        # Parse before changing history so malformed provider output cannot
+        # leave an incomplete turn behind.
+        parsed = parse_output(response)
 
         # Keeping the raw output items preserves exactly what the model said and
         # requested when the complete history is sent on the next step.
-        messages.extend(response.output)
-        parsed = parse_output(response)
+        working_messages.extend(response.output)
         if not parsed.tool_calls:
-            return parsed.text
+            if parsed.text.strip():
+                messages[:] = working_messages
+                return parsed.text
+
+            empty_responses += 1
+            if empty_responses >= MAX_EMPTY_RESPONSES:
+                raise RuntimeError("Model returned repeated empty responses")
+            continue
+
+        empty_responses = 0
 
         # Multiple calls are deliberately sequential in this first version.
         for tool_call in parsed.tool_calls:
             result = dispatch_tool(tool_call.name, tool_call.arguments)
             if on_tool is not None:
                 on_tool(tool_call.name, tool_call.arguments, result)
-            messages.append(
+            working_messages.append(
                 {
                     "type": "function_call_output",
                     "call_id": tool_call.call_id,

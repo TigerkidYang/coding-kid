@@ -59,3 +59,34 @@ def test_parse_output_rejects_invalid_tool_arguments() -> None:
         assert "read" in str(error)
     else:
         raise AssertionError("invalid tool arguments should fail")
+
+
+def test_parse_output_uses_aggregate_text_as_a_fallback() -> None:
+    response = SimpleNamespace(
+        output=[SimpleNamespace(type="reasoning")],
+        output_text="Recovered final answer.",
+    )
+
+    parsed = parse_output(response)
+
+    assert parsed.text == "Recovered final answer."
+
+
+def test_parse_output_rejects_non_string_tool_arguments() -> None:
+    response = SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                call_id="call-1",
+                name="read",
+                arguments=None,
+            )
+        ]
+    )
+
+    try:
+        parse_output(response)
+    except ValueError as error:
+        assert "read" in str(error)
+    else:
+        raise AssertionError("non-string tool arguments should fail")

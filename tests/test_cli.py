@@ -65,6 +65,65 @@ def test_chat_handles_task_interruption_without_a_traceback(monkeypatch: Any) ->
     assert outputs[-1] == "Goodbye."
 
 
+def test_chat_rolls_back_a_failed_turn_before_continuing(monkeypatch: Any) -> None:
+    inputs = iter(["first task", "second task", "/exit"])
+    received_messages: list[list[Any]] = []
+
+    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+        received_messages.append(list(messages))
+        if len(received_messages) == 1:
+            messages.append({"type": "partial-provider-output"})
+            raise RuntimeError("failed")
+        return "Second task completed."
+
+    monkeypatch.setattr(cli, "run_turn", fake_run_turn)
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=lambda text: None,
+    )
+
+    assert received_messages[1] == [{"role": "user", "content": "second task"}]
+
+
+def test_chat_preserves_successful_turns(monkeypatch: Any) -> None:
+    inputs = iter(["first", "second", "/exit"])
+    received_messages: list[list[Any]] = []
+
+    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+        received_messages.append(list(messages))
+        messages.append({"role": "assistant", "content": "done"})
+        return "done"
+
+    monkeypatch.setattr(cli, "run_turn", fake_run_turn)
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=lambda text: None,
+    )
+
+    assert received_messages[1] == [
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "done"},
+        {"role": "user", "content": "second"},
+    ]
+
+
+def test_chat_never_prints_a_blank_assistant_answer(monkeypatch: Any) -> None:
+    inputs = iter(["answer me", "/exit"])
+    outputs: list[str] = []
+
+    monkeypatch.setattr(cli, "run_turn", lambda messages, on_tool: "   ")
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=outputs.append,
+    )
+
+    assert "Coding Kid>    " not in outputs
+    assert any("empty" in line.lower() for line in outputs)
+
+
 def test_chat_hides_tool_results_but_shows_tool_errors(monkeypatch: Any) -> None:
     inputs = iter(["inspect files", "/exit"])
     outputs: list[str] = []
@@ -122,3 +181,11 @@ def test_format_tool_call_keeps_each_action_compact() -> None:
 
     for name, arguments, expected in cases:
         assert cli.format_tool_call(name, arguments) == expected
+
+
+def test_format_tool_call_bounds_and_flattens_model_arguments() -> None:
+    rendered = cli.format_tool_call("execute", {"command": "x\n" + "y" * 500})
+
+    assert "\n" not in rendered
+    assert len(rendered) <= 140
+    assert rendered.endswith("...")

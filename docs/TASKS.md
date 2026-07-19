@@ -63,7 +63,7 @@ results back to the model, and returns a final response to the user.
 
 ## Verification
 
-- `uv run --extra dev pytest -q`: 23 tests passed.
+- `uv run --extra dev pytest -q`: 38 tests passed.
 - `uv run --extra dev ruff check src tests`: passed.
 - `uv run --extra dev ruff format --check src tests`: passed.
 - `uv run python -m compileall -q src`: passed.
@@ -78,6 +78,20 @@ results back to the model, and returns a final response to the user.
   completed the model/tool/model loop, and returned a concise final answer.
 - Empty searches are rejected, search results stop after 100 matches, and
   interrupting an active task returns to the prompt without a traceback.
+- Empty final responses, partial-history rollback, bounded tool output, search
+  pruning, provider timeouts, and compact terminal rendering have regression
+  coverage.
+- An eight-turn live GPT-5.6 Luna matrix passed pure chat, directory listing,
+  write/read, patch/read, search, missing-file recovery, delete verification,
+  and multi-turn recall with nine tool calls.
+- One live Luna request completed `write -> patch -> read -> delete -> execute`
+  in a single user turn and returned a non-empty final answer.
+- Five independent live Luna directory-listing runs completed with non-empty
+  answers; all five used the expected model/tool/model sequence.
+- The original Chinese directory-listing prompt passed through the real CLI and
+  returned its final answer without requiring a second user prompt.
+- A live identity check returned `openai/gpt-5.6-luna` instead of inventing a
+  different model name.
 
 ## Current Constraints
 

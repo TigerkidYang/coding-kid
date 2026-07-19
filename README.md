@@ -41,6 +41,8 @@ Press `Ctrl+C` during an active task to interrupt it and return to the prompt.
 
 Tool actions are printed before the final answer. Normal tool results stay in
 the model context instead of filling the terminal; tool errors are still shown.
+Tool action lines and tool results are bounded so one accidental command or
+large file cannot flood the terminal or the next model request.
 
 ```text
 You> Create hello.txt containing Hello
@@ -54,7 +56,8 @@ Coding Kid> Created hello.txt.
   timeout.
 - `read`: read a UTF-8 text file.
 - `write`: create or completely overwrite a UTF-8 text file.
-- `search`: search file names and text contents, returning at most 100 matches.
+- `search`: search file names and text contents, returning at most 100 matches;
+  generated directories and files larger than 1 MB are skipped.
 - `patch`: replace one unique, exact text fragment in a file.
 - `delete`: delete one file.
 
@@ -68,6 +71,11 @@ uv run --extra dev ruff format --check src tests
 
 The tests use a fake provider for the complete agent loop, so they do not call
 OpenRouter or spend API credits.
+
+If OpenRouter returns an empty response once, Coding Kid automatically asks the
+model to continue. Repeated empty responses become a visible error instead of a
+blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
+history before the next prompt.
 
 ## First-Version Limits
 

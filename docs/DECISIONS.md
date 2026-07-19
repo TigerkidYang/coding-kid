@@ -127,13 +127,25 @@ Users can follow what the agent is doing without printing file contents, search
 matches, command output, write content, or patch text. This is a presentation
 rule in `cli.py`; tool behavior and model context remain unchanged.
 
-## Bound search results before they enter model context
+## Bound tool results before they enter model context
 
 Decision:
-Reject an empty search query and return at most 100 matches from one search tool
-call.
+Cap every tool result at 50,000 characters. Reject an empty search query, skip
+common generated directories and files larger than 1 MB, and return at most 100
+matches from one search tool call.
 
 Consequence:
-An accidental empty or broad search cannot recursively copy the repository into
+An accidental broad search, large file read, or noisy command cannot overwhelm
 the next model request. Truncated results are marked so the model can narrow its
-next search.
+next action.
+
+## Never accept an empty final answer
+
+Decision:
+Retry one isolated empty model response and turn repeated empty responses into
+an explicit error. Commit conversation-history changes only after a turn
+finishes successfully, and roll back failed or interrupted CLI turns.
+
+Consequence:
+The terminal never presents a blank `Coding Kid>` response as success, and an
+incomplete provider response cannot corrupt the following conversation turn.

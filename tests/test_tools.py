@@ -1,6 +1,8 @@
+import subprocess
 from pathlib import Path
+from typing import Any
 
-from coding_kid.tools import TOOLS, dispatch_tool
+from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TOOLS, dispatch_tool
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -75,6 +77,36 @@ def test_search_truncates_large_results(tmp_path: Path) -> None:
     assert result.endswith("... search results truncated at 100 matches")
 
 
+def test_search_rejects_a_missing_path(tmp_path: Path) -> None:
+    result = dispatch_tool(
+        "search", {"query": "needle", "path": str(tmp_path / "missing")}
+    )
+
+    assert result.startswith("ERROR: FileNotFoundError:")
+
+
+def test_search_skips_generated_and_environment_directories(tmp_path: Path) -> None:
+    (tmp_path / "source.py").write_text("needle\n", encoding="utf-8")
+    hidden = tmp_path / ".venv"
+    hidden.mkdir()
+    (hidden / "dependency.py").write_text("needle\n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "source.py" in result
+    assert "dependency.py" not in result
+
+
+def test_dispatch_bounds_large_tool_results(tmp_path: Path) -> None:
+    path = tmp_path / "large.txt"
+    path.write_text("x" * (MAX_TOOL_OUTPUT_CHARS + 1_000), encoding="utf-8")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert "tool output truncated" in result
+    assert len(result) < MAX_TOOL_OUTPUT_CHARS + 200
+
+
 def test_delete_removes_file(tmp_path: Path) -> None:
     path = tmp_path / "temporary.txt"
     path.write_text("temporary", encoding="utf-8")
@@ -98,6 +130,17 @@ def test_execute_returns_exit_code_stdout_and_stderr() -> None:
     assert "stderr:\nproblem" in result
 
 
+def test_execute_timeout_becomes_a_tool_error(monkeypatch: Any) -> None:
+    def time_out(*args: Any, **kwargs: Any) -> None:
+        raise subprocess.TimeoutExpired("slow command", 30)
+
+    monkeypatch.setattr(subprocess, "run", time_out)
+
+    result = dispatch_tool("execute", {"command": "slow command"})
+
+    assert result.startswith("ERROR: TimeoutExpired:")
+
+
 def test_unknown_tool_and_bad_arguments_become_errors() -> None:
     assert dispatch_tool("missing", {}).startswith("ERROR: Unknown tool")
     assert dispatch_tool("read", {}).startswith("ERROR:")
@@ -110,3 +153,6 @@ def test_every_tool_has_model_visible_metadata() -> None:
         assert tool["parameters"]["type"] == "object"
         assert callable(tool["function"]), name
     assert TOOLS["search"]["parameters"]["properties"]["query"]["minLength"] == 1
+    assert TOOLS["execute"]["parameters"]["properties"]["command"]["minLength"] == 1
+    for name in {"read", "write", "search", "patch", "delete"}:
+        assert TOOLS[name]["parameters"]["properties"]["path"]["minLength"] == 1

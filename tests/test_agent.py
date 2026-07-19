@@ -107,6 +107,110 @@ def test_run_turn_stops_after_maximum_steps() -> None:
         run_turn([], endless_provider, max_steps=2)
 
 
+def test_run_turn_retries_one_empty_model_response() -> None:
+    responses = iter(
+        [
+            SimpleNamespace(output=[SimpleNamespace(type="reasoning")], output_text=""),
+            SimpleNamespace(
+                output=[text_message("Recovered answer.")],
+                output_text="Recovered answer.",
+            ),
+        ]
+    )
+    provider_calls = 0
+
+    def sometimes_empty_provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        nonlocal provider_calls
+        provider_calls += 1
+        return next(responses)
+
+    answer = run_turn([], sometimes_empty_provider)
+
+    assert answer == "Recovered answer."
+    assert provider_calls == 2
+
+
+def test_run_turn_recovers_from_an_empty_response_after_a_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[tool_call("call-1", "execute", {"command": "dir"})]
+            ),
+            SimpleNamespace(output=[SimpleNamespace(type="reasoning")], output_text=""),
+            SimpleNamespace(
+                output=[text_message("Directory described.")],
+                output_text="Directory described.",
+            ),
+        ]
+    )
+    provider_calls = 0
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        nonlocal provider_calls
+        provider_calls += 1
+        return next(responses)
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", lambda name, arguments: "files")
+
+    answer = run_turn([], provider)
+
+    assert answer == "Directory described."
+    assert provider_calls == 3
+
+
+def test_run_turn_rejects_repeated_empty_model_responses() -> None:
+    def empty_provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            output=[SimpleNamespace(type="reasoning")], output_text=""
+        )
+
+    with pytest.raises(RuntimeError, match="empty"):
+        run_turn([], empty_provider)
+
+
+def test_run_turn_does_not_commit_partial_history_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            SimpleNamespace(output=[tool_call("call-1", "read", {"path": "one.py"})]),
+            RuntimeError("provider failed"),
+        ]
+    )
+
+    def failing_provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", lambda name, arguments: "ok")
+    messages: list[Any] = [{"role": "user", "content": "Inspect one.py"}]
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        run_turn(messages, failing_provider)
+
+    assert messages == [{"role": "user", "content": "Inspect one.py"}]
+
+
 def test_system_prompt_describes_the_runtime() -> None:
     assert str(Path.cwd()) in SYSTEM_PROMPT
     assert "OPENROUTER_MODEL" in SYSTEM_PROMPT

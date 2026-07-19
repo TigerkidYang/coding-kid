@@ -27,6 +27,8 @@ def generate(
     client = OpenAI(
         api_key=required_environment("OPENROUTER_API_KEY"),
         base_url=OPENROUTER_BASE_URL,
+        timeout=120.0,
+        max_retries=2,
     )
     return client.responses.create(
         model=required_environment("OPENROUTER_MODEL"),

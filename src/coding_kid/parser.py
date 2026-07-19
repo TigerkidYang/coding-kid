@@ -37,7 +37,7 @@ def parse_output(response: Any) -> ParsedOutput:
         elif item.type == "function_call":
             try:
                 arguments = json.loads(item.arguments)
-            except json.JSONDecodeError as error:
+            except (json.JSONDecodeError, TypeError) as error:
                 raise ValueError(
                     f"Tool {item.name!r} returned invalid JSON arguments"
                 ) from error
@@ -45,4 +45,10 @@ def parse_output(response: Any) -> ParsedOutput:
                 raise ValueError(f"Tool {item.name!r} arguments must be an object")
             tool_calls.append(ToolCall(item.call_id, item.name, arguments))
 
-    return ParsedOutput("\n".join(text_parts), tool_calls)
+    text = "\n".join(text_parts)
+    if not text:
+        aggregate_text = getattr(response, "output_text", "")
+        if isinstance(aggregate_text, str):
+            text = aggregate_text
+
+    return ParsedOutput(text, tool_calls)
