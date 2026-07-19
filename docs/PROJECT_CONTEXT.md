@@ -68,8 +68,9 @@ without explicit permission.
   `coding-kid`, and its future Python package is `coding_kid`.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
-- There is no project implementation in the repository.
-- The first version has not been defined.
+- Version 01 is defined as a minimal complete terminal coding agent. Its scope
+  and completion criteria are recorded in `docs/TASKS.md`.
+- The user explicitly delegated implementation of Version 01 to the assistant.
 - Git and completed-version archive management is defined in
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.

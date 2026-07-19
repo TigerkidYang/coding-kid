@@ -2,22 +2,62 @@
 
 ## Current Version
 
-No version is currently defined.
+Version 01 is the minimal complete Coding Kid agent.
 
-The project is named Coding Kid. Naming uses `coding-kid` for repository and
-distribution identifiers and `coding_kid` for the future Python package.
+### Goal
+
+Build a small, understandable Python coding agent that accepts terminal input,
+calls OpenAI, executes local tools when requested, feeds tool results back to
+the model, and returns a final response to the user.
+
+### Included Scope
+
+- A plain terminal entry point with a process-local conversation history.
+- Minimal context assembly: system prompt, conversation history, and tool
+  definitions.
+- A single OpenAI-backed `provider` that sends a request and returns the raw
+  response without streaming.
+- Output parsing for assistant text and one or more tool calls.
+- Sequential tool execution and continuation of the agent loop.
+- Function-based tools registered in a dictionary:
+  - Execute a foreground terminal command.
+  - Read a text file.
+  - Write or create a text file.
+  - Search file names and file contents.
+  - Apply a text patch.
+  - Delete a file.
+- Clear comments and tests that make the implementation useful for teaching.
+
+### Excluded Scope
+
+- Task planning, scheduling, todo tools, and multi-agent workflows.
+- Persistent conversations, long-term memory, and context compaction.
+- Streaming output and parallel tool execution.
+- TUI, background tasks, plugins, skills, MCP, and advanced observability.
+- Provider abstraction for model vendors other than OpenAI.
+- Sandbox, approval flow, path confinement, and other security boundaries.
+
+### Completion Criteria
+
+- `python -m coding_kid` starts an interactive terminal conversation.
+- The agent can complete a model/tool/model loop and return a final answer.
+- Tests demonstrate every registered tool, including reading, creating,
+  modifying, searching, deleting, patching, and running a command.
+- Tests demonstrate parsing multiple tool calls and executing them in order.
+- Tests demonstrate the complete agent loop without requiring a live API call.
+- The live provider reads its API key from the environment and can be exercised
+  manually when credentials and network access are available.
+- Setup, run, and test instructions are documented.
+- The implementation remains deliberately small and clearly commented.
 
 ## Next Action
 
-- Discuss and define the first version when the user is ready.
-- Record its goal, included scope, excluded scope, and completion criteria before
-  implementation begins.
+- Implement and verify Version 01 against its completion criteria.
 
 ## Current Constraints
 
 - Do not define later versions.
-- Do not implement project code until the user has defined the current version
-  or explicitly delegates a concrete implementation task.
+- Keep implementation limited to Version 01 as defined above.
 - Research only as needed to answer questions raised by the current version.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
