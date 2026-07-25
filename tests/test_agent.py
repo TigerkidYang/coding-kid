@@ -294,3 +294,64 @@ def test_system_prompt_describes_the_runtime() -> None:
     assert "use the fewest tool calls" in SYSTEM_PROMPT.lower()
     assert "every file" in SYSTEM_PROMPT.lower()
     assert "run tests" in SYSTEM_PROMPT.lower()
+    assert "todo tool" in SYSTEM_PROMPT.lower()
+    assert "in_progress" in SYSTEM_PROMPT
+
+
+def test_run_turn_uses_todo_and_injects_current_list(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "call-1",
+                        "todo",
+                        {
+                            "todos": [
+                                {
+                                    "content": "Write hello.txt",
+                                    "status": "in_progress",
+                                },
+                                {
+                                    "content": "Confirm contents",
+                                    "status": "pending",
+                                },
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "call-2",
+                        "write",
+                        {"path": "hello.txt", "content": "hello"},
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Todo-driven work finished.")]),
+        ]
+    )
+    provider_instructions: list[str] = []
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        provider_instructions.append(instructions)
+        assert any(tool["name"] == "todo" for tool in tools)
+        return next(responses)
+
+    monkeypatch.chdir(tmp_path)
+    answer = run_turn([{"role": "user", "content": "Do the two steps"}], provider)
+
+    assert answer == "Todo-driven work finished."
+    assert provider_instructions[0] == SYSTEM_PROMPT
+    assert "Current todos:" in provider_instructions[1]
+    assert "[in_progress] Write hello.txt" in provider_instructions[1]
+    assert (tmp_path / "hello.txt").read_text(encoding="utf-8") == "hello"

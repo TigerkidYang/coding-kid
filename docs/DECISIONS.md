@@ -44,8 +44,23 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Version 01 is complete. No later version is currently defined; agents wait for
-the user to choose its contents before implementation resumes.
+Version 01 is complete. Version 02 is defined in `docs/TASKS.md` as
+session-scoped task decomposition via a `todo` tool. Agents wait for the user
+to choose later versions before those begin.
+
+## Keep Version 02 todos session-scoped and replace-based
+
+Decision:
+Version 02 adds one `todo` tool that replaces the full checklist on each call.
+State lives in process memory beside conversation history, rolls back with
+failed CLI turns, and is injected into model instructions when non-empty.
+Statuses are `pending`, `in_progress`, and `completed`, with at most one
+`in_progress` item. `activeForm`, Plan Mode, Glob/Grep, and disk persistence
+are out of scope.
+
+Consequence:
+Task decomposition stays a small, teachable tool addition on top of the Version
+01 loop instead of introducing a planning mode or durable task database.
 
 ## Use research to support the current implementation
 

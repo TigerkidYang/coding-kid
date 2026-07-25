@@ -68,18 +68,13 @@ without explicit permission.
   `coding-kid`, and its Python package is `coding_kid`.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
-- Version 01 is defined as a minimal complete terminal coding agent. Its scope
-  and completion criteria are recorded in `docs/TASKS.md`.
-- The user explicitly delegated implementation of Version 01 to the assistant.
-- The root implementation now contains the terminal interface, OpenRouter
-  provider, output parser, model/tool loop, six local tools, tests, and user
-  documentation.
-- Version 01 passed its automated checks and live GPT-5.6 Luna tests. It is
-  preserved under `versions/01-minimal-agent/` and by the annotated tag
-  `version-01-minimal-agent`. The final verified checkpoint is tagged
-  `version-01-minimal-agent-fix2`; both earlier tags remain unchanged.
-- No version is currently active. The user will define the next version before
-  implementation resumes.
+- Version 01 is complete and archived under `versions/01-minimal-agent/` with
+  tags `version-01-minimal-agent` and `version-01-minimal-agent-fix2`.
+- Version 02 is active: session-scoped task decomposition via a `todo` tool.
+  Scope and completion criteria are in `docs/TASKS.md`.
+- The user explicitly delegated implementation of Version 02 to the assistant.
+- Evaluation for this stage uses the SWE-bench Verified × 10 slice under
+  `evals/v02-baseline/`. Version 01 scored 5/10 on the official harness.
 - Git and completed-version archive management is defined in
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.

@@ -2,16 +2,15 @@
 
 ## Overview
 
-Version 01 is a synchronous terminal coding agent. It deliberately uses small
-functions and plain Python data structures so the complete workflow remains
-visible.
+Version 02 keeps the synchronous terminal coding agent from Version 01 and adds
+session-scoped task decomposition through a `todo` tool.
 
 ```text
 cli.py
   -> agent.py
        -> provider.py
        -> parser.py
-       -> tools.py
+       -> tools.py  (file/shell tools + todo checklist state)
 ```
 
 ## Modules
@@ -49,20 +48,24 @@ tool call contains its call ID, name, and decoded argument dictionary.
 
 ### `tools.py`
 
-Contains ordinary functions for command execution and file operations. The
-explicit `TOOLS` dictionary associates each function with the description and
-parameter schema shown to the model. `dispatch_tool` calls the selected function
-and converts exceptions into text the model can use to recover. Search rejects
-empty queries, skips common generated directories and files larger than 1 MB,
-and caps each result at 100 matches. Every tool result is capped at 50,000
-characters before it enters model context. Foreground commands have a fixed
-two-minute timeout.
+Contains ordinary functions for command execution, file operations, and the
+session todo checklist. The explicit `TOOLS` dictionary associates each function
+with the description and parameter schema shown to the model. `dispatch_tool`
+calls the selected function and converts exceptions into text the model can use
+to recover. Search rejects empty queries, skips common generated directories and
+files larger than 1 MB, and caps each result at 100 matches. Every tool result
+is capped at 50,000 characters before it enters model context. Foreground
+commands have a fixed two-minute timeout. The `todo` tool replaces the full
+process-local checklist on each call and enforces at most one `in_progress`
+item.
 
 ## Context
 
 Each model request contains only:
 
-- The small system prompt in `agent.py`.
+- The small system prompt in `agent.py`, including todo guidance for multi-step
+  work.
+- The current todo checklist when it is non-empty.
 - The process-local conversation and tool history list.
 - Tool definitions generated from the `TOOLS` dictionary.
 
@@ -73,7 +76,8 @@ selective inspection strategy that avoids recursive trees, dependencies, tests,
 Git state, and version archives unless requested.
 
 There is no persistent session, automatic context trimming, repository
-instruction loading, or long-term memory.
+instruction loading, or long-term memory. Todo state shares the process lifetime
+of conversation history and rolls back with failed or interrupted CLI turns.
 
 ## Tool Loop
 

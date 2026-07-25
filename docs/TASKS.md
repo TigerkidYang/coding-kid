@@ -1,5 +1,58 @@
 # Tasks
 
+## Current Version: 02 — Task Decomposition
+
+### Goal
+
+Add session-scoped task scheduling so Coding Kid can decompose multi-step work,
+track progress with a checklist, and continue from that list — without changing
+the Version 01 loop shape.
+
+### Included Scope
+
+- A `todo` tool that replaces the full checklist on each call.
+- Todo item fields: `content` and `status` (`pending` / `in_progress` /
+  `completed`).
+- Validation: non-empty list; valid statuses; at most one `in_progress`.
+- Process-local todo state (same lifetime as conversation history).
+- Failed or interrupted CLI turns roll todo state back with message history.
+- System-prompt guidance to use `todo` on three-or-more-step tasks.
+- Inject the current checklist into model instructions when it is non-empty.
+- Compact CLI display for todo actions.
+- Tests for the tool, agent loop use, and CLI rollback.
+- README / architecture / decision updates for the new tool.
+
+### Excluded Scope
+
+- Glob / Grep as first-class tools.
+- Plan Mode, plan files, or write-blocking planning phases.
+- Disk-persistent or cross-session todos.
+- Background tasks, multi-agent workflows, or Task V2-style runtime tasks.
+- Prompt-assembly overhaul or context compression beyond injecting the current
+  todo list.
+- Streaming, MCP, sandbox, approval flow, and TUI work.
+
+### Completion Criteria
+
+- `todo` is registered in `TOOLS` and visible to the model.
+- Invalid todo updates return `ERROR:` text the model can recover from.
+- Automated tests cover replace behavior, the single `in_progress` rule, loop
+  use of `todo`, and CLI rollback of todo state.
+- Simple one-step requests can skip `todo`; multi-step guidance is in the system
+  prompt.
+- Documentation describes the new tool while the implementation stays small and
+  readable.
+- Version 02 is evaluated on the same SWE-bench Verified × 10 slice used for the
+  Version 01 baseline.
+
+### Evaluation Slice
+
+- Dataset: `SWE-bench/SWE-bench_Verified` (10 sampled instances under
+  `evals/v02-baseline/verified_10_instances.json`).
+- Version 01 official harness baseline: **5 / 10 resolved**.
+- Compare Version 02 on the same instances, focusing on gains among the five
+  Version 01 failures (empty patch / unresolved).
+
 ## Most Recently Completed Version
 
 Version 01 is the minimal complete Coding Kid agent.
@@ -57,58 +110,19 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Wait for the user to define the next version's goal, included scope, excluded
-  scope, and completion criteria.
-
-## Verification
-
-- `uv run --extra dev pytest -q`: 42 tests passed.
-- `uv run --extra dev ruff check src tests`: passed.
-- `uv run --extra dev ruff format --check src tests`: passed.
-- `uv run python -m compileall -q src`: passed.
-- Both `uv run python -m coding_kid` and `uv run coding-kid` started and exited
-  normally in terminal smoke tests.
-- A real OpenRouter request returned the expected text response.
-- A real OpenRouter model/tool/model loop called the `read` tool and returned a
-  final answer.
-- A live terminal read showed the compact tool action without printing the raw
-  file contents.
-- A live request to list the repository root used the Windows `dir` command,
-  completed the model/tool/model loop, and returned a concise final answer.
-- Empty searches are rejected, search results stop after 100 matches, and
-  interrupting an active task returns to the prompt without a traceback.
-- Empty final responses, partial-history rollback, bounded tool output, search
-  pruning, provider timeouts, and compact terminal rendering have regression
-  coverage.
-- Foreground commands have a fixed two-minute execution timeout, with regression
-  coverage for the configured value and timeout error path.
-- An eight-turn live GPT-5.6 Luna matrix passed pure chat, directory listing,
-  write/read, patch/read, search, missing-file recovery, delete verification,
-  and multi-turn recall with nine tool calls.
-- One live Luna request completed `write -> patch -> read -> delete -> execute`
-  in a single user turn and returned a non-empty final answer.
-- Five independent live Luna directory-listing runs completed with non-empty
-  answers; all five used the expected model/tool/model sequence.
-- The original Chinese directory-listing prompt passed through the real CLI and
-  returned its final answer without requiring a second user prompt.
-- A live identity check returned `openai/gpt-5.6-luna` instead of inventing a
-  different model name.
-- Three strict live runs of `理解一下这个仓库` completed in 25.2–31.5 seconds
-  with 9–12 executed tools, no unknown tools, empty parameters, recursive tree,
-  tests, Git inspection, tool errors, or blank final answers.
-- The same repository-understanding request passed through the real CLI with a
-  direct evidence-based final answer. Tool-budget recovery was exercised in
-  both automated and live tests.
+- Implement Version 02 (`todo` tool) against the criteria above.
+- Re-run the Verified × 10 evaluation and compare with the Version 01 baseline.
 
 ## Current Constraints
 
-- Do not define later versions.
-- Do not begin implementation until the user defines the next version.
+- Stay inside Version 02 scope.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
-- Research only as needed to answer a concrete question.
+- Research only as needed to answer a concrete Version 02 question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.
+- Prefer domestic Docker registry mirrors for SWE-bench harness pulls; do not
+  delete cached eval images after a successful pull when re-running harness.
 
 ## Established Project Operations
 

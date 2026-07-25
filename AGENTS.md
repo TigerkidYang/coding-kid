@@ -168,12 +168,12 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
-- Version 01 is complete as a minimal terminal coding agent.
-- The root project contains the current implementation, tests, and usage
+- Version 01 is complete as a minimal terminal coding agent and is archived
+  under `versions/01-minimal-agent/` (`version-01-minimal-agent`,
+  `version-01-minimal-agent-fix2`).
+- Version 02 is active: add a session-scoped `todo` tool for task decomposition.
+  Details are in `docs/TASKS.md`.
+- The root project contains the living implementation, tests, and usage
   documentation.
-- Version 01 is preserved under `versions/01-minimal-agent/` and by the
-  original annotated tag `version-01-minimal-agent`. Its verified maintenance
-  correction is tagged `version-01-minimal-agent-fix1`.
-- No later version is currently defined. Wait for the user to define it.
 - Existing source-code research is available to support implementation.
 - Existing article drafts are preserved, and article work is inactive.

@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TOOLS, dispatch_tool
+from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TOOLS, dispatch_tool, get_todos
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -159,7 +159,15 @@ def test_unknown_tool_and_bad_arguments_become_errors() -> None:
 
 
 def test_every_tool_has_model_visible_metadata() -> None:
-    assert set(TOOLS) == {"execute", "read", "write", "search", "patch", "delete"}
+    assert set(TOOLS) == {
+        "execute",
+        "read",
+        "write",
+        "search",
+        "patch",
+        "delete",
+        "todo",
+    }
     for name, tool in TOOLS.items():
         assert tool["description"]
         assert tool["parameters"]["type"] == "object"
@@ -170,3 +178,60 @@ def test_every_tool_has_model_visible_metadata() -> None:
     assert TOOLS["execute"]["parameters"]["properties"]["command"]["minLength"] == 1
     for name in {"read", "write", "search", "patch", "delete"}:
         assert TOOLS[name]["parameters"]["properties"]["path"]["minLength"] == 1
+    assert TOOLS["todo"]["parameters"]["required"] == ["todos"]
+
+
+def test_todo_replaces_the_full_checklist() -> None:
+    first = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": "Inspect bug", "status": "in_progress"},
+                {"content": "Write fix", "status": "pending"},
+            ]
+        },
+    )
+    assert "1. [in_progress] Inspect bug" in first
+    assert "2. [pending] Write fix" in first
+    assert get_todos() == [
+        {"content": "Inspect bug", "status": "in_progress"},
+        {"content": "Write fix", "status": "pending"},
+    ]
+
+    second = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": "Inspect bug", "status": "completed"},
+                {"content": "Write fix", "status": "in_progress"},
+            ]
+        },
+    )
+    assert "1. [completed] Inspect bug" in second
+    assert get_todos()[1]["status"] == "in_progress"
+
+
+def test_todo_rejects_invalid_updates() -> None:
+    empty = dispatch_tool("todo", {"todos": []})
+    assert empty.startswith("ERROR:")
+    assert "non-empty" in empty
+
+    two_active = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": "One", "status": "in_progress"},
+                {"content": "Two", "status": "in_progress"},
+            ]
+        },
+    )
+    assert two_active.startswith("ERROR:")
+    assert "at most one" in two_active
+    assert get_todos() == []
+
+    bad_status = dispatch_tool(
+        "todo",
+        {"todos": [{"content": "One", "status": "done"}]},
+    )
+    assert bad_status.startswith("ERROR:")
+    assert "status" in bad_status

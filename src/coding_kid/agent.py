@@ -9,7 +9,7 @@ from typing import Any
 
 from coding_kid.parser import parse_output
 from coding_kid.provider import generate
-from coding_kid.tools import dispatch_tool, tool_definitions
+from coding_kid.tools import dispatch_tool, format_todos, get_todos, tool_definitions
 
 SYSTEM_PROMPT = f"""You are Coding Kid, a coding agent working in the current directory.
 Only call the tools provided in the current request. Never invent tool names.
@@ -22,6 +22,9 @@ one relevant architecture/context document, and source/test file names. Do not r
 every file, run tests, inspect Git state or diffs, inspect version archives, run
 recursive tree commands, or inspect virtual environments, caches, or dependencies
 unless the user specifically asks.
+For tasks with three or more distinct steps, use the todo tool to list the steps
+before making changes. Keep at most one item in_progress. Update the list as you
+finish each step. Skip the todo tool for simple one-step requests.
 After using tools, always answer the user with the useful result. Never finish
 with only internal reasoning or an empty response.
 When the task is complete, explain the result clearly and briefly.
@@ -46,6 +49,14 @@ MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 12
 
 
+def current_instructions() -> str:
+    """Build the system instructions, including the active todo list when set."""
+    todos = get_todos()
+    if not todos:
+        return SYSTEM_PROMPT
+    return f"{SYSTEM_PROMPT}\n\nCurrent todos:\n{format_todos(todos)}"
+
+
 def run_turn(
     messages: list[Any],
     call_provider: Provider = generate,
@@ -58,7 +69,7 @@ def run_turn(
     working_messages = list(messages)
     empty_responses = 0
     tool_calls_executed = 0
-    instructions = SYSTEM_PROMPT
+    instructions = current_instructions()
 
     for _ in range(max_steps):
         response = call_provider(instructions, working_messages, tools)
@@ -78,7 +89,7 @@ def run_turn(
             empty_responses += 1
             if empty_responses >= MAX_EMPTY_RESPONSES:
                 raise RuntimeError("Model returned repeated empty responses")
-            instructions = f"{SYSTEM_PROMPT}{EMPTY_RESPONSE_RECOVERY}"
+            instructions = f"{current_instructions()}{EMPTY_RESPONSE_RECOVERY}"
             if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
                 instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
             continue
@@ -109,7 +120,7 @@ def run_turn(
                 }
             )
 
-        instructions = SYSTEM_PROMPT
+        instructions = current_instructions()
         if tool_budget_reached:
             instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
 

@@ -131,6 +131,70 @@ def delete(path: str) -> str:
     return f"Deleted {file_path}"
 
 
+VALID_TODO_STATUSES = {"pending", "in_progress", "completed"}
+_current_todos: list[dict[str, str]] = []
+
+
+def get_todos() -> list[dict[str, str]]:
+    """Return a copy of the process-local todo checklist."""
+    return [dict(item) for item in _current_todos]
+
+
+def set_todos(todos: list[dict[str, str]]) -> None:
+    """Replace the process-local todo checklist."""
+    global _current_todos
+    _current_todos = [dict(item) for item in todos]
+
+
+def clear_todos() -> None:
+    """Clear the process-local todo checklist."""
+    global _current_todos
+    _current_todos = []
+
+
+def format_todos(todos: list[dict[str, str]] | None = None) -> str:
+    """Render a todo checklist for prompts and tool results."""
+    items = _current_todos if todos is None else todos
+    if not items:
+        return "(no todos)"
+    return "\n".join(
+        f"{index}. [{item['status']}] {item['content']}"
+        for index, item in enumerate(items, start=1)
+    )
+
+
+def todo(todos: list[dict[str, Any]]) -> str:
+    """Replace the full session todo checklist."""
+    if not isinstance(todos, list) or not todos:
+        raise ValueError("todos must be a non-empty list")
+
+    normalized: list[dict[str, str]] = []
+    in_progress_count = 0
+    for item in todos:
+        if not isinstance(item, dict):
+            raise ValueError("each todo must be an object")
+        content = item.get("content")
+        status = item.get("status")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("todo content must be a non-empty string")
+        if status not in VALID_TODO_STATUSES:
+            raise ValueError("todo status must be pending, in_progress, or completed")
+        if status == "in_progress":
+            in_progress_count += 1
+        normalized.append({"content": content.strip(), "status": status})
+
+    if in_progress_count > 1:
+        raise ValueError("at most one todo may be in_progress")
+
+    set_todos(normalized)
+    return (
+        "Updated todos:\n"
+        f"{format_todos()}\n"
+        "Continue from this list. Keep at most one item in_progress while "
+        "working, and mark items completed when finished."
+    )
+
+
 # The registry is both the dispatch table and the source of model-visible tool
 # definitions. Keeping it explicit makes the first version easy to inspect.
 TOOLS: dict[str, ToolEntry] = {
@@ -208,6 +272,42 @@ TOOLS: dict[str, ToolEntry] = {
             "additionalProperties": False,
         },
         "function": delete,
+    },
+    "todo": {
+        "description": (
+            "Replace the full session task checklist. Use for multi-step work. "
+            "Each item needs content and status "
+            "(pending, in_progress, or completed). At most one item may be "
+            "in_progress."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "todos": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "content": {"type": "string", "minLength": 1},
+                            "status": {
+                                "type": "string",
+                                "enum": [
+                                    "pending",
+                                    "in_progress",
+                                    "completed",
+                                ],
+                            },
+                        },
+                        "required": ["content", "status"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["todos"],
+            "additionalProperties": False,
+        },
+        "function": todo,
     },
 }
 

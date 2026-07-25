@@ -1,14 +1,14 @@
 # Coding Kid
 
-Coding Kid is a small Python coding agent built for learning. The first version
-shows the complete loop without hiding it behind a framework:
+Coding Kid is a small Python coding agent built for learning. The current
+version shows the complete loop plus a session todo checklist:
 
 ```text
 user input -> OpenRouter -> tool call -> local tool -> OpenRouter -> final answer
 ```
 
-It runs as a plain terminal conversation and keeps history only while the
-process is running.
+It runs as a plain terminal conversation and keeps history and todos only while
+the process is running.
 
 ## Requirements
 
@@ -60,6 +60,9 @@ Coding Kid> Created hello.txt.
   generated directories and files larger than 1 MB are skipped.
 - `patch`: replace one unique, exact text fragment in a file.
 - `delete`: delete one file.
+- `todo`: replace the full session task checklist. Use it for multi-step work.
+  Statuses are `pending`, `in_progress`, and `completed`, with at most one item
+  `in_progress`. The list lives only while the process is running.
 
 ## Test
 
