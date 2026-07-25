@@ -27,5 +27,11 @@ docker tag  docker.1ms.run/swebench/sweb.eval.x86_64.<image>:latest \
             swebench/sweb.eval.x86_64.<image>:latest
 ```
 
-`prepull_swebench_images.py` automates that for the Verified × 10 slice.
-Keep `--cache_level instance` so later harness runs reuse local images.
+`prepull_swebench_images.py` automates that for the Verified × 10 slice and
+retries transient EOF / proxy blips. Keep `--cache_level instance` so later
+harness runs reuse local images.
+
+If Docker Desktop routes traffic through a local proxy (for example
+`127.0.0.1:7890`), keep that proxy running during large pulls, or add the
+domestic mirror hosts to Docker's no-proxy / bypass list so pulls do not depend
+on the VPN process staying up.
