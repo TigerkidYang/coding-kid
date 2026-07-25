@@ -119,12 +119,13 @@ results back to the model, and returns a final response to the user.
 
 ## Verification (in progress)
 
-- `uv run --extra dev pytest -q`: 47 tests passed.
-- Live todo smoke: passed.
-- Docker mirror smoke + Verified × 10 image pre-pull: 10 / 10 local images.
-- Official harness for V02: **0 / 10 resolved** (V01 was **5 / 10**).
-  Details in `evals/v02-baseline/VERIFIED_10_V02_SCORECARD.md`.
-- Todo process goal met (used on 10 / 10); outcome on this slice regressed.
+- Unit / live / mirror smokes: passed earlier in Version 02.
+- First V02 harness score **0 / 10** was invalid (predictions deleted
+  `_swe_test.patch`, harness reverse-applied fixes).
+- After cleaning predictions: V02 official **5 / 10 resolved** (same count as
+  V01; gained pylint, lost astropy). Details in
+  `evals/v02-baseline/INVESTIGATION_V02_REGRESSION.md` and
+  `evals/v02-baseline/VERIFIED_10_V02_SCORECARD.md`.
 
 ## Current Constraints
 
