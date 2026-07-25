@@ -1,4 +1,4 @@
-"""Re-collect clean Coding Kid V02 patches and compare to gold."""
+"""Re-collect clean agent patches (commit test_patch first) and compare to gold."""
 
 from __future__ import annotations
 
@@ -8,13 +8,10 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 INSTANCES = json.loads((BASE / "verified_10_instances.json").read_text(encoding="utf-8"))
-REPORT = {
-    r["instance_id"]: r
-    for r in json.loads((BASE / "v2_verified_10_report.json").read_text(encoding="utf-8"))
-}
+REPORT = {r["instance_id"]: r for r in json.loads((BASE / "v1_verified_10_report.json").read_text(encoding="utf-8"))}
 WORK = BASE / "verified_workspaces"
-OUT = BASE / "v2_verified_10_analysis.json"
-PRED = BASE / "v2_verified_10_predictions_source.jsonl"
+OUT = BASE / "v1_verified_10_analysis.json"
+PRED = BASE / "v1_verified_10_predictions.jsonl"
 
 
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -34,6 +31,7 @@ def gold_files(patch: str) -> list[str]:
 
 def clean_agent_diff(dest: Path, base_commit: str, test_patch: str) -> str:
     """Reset to base, apply+commit test_patch, restore agent tree, diff."""
+    # Save current tree
     run(["git", "add", "-A"], cwd=dest)
     run(["git", "stash", "push", "-u", "-m", "agent-state"], cwd=dest)
 
@@ -53,9 +51,12 @@ def clean_agent_diff(dest: Path, base_commit: str, test_patch: str) -> str:
         ["git", "commit", "--no-gpg-sign", "-m", "swe test_patch"],
         cwd=dest,
     )
-    run(["git", "stash", "pop"], cwd=dest)
+    # Restore agent changes on top
+    r = run(["git", "stash", "pop"], cwd=dest)
+    # Remove helper patch file from diff noise
     if patch_path.exists():
         patch_path.unlink()
+    # Diff against test_patch commit
     r = run(["git", "diff"], cwd=dest)
     return strip_helper_patch_hunks(r.stdout)
 
@@ -100,7 +101,7 @@ def main() -> None:
                     dest, inst["base_commit"], inst["test_patch"]
                 )
             except Exception as exc:
-                agent_diff = ""
+                agent_diff = f""
                 print(f"{iid}: clean_agent_diff failed: {exc}")
 
         changed = changed_files(agent_diff)
@@ -127,8 +128,6 @@ def main() -> None:
             "agent_changed_files": changed,
             "agent_edited_via_tools": bool(set(tools) & {"patch", "write", "delete"}),
             "touched_gold_file": touched_gold,
-            "used_todo": "todo" in tools,
-            "todo_calls": tools.count("todo"),
             "tool_calls": tools,
             "tool_count": len(tools),
             "hit_tool_budget": len(tools) >= 12,
@@ -141,13 +140,13 @@ def main() -> None:
         predictions.append(
             {
                 "instance_id": iid,
-                "model_name_or_path": "coding-kid-v02",
+                "model_name_or_path": "coding-kid-v01",
                 "model_patch": agent_diff,
             }
         )
         status = "EDIT" if row["patch_line_count"] else "NO_DIFF"
         print(
-            f"[{status}] {iid}: tools={row['tool_count']} todo={row['used_todo']} "
+            f"[{status}] {iid}: tools={row['tool_count']} "
             f"gold_touch={row['touched_gold_file']} jaccard={row['gold_line_jaccard']} "
             f"files={changed}"
         )
@@ -162,13 +161,15 @@ def main() -> None:
     gold_touch = sum(1 for a in analysis if a["touched_gold_file"])
     close = sum(1 for a in analysis if a["gold_line_jaccard"] >= 0.3)
     budget = sum(1 for a in analysis if a["hit_tool_budget"])
-    todo_used = sum(1 for a in analysis if a["used_todo"])
     print("\n==== SUMMARY ====")
     print(f"Produced a source patch: {edited}/10")
     print(f"Touched gold file:       {gold_touch}/10")
-    print(f"Used todo tool:          {todo_used}/10")
     print(f"Patch resembles gold:    {close}/10 (jaccard>=0.3)")
     print(f"Hit tool budget:         {budget}/10")
+    print(
+        "Official resolved count still requires Docker SWE-bench harness "
+        "(Windows host cannot import swebench.harness.resource)."
+    )
 
 
 if __name__ == "__main__":

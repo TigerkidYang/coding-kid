@@ -20,6 +20,6 @@ python -m swebench.harness.run_evaluation \
   --predictions_path /work/v2_verified_10_predictions_source.jsonl \
   --instance_ids "${IDS[@]}" \
   --max_workers 1 \
-  --run_id coding_kid_v02_verified10 \
+  --run_id coding_kid_v02_verified10_clean \
   --cache_level instance \
   --report_dir /work/harness_reports
