@@ -110,8 +110,9 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Decide how to finish official V02 harness scoring (VPN once + keep images,
-  cloud host, or behavioral-only for this iteration).
+- Finish Version 02 quality gates in order: unit tests → live todo smoke →
+  Docker mirror smoke → pre-pull remaining eval images → one-instance harness
+  smoke → only then full Verified × 10 scoring.
 - Consider whether `todo` calls should be excluded from the 12-tool budget;
   V02 used todo on 10/10 but hit the budget on 10/10 and gold-file edits fell
   from 7/10 to 5/10 versus Version 01.
@@ -135,8 +136,13 @@ results back to the model, and returns a final response to the user.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.
-- Prefer domestic Docker registry mirrors for SWE-bench harness pulls; do not
-  delete cached eval images after a successful pull when re-running harness.
+- Prefer domestic Docker registry mirrors for SWE-bench harness pulls. Ordinary
+  `registry-mirrors` is not enough for cold `sweb.eval.*` images; use explicit
+  `docker.1ms.run/...` prefix pulls plus retag (`prepull_swebench_images.py`).
+  Keep `--cache_level instance` after a successful pull.
+- Do not start a full Verified × 10 harness run until unit tests, live feature
+  smoke, Docker mirror smoke, and image pre-pull have passed. See
+  `evals/v02-baseline/README.md`.
 
 ## Established Project Operations
 

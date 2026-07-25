@@ -99,7 +99,10 @@ def run_turn(
 
         # Multiple calls are deliberately sequential in this first version.
         for tool_call in parsed.tool_calls:
-            if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+            if (
+                tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
+                and tool_call.name != "todo"
+            ):
                 result = (
                     "Tool call skipped: the per-turn tool-call budget was reached. "
                     "Use the results already available and answer the user."
@@ -107,7 +110,10 @@ def run_turn(
                 tool_budget_reached = True
             else:
                 result = dispatch_tool(tool_call.name, tool_call.arguments)
-                tool_calls_executed += 1
+                # Todo updates are planning overhead and do not consume the
+                # per-turn file/shell tool budget.
+                if tool_call.name != "todo":
+                    tool_calls_executed += 1
                 if on_tool is not None:
                     on_tool(tool_call.name, tool_call.arguments, result)
                 if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:

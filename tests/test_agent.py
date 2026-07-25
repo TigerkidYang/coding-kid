@@ -158,6 +158,65 @@ def test_run_turn_stops_executing_tools_at_the_per_turn_budget(
     assert len(skipped_outputs) == 3
 
 
+def test_run_turn_does_not_count_todo_against_the_tool_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_calls = [
+        tool_call(
+            "todo-1",
+            "todo",
+            {
+                "todos": [
+                    {"content": "Read files", "status": "in_progress"},
+                    {"content": "Answer", "status": "pending"},
+                ]
+            },
+        ),
+        *[
+            tool_call(f"call-{number}", "read", {"path": f"file-{number}.py"})
+            for number in range(MAX_TOOL_CALLS_PER_TURN)
+        ],
+        tool_call(
+            "todo-2",
+            "todo",
+            {
+                "todos": [
+                    {"content": "Read files", "status": "completed"},
+                    {"content": "Answer", "status": "in_progress"},
+                ]
+            },
+        ),
+    ]
+    responses = iter(
+        [
+            SimpleNamespace(output=requested_calls),
+            SimpleNamespace(output=[text_message("Budget reserved for real work.")]),
+        ]
+    )
+    executed: list[str] = []
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        return next(responses)
+
+    def dispatch(name: str, arguments: dict[str, Any]) -> str:
+        executed.append(name)
+        if name == "todo":
+            return "Updated todos"
+        return "read result"
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", dispatch)
+
+    answer = run_turn([], provider)
+
+    assert answer == "Budget reserved for real work."
+    assert executed.count("todo") == 2
+    assert executed.count("read") == MAX_TOOL_CALLS_PER_TURN
+
+
 def test_run_turn_retries_one_empty_model_response() -> None:
     responses = iter(
         [

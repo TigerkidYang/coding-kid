@@ -56,11 +56,38 @@ State lives in process memory beside conversation history, rolls back with
 failed CLI turns, and is injected into model instructions when non-empty.
 Statuses are `pending`, `in_progress`, and `completed`, with at most one
 `in_progress` item. `activeForm`, Plan Mode, Glob/Grep, and disk persistence
-are out of scope.
+are out of scope. Todo calls do not consume the per-turn file/shell tool
+budget.
 
 Consequence:
 Task decomposition stays a small, teachable tool addition on top of the Version
 01 loop instead of introducing a planning mode or durable task database.
+Planning updates cannot starve the 12-call budget used for real work.
+
+## Prefer domestic Docker mirrors with explicit prefix pulls for SWE-bench
+
+Decision:
+Configure Docker `registry-mirrors` for ordinary Hub images, but treat SWE-bench
+`sweb.eval.*` pulls as a separate path: pull through an explicit domestic mirror
+prefix (currently `docker.1ms.run/...`) and retag to the official
+`swebench/sweb.eval...` name the harness expects. Validate this with
+`evals/v02-baseline/smoke_docker_mirror.py` before any full harness run.
+
+Consequence:
+Evaluation no longer depends on discovering broken mirror fallback during a
+multi-GB Verified × 10 run. Images can be pre-pulled and kept with
+`--cache_level instance`.
+
+## Test agent and eval infrastructure before scoring
+
+Decision:
+Before spending a full online evaluation budget, run unit tests, a live agent
+smoke for the current version feature, Docker mirror smoke, image pre-pull, and
+optionally a one-instance harness smoke.
+
+Consequence:
+Broken tools, prompts, mirrors, or harness wiring are caught before the expensive
+Verified × 10 scoring pass.
 
 ## Use research to support the current implementation
 
