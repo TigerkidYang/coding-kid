@@ -80,10 +80,11 @@ model to continue. Repeated empty responses become a visible error instead of a
 blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
 history before the next prompt.
 
-Each user turn executes at most 12 tool calls. Calls beyond that budget are
-skipped internally and the model is instructed to answer from evidence already
-collected. Repository-overview requests are guided toward selective inspection
-instead of recursive trees, dependency scans, test runs, or Git archaeology.
+Each user turn executes at most 12 file/shell tool calls. Todo checklist updates
+do not count toward that budget. Calls beyond the budget are skipped internally
+and the model is instructed to answer from evidence already collected.
+Repository-overview requests are guided toward selective inspection instead of
+recursive trees, dependency scans, test runs, or Git archaeology.
 
 ## First-Version Limits
 
