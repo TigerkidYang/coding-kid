@@ -119,14 +119,12 @@ results back to the model, and returns a final response to the user.
 
 ## Verification (in progress)
 
-- `uv run --extra dev pytest -q`: 46 tests passed.
-- `uv run --extra dev ruff check src tests`: passed.
-- `uv run --extra dev ruff format --check src tests`: passed.
-- Version 02 agent run on Verified × 10 completed: todo used on **10 / 10**.
-- Behavioral comparison recorded in
-  `evals/v02-baseline/VERIFIED_10_V02_SCORECARD.md`.
-- Official Docker harness for V02 blocked by domestic mirror 404 / hung pulls
-  of `swebench/sweb.eval.*` images.
+- `uv run --extra dev pytest -q`: 47 tests passed.
+- Live todo smoke: passed.
+- Docker mirror smoke + Verified × 10 image pre-pull: 10 / 10 local images.
+- Official harness for V02: **0 / 10 resolved** (V01 was **5 / 10**).
+  Details in `evals/v02-baseline/VERIFIED_10_V02_SCORECARD.md`.
+- Todo process goal met (used on 10 / 10); outcome on this slice regressed.
 
 ## Current Constraints
 
