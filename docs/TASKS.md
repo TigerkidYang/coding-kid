@@ -110,8 +110,22 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Implement Version 02 (`todo` tool) against the criteria above.
-- Re-run the Verified × 10 evaluation and compare with the Version 01 baseline.
+- Decide how to finish official V02 harness scoring (VPN once + keep images,
+  cloud host, or behavioral-only for this iteration).
+- Consider whether `todo` calls should be excluded from the 12-tool budget;
+  V02 used todo on 10/10 but hit the budget on 10/10 and gold-file edits fell
+  from 7/10 to 5/10 versus Version 01.
+
+## Verification (in progress)
+
+- `uv run --extra dev pytest -q`: 46 tests passed.
+- `uv run --extra dev ruff check src tests`: passed.
+- `uv run --extra dev ruff format --check src tests`: passed.
+- Version 02 agent run on Verified × 10 completed: todo used on **10 / 10**.
+- Behavioral comparison recorded in
+  `evals/v02-baseline/VERIFIED_10_V02_SCORECARD.md`.
+- Official Docker harness for V02 blocked by domestic mirror 404 / hung pulls
+  of `swebench/sweb.eval.*` images.
 
 ## Current Constraints
 

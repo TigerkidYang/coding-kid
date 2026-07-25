@@ -1,0 +1,332 @@
+[
+  {
+    "instance_id": "astropy__astropy-12907",
+    "repo": "astropy/astropy",
+    "gold_files": [
+      "astropy/modeling/separable.py"
+    ],
+    "agent_changed_files": [
+      "astropy/modeling/separable.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "used_todo": true,
+    "todo_calls": 3,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "execute",
+      "read",
+      "read",
+      "search",
+      "todo",
+      "patch",
+      "todo",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 55,
+    "gold_line_overlap": 2,
+    "gold_line_jaccard": 0.061,
+    "answer_preview": "Fixed the nested `CompoundModel` separability bug in `astropy/modeling/separable.py`.\n\n### Change\nWhen stacking an already-computed separability matrix on the right side of `&`, the code now preserves that matrix instead of filling the block with ones:\n\n```python\ncright[-right.shape[0]:, -right.shap"
+  },
+  {
+    "instance_id": "django__django-15278",
+    "repo": "django/django",
+    "gold_files": [
+      "django/db/backends/sqlite3/schema.py"
+    ],
+    "agent_changed_files": [],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "used_todo": true,
+    "todo_calls": 1,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "execute",
+      "read",
+      "search",
+      "search",
+      "read",
+      "read",
+      "execute",
+      "search"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 28,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "I identified the bug in `django/db/backends/sqlite3/schema.py`: `add_field()` uses `ALTER TABLE ... ADD COLUMN` for nullable fields, but SQLite rejects this when the field is unique, as with `OneToOneField`.\n\nThe fix is to rebuild the table for unique fields:\n\n```python\ndef add_field(self, model, fi"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-13989",
+    "repo": "matplotlib/matplotlib",
+    "gold_files": [
+      "lib/matplotlib/axes/_axes.py"
+    ],
+    "agent_changed_files": [],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "used_todo": true,
+    "todo_calls": 1,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "execute",
+      "read",
+      "read",
+      "read",
+      "read",
+      "execute",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 20,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "I wasn’t able to complete the code change because the tool-call budget was exhausted during repository inspection. The relevant implementation is `lib/matplotlib/axes/_axes.py`, in `Axes.hist`; no files were modified and verification was not run."
+  },
+  {
+    "instance_id": "psf__requests-5414",
+    "repo": "psf/requests",
+    "gold_files": [
+      "requests/models.py"
+    ],
+    "agent_changed_files": [],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "used_todo": true,
+    "todo_calls": 1,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "search",
+      "read",
+      "read",
+      "execute",
+      "execute",
+      "execute",
+      "read",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 18,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "I identified the issue in `requests/models.py`: ASCII hosts only reject labels beginning with `*`, so `.example.com` passes through unvalidated.\n\nThe required fix is:\n\n```diff\n-        elif host.startswith(u'*'):\n+        elif host.startswith((u'*', u'.')):\n             raise InvalidURL('URL has an "
+  },
+  {
+    "instance_id": "pydata__xarray-2905",
+    "repo": "pydata/xarray",
+    "gold_files": [
+      "xarray/core/variable.py"
+    ],
+    "agent_changed_files": [],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "used_todo": true,
+    "todo_calls": 2,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "execute",
+      "read",
+      "search",
+      "search",
+      "execute",
+      "execute",
+      "execute",
+      "todo"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 32,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "I wasn’t able to apply or verify the fix because the tool-call budget was exhausted during the repository inspection.\n\nThe intended change is in `xarray/core/variable.py`, inside `Variable.__setitem__`: preserve scalar objects with a `.values` attribute when assigning into an object-dtype array, ins"
+  },
+  {
+    "instance_id": "pylint-dev__pylint-4970",
+    "repo": "pylint-dev/pylint",
+    "gold_files": [
+      "pylint/checkers/similar.py"
+    ],
+    "agent_changed_files": [
+      "pylint/checkers/similar.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "used_todo": true,
+    "todo_calls": 3,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "read",
+      "execute",
+      "execute",
+      "read",
+      "todo",
+      "patch",
+      "todo",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 35,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "Implemented the core fix in `pylint/checkers/similar.py`:\n\n- `Similar._compute_sims()` now immediately returns no similarities when `min-similarity-lines <= 0`.\n- This prevents duplicate-code messages from being generated when the option is set to `0`.\n\nVerification:\n\n- Direct check confirms `Simila"
+  },
+  {
+    "instance_id": "pytest-dev__pytest-5809",
+    "repo": "pytest-dev/pytest",
+    "gold_files": [
+      "src/_pytest/pastebin.py"
+    ],
+    "agent_changed_files": [
+      "src/_pytest/pastebin.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "used_todo": true,
+    "todo_calls": 2,
+    "tool_calls": [
+      "todo",
+      "read",
+      "search",
+      "read",
+      "execute",
+      "search",
+      "search",
+      "read",
+      "read",
+      "todo",
+      "patch",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 31,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.056,
+    "answer_preview": "Updated `src/_pytest/pastebin.py` so `create_new_paste()` always submits:\n\n```python\n\"lexer\": \"text\"\n```\n\nThis correctly treats pytest output as arbitrary text and avoids `bpaste.net` HTTP 400 errors caused by the `python3` lexer.\n\nThe targeted test could not run because the repository’s older pytes"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-15100",
+    "repo": "scikit-learn/scikit-learn",
+    "gold_files": [
+      "sklearn/feature_extraction/text.py"
+    ],
+    "agent_changed_files": [
+      "sklearn/feature_extraction/text.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "used_todo": true,
+    "todo_calls": 3,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "execute",
+      "read",
+      "read",
+      "read",
+      "todo",
+      "patch",
+      "todo",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 47,
+    "gold_line_overlap": 2,
+    "gold_line_jaccard": 0.071,
+    "answer_preview": "Implemented the fix in `sklearn/feature_extraction/text.py`.\n\n### Change\n`strip_accents_unicode` now always removes combining Unicode marks after NFKD normalization, including strings that were already decomposed:\n\n```python\nnormalized = unicodedata.normalize('NFKD', s)\nreturn ''.join([c for c in no"
+  },
+  {
+    "instance_id": "sphinx-doc__sphinx-8269",
+    "repo": "sphinx-doc/sphinx",
+    "gold_files": [
+      "sphinx/builders/linkcheck.py"
+    ],
+    "agent_changed_files": [
+      "sphinx/builders/linkcheck.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "used_todo": true,
+    "todo_calls": 2,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "read",
+      "read",
+      "read",
+      "read",
+      "read",
+      "execute",
+      "todo",
+      "patch"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 90,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.017,
+    "answer_preview": "Implemented the fix in `sphinx/builders/linkcheck.py`.\n\n### Change\nWhen anchor checking is enabled, the linkcheck builder now calls:\n\n```python\nresponse.raise_for_status()\n```\n\nbefore parsing the response for the anchor. This ensures HTTP errors such as 404 or 500 are reported instead of being maske"
+  },
+  {
+    "instance_id": "sympy__sympy-20590",
+    "repo": "sympy/sympy",
+    "gold_files": [
+      "sympy/core/_print_helpers.py"
+    ],
+    "agent_changed_files": [],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "used_todo": true,
+    "todo_calls": 1,
+    "tool_calls": [
+      "todo",
+      "execute",
+      "search",
+      "search",
+      "read",
+      "read",
+      "read",
+      "read",
+      "search",
+      "search",
+      "read",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 22,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.059,
+    "answer_preview": "I inspected the relevant inheritance hierarchy. `Symbol` inherits from `AtomicExpr`, which inherits from `Expr`; `Expr` also inherits from `EvalfMixin`. The likely regression is that `EvalfMixin` does not define `__slots__ = ()`, causing a `__dict__` slot to be introduced into expression instances.\n"
+  }
+]

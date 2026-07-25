@@ -1,0 +1,314 @@
+[
+  {
+    "instance_id": "astropy__astropy-12907",
+    "repo": "astropy/astropy",
+    "gold_files": [
+      "astropy/modeling/separable.py"
+    ],
+    "agent_changed_files": [
+      "astropy/modeling/separable.py",
+      "astropy/modeling/tests/test_separable.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "execute",
+      "execute",
+      "read",
+      "patch",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 6,
+    "hit_tool_budget": false,
+    "patch_line_count": 50,
+    "gold_line_overlap": 2,
+    "gold_line_jaccard": 0.1,
+    "answer_preview": "Fixed the nested `CompoundModel` separability bug in `astropy/modeling/separable.py`.\n\n### Change\nWhen stacking an already-computed separability matrix on the right side of a compound model, the code now preserves that matrix instead of replacing it with all `True` values.\n\n### Verification\n- `py_co"
+  },
+  {
+    "instance_id": "django__django-15278",
+    "repo": "django/django",
+    "gold_files": [
+      "django/db/backends/sqlite3/schema.py"
+    ],
+    "agent_changed_files": [
+      "tests/schema/tests.py"
+    ],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "tool_calls": [
+      "execute",
+      "read",
+      "search",
+      "search",
+      "execute",
+      "read",
+      "search",
+      "read",
+      "read",
+      "read",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 23,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "The fix is to make SQLite rebuild the table when adding any `unique=True` field, including nullable `OneToOneField`s. SQLite doesn't support `ALTER TABLE ... ADD COLUMN` with an inline `UNIQUE` constraint.\n\nUpdate `django/db/backends/sqlite3/schema.py`:\n\n```python\nif (\n    not field.null or\n    self"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-13989",
+    "repo": "matplotlib/matplotlib",
+    "gold_files": [
+      "lib/matplotlib/axes/_axes.py"
+    ],
+    "agent_changed_files": [
+      "lib/matplotlib/axes/_axes.py",
+      "lib/matplotlib/tests/test_axes.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "execute",
+      "search",
+      "read",
+      "execute",
+      "execute",
+      "execute",
+      "patch",
+      "execute",
+      "search",
+      "execute"
+    ],
+    "tool_count": 10,
+    "hit_tool_budget": false,
+    "patch_line_count": 31,
+    "gold_line_overlap": 2,
+    "gold_line_jaccard": 0.182,
+    "answer_preview": "Fixed `hist()` so `density=True` preserves the user-supplied `range` when calculating histogram bins.\n\n### Change\nUpdated `lib/matplotlib/axes/_axes.py` to add `density` to the existing `hist_kwargs` instead of replacing it, which retains `range`.\n\n### Verification\n- Python syntax compilation succee"
+  },
+  {
+    "instance_id": "psf__requests-5414",
+    "repo": "psf/requests",
+    "gold_files": [
+      "requests/models.py"
+    ],
+    "agent_changed_files": [
+      "tests/test_requests.py"
+    ],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "tool_calls": [
+      "search",
+      "search",
+      "execute",
+      "read",
+      "search",
+      "search",
+      "execute",
+      "search",
+      "search",
+      "search",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 13,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "I’m unable to complete the code change in this turn because the tool-call budget was exhausted before the patch could be applied. The relevant fix is in `requests/models.py`, within `PreparedRequest.prepare_url`: validate ASCII hostnames through `_get_idna_encoded_host()` as well, catching `UnicodeE"
+  },
+  {
+    "instance_id": "pydata__xarray-2905",
+    "repo": "pydata/xarray",
+    "gold_files": [
+      "xarray/core/variable.py"
+    ],
+    "agent_changed_files": [
+      "xarray/core/variable.py",
+      "xarray/tests/test_variable.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "execute",
+      "read",
+      "search",
+      "search",
+      "execute",
+      "execute",
+      "execute",
+      "execute",
+      "search",
+      "execute",
+      "execute",
+      "patch"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 48,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "Fixed `Variable.__setitem__` in `xarray/core/variable.py`.\n\n### Change\nWhen assigning a scalar object into an `object`-dtype variable, the value is now wrapped directly with:\n\n```python\nnp.asarray(value, dtype=object)\n```\n\nThis prevents `as_compatible_data()` from unwrapping objects that happen to d"
+  },
+  {
+    "instance_id": "pylint-dev__pylint-4970",
+    "repo": "pylint-dev/pylint",
+    "gold_files": [
+      "pylint/checkers/similar.py"
+    ],
+    "agent_changed_files": [
+      "pylint/checkers/similar.py",
+      "tests/checkers/unittest_similar.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "execute",
+      "search",
+      "search",
+      "search",
+      "read",
+      "search",
+      "search",
+      "search",
+      "patch",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 11,
+    "hit_tool_budget": false,
+    "patch_line_count": 30,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.1,
+    "answer_preview": "Implemented the fix in `pylint/checkers/similar.py`.\n\n### Change\nWhen `min-similarity-lines` is set to `0`, similarity computation now returns no results, effectively disabling duplicate-code checks (`R0801`) and preventing the invalid zero-line comparison behavior.\n\n### Verification\n- `python -m py"
+  },
+  {
+    "instance_id": "pytest-dev__pytest-5809",
+    "repo": "pytest-dev/pytest",
+    "gold_files": [
+      "src/_pytest/pastebin.py"
+    ],
+    "agent_changed_files": [
+      "src/_pytest/pastebin.py",
+      "testing/test_pastebin.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "search",
+      "read",
+      "search",
+      "patch",
+      "search",
+      "read",
+      "execute",
+      "execute",
+      "search",
+      "read",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 26,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.111,
+    "answer_preview": "Updated `src/_pytest/pastebin.py` so `create_new_paste()` always submits pytest output with:\n\n```python\n\"lexer\": \"text\"\n```\n\nThis prevents arbitrary pytest output from being parsed as Python by bpaste.net and avoids the resulting HTTP 400 errors.\n\nVerification:\n- The existing `test_create_new_paste`"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-15100",
+    "repo": "scikit-learn/scikit-learn",
+    "gold_files": [
+      "sklearn/feature_extraction/text.py"
+    ],
+    "agent_changed_files": [
+      "sklearn/feature_extraction/tests/test_text.py",
+      "sklearn/feature_extraction/text.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "search",
+      "read",
+      "patch",
+      "read",
+      "execute",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 7,
+    "hit_tool_budget": false,
+    "patch_line_count": 42,
+    "gold_line_overlap": 2,
+    "gold_line_jaccard": 0.1,
+    "answer_preview": "Fixed `strip_accents_unicode` so it always removes combining characters after NFKD normalization, including strings already in decomposed form.\n\nVerification:\n- `s1 = \"ñ\"` → `\"n\"`\n- `s2 = \"n\\u0303\"` → `\"n\"`\n- Python compilation passed.\n- Direct regression checks passed.\n\nThe full scikit-learn test s"
+  },
+  {
+    "instance_id": "sphinx-doc__sphinx-8269",
+    "repo": "sphinx-doc/sphinx",
+    "gold_files": [
+      "sphinx/builders/linkcheck.py"
+    ],
+    "agent_changed_files": [
+      "sphinx/builders/linkcheck.py",
+      "tests/roots/test-linkcheck-localserver/conf.py",
+      "tests/roots/test-linkcheck-localserver/index.rst",
+      "tests/test_build_linkcheck.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
+    "tool_calls": [
+      "search",
+      "search",
+      "execute",
+      "read",
+      "read",
+      "read",
+      "patch",
+      "execute",
+      "execute"
+    ],
+    "tool_count": 9,
+    "hit_tool_budget": false,
+    "patch_line_count": 87,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.029,
+    "answer_preview": "Fixed the `linkcheck` anchor handling bug.\n\n### Change\nWhen `linkcheck_anchors` is enabled, the response now calls `raise_for_status()` before checking the anchor. HTTP errors such as 404 and 500 are therefore reported instead of being incorrectly reported as missing anchors.\n\n### Verification\n- `py"
+  },
+  {
+    "instance_id": "sympy__sympy-20590",
+    "repo": "sympy/sympy",
+    "gold_files": [
+      "sympy/core/_print_helpers.py"
+    ],
+    "agent_changed_files": [
+      "sympy/core/tests/test_basic.py"
+    ],
+    "agent_edited_via_tools": false,
+    "touched_gold_file": false,
+    "tool_calls": [
+      "execute",
+      "search",
+      "search",
+      "search",
+      "read",
+      "read",
+      "read",
+      "read",
+      "search",
+      "read",
+      "search",
+      "read"
+    ],
+    "tool_count": 12,
+    "hit_tool_budget": true,
+    "patch_line_count": 17,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.111,
+    "answer_preview": "I’m unable to modify or verify the repository because the tool-call budget for this turn has been exhausted. The likely fix is to add an empty slots declaration to `EvalfMixin` in `sympy/core/evalf.py`:\n\n```python\nclass EvalfMixin:\n    __slots__ = ()\n```\n\n`Expr` inherits from `EvalfMixin`; without `"
+  }
+]

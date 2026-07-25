@@ -1,0 +1,49 @@
+{
+    "total_instances": 10,
+    "submitted_instances": 10,
+    "completed_instances": 7,
+    "resolved_instances": 5,
+    "unresolved_instances": 2,
+    "empty_patch_instances": 3,
+    "error_instances": 0,
+    "completed_ids": [
+        "astropy__astropy-12907",
+        "matplotlib__matplotlib-13989",
+        "pydata__xarray-2905",
+        "pylint-dev__pylint-4970",
+        "pytest-dev__pytest-5809",
+        "scikit-learn__scikit-learn-15100",
+        "sphinx-doc__sphinx-8269"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [
+        "django__django-15278",
+        "psf__requests-5414",
+        "sympy__sympy-20590"
+    ],
+    "submitted_ids": [
+        "astropy__astropy-12907",
+        "django__django-15278",
+        "matplotlib__matplotlib-13989",
+        "psf__requests-5414",
+        "pydata__xarray-2905",
+        "pylint-dev__pylint-4970",
+        "pytest-dev__pytest-5809",
+        "scikit-learn__scikit-learn-15100",
+        "sphinx-doc__sphinx-8269",
+        "sympy__sympy-20590"
+    ],
+    "resolved_ids": [
+        "astropy__astropy-12907",
+        "matplotlib__matplotlib-13989",
+        "pytest-dev__pytest-5809",
+        "scikit-learn__scikit-learn-15100",
+        "sphinx-doc__sphinx-8269"
+    ],
+    "unresolved_ids": [
+        "pydata__xarray-2905",
+        "pylint-dev__pylint-4970"
+    ],
+    "error_ids": [],
+    "schema_version": 2
+}
