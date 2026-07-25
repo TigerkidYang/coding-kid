@@ -195,12 +195,14 @@ incomplete provider response cannot corrupt the following conversation turn.
 ## Bound tool calls as well as tool output
 
 Decision:
-Execute at most 12 model-requested tools in one user turn. Provide a matched
-skipped result for later calls and explicitly instruct the model to answer from
+Execute at most 12 model-requested file/shell tools in one user turn. Todo
+checklist updates are excluded from that budget. Provide a matched skipped
+result for later non-todo calls and explicitly instruct the model to answer from
 evidence already collected. Guide broad repository-overview requests toward a
 small, selective evidence set.
 
 Consequence:
 A model cannot turn a simple overview into an unbounded recursive inspection or
 large parallel batch. Skipped calls preserve the provider's function-call
-protocol without appearing in the terminal as completed work.
+protocol without appearing in the terminal as completed work. Planning with
+`todo` does not reduce the budget available for real work.
