@@ -1,0 +1,26 @@
+2026-07-25 18:52:18,393 - INFO - Creating container for sphinx-doc__sphinx-8269...
+2026-07-25 18:52:18,458 - INFO - Container for sphinx-doc__sphinx-8269 created: 2f36d974c4dc2fb3ce27476cbc1cf349f1e82c24d0ebdee1c08ac91073eb9a64
+2026-07-25 18:52:18,651 - INFO - Container for sphinx-doc__sphinx-8269 started: 2f36d974c4dc2fb3ce27476cbc1cf349f1e82c24d0ebdee1c08ac91073eb9a64
+2026-07-25 18:52:18,655 - INFO - Intermediate patch for sphinx-doc__sphinx-8269 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/sphinx-doc__sphinx-8269/patch.diff, now applying to container...
+2026-07-25 18:52:18,939 - INFO - Failed to apply patch to container: git apply --verbose
+2026-07-25 18:52:19,036 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-07-25 18:52:19,120 - INFO - >>>>> Applied Patch:
+The next patch would delete the file _swe_test.patch,
+which does not exist!  Assuming -R.
+patching file _swe_test.patch
+patching file sphinx/builders/linkcheck.py
+Reversed (or previously applied) patch detected!  Assuming -R.
+
+2026-07-25 18:52:20,189 - INFO - Git diff before:
+
+2026-07-25 18:52:20,200 - INFO - Eval script for sphinx-doc__sphinx-8269 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/sphinx-doc__sphinx-8269/eval.sh; copying to container...
+2026-07-25 18:52:33,492 - INFO - Test runtime: 12.98 seconds
+2026-07-25 18:52:33,497 - INFO - Test output for sphinx-doc__sphinx-8269 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/sphinx-doc__sphinx-8269/test_output.txt
+2026-07-25 18:52:33,591 - INFO - Git diff after:
+
+2026-07-25 18:52:33,591 - INFO - Grading answer for sphinx-doc__sphinx-8269...
+2026-07-25 18:52:33,598 - INFO - report: {'sphinx-doc__sphinx-8269': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['tests/test_build_linkcheck.py::test_raises_for_invalid_status']}, 'PASS_TO_PASS': {'success': ['tests/test_build_linkcheck.py::test_defaults', 'tests/test_build_linkcheck.py::test_defaults_json', 'tests/test_build_linkcheck.py::test_anchors_ignored', 'tests/test_build_linkcheck.py::test_auth', 'tests/test_build_linkcheck.py::test_linkcheck_request_headers'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sphinx-doc__sphinx-8269: resolved: False
+2026-07-25 18:52:33,600 - INFO - Attempting to stop container sweb.eval.sphinx-doc__sphinx-8269.coding_kid_v02_verified10...
+2026-07-25 18:52:48,793 - INFO - Attempting to remove container sweb.eval.sphinx-doc__sphinx-8269.coding_kid_v02_verified10...
+2026-07-25 18:52:48,830 - INFO - Container sweb.eval.sphinx-doc__sphinx-8269.coding_kid_v02_verified10 removed.

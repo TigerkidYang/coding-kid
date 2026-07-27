@@ -1,0 +1,31 @@
+diff --git a/_swe_test.patch b/_swe_test.patch
+deleted file mode 100644
+index b7f84b59b..000000000
+--- a/_swe_test.patch
++++ /dev/null
+@@ -1,12 +0,0 @@
+-diff --git a/testing/test_pastebin.py b/testing/test_pastebin.py
+---- a/testing/test_pastebin.py
+-+++ b/testing/test_pastebin.py
+-@@ -126,7 +126,7 @@ def test_create_new_paste(self, pastebin, mocked_urlopen):
+-         assert len(mocked_urlopen) == 1
+-         url, data = mocked_urlopen[0]
+-         assert type(data) is bytes
+--        lexer = "python3" if sys.version_info[0] >= 3 else "python"
+-+        lexer = "text"
+-         assert url == "https://bpaste.net"
+-         assert "lexer=%s" % lexer in data.decode()
+-         assert "code=full-paste-contents" in data.decode()
+diff --git a/src/_pytest/pastebin.py b/src/_pytest/pastebin.py
+index 41576a615..79b0d9d40 100644
+--- a/src/_pytest/pastebin.py
++++ b/src/_pytest/pastebin.py
+@@ -79,7 +79,7 @@ def create_new_paste(contents):
+ 
+     params = {
+         "code": contents,
+-        "lexer": "python3" if sys.version_info[0] >= 3 else "python",
++        "lexer": "text",
+         "expiry": "1week",
+     }
+     url = "https://bpaste.net"

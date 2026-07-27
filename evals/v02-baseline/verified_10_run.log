@@ -1,0 +1,167 @@
+
+===== astropy__astropy-12907 =====
+  cloning astropy/astropy...
+    [tool] execute {"command": "dir /b && findstr /s /n /i \"def separability_matrix\" *.py astropy\\modeling\\*.py 2>nul"}
+    [tool] execute {"command": "dir /b astropy\\modeling && dir /b astropy\\modeling\\tests | findstr /i separ && findstr /n /i \"separa...
+    [tool] read {"path": "astropy/modeling/separable.py"}
+    [tool] patch {"path": "astropy/modeling/separable.py", "old_text": "        cright = np.zeros((noutp, right.shape[1]))\n        cr...
+    [tool] execute {"command": "python -c \"from astropy.modeling import models as m; from astropy.modeling.separable import separabilit...
+    [tool] execute {"command": "python -m py_compile astropy\\modeling\\separable.py"}
+  => [FAIL] setup=True pre_fail_ok=True 72.6s tools=['execute', 'execute', 'read', 'patch', 'execute', 'execute']
+  post: ImportError while loading conftest 'C:\Users\littletiger\codingKid\evals\v02-baseline\verified_workspaces\astropy__astropy-12907\conftest.py'. | conftest.py:9: in <module> |     import hypothesis | E 
+
+===== django__django-15278 =====
+  cloning django/django...
+    [tool] execute {"command": "dir /b && (if exist README.rst type README.rst) && (if exist README.md type README.md) && dir /b django\...
+    [tool] read {"path": "django/db/backends/sqlite3/schema.py"}
+    [tool] search {"query": "Cannot add a UNIQUE column", "path": "django"}
+    [tool] search {"query": "OneToOneField", "path": "tests/schema"}
+    [tool] execute {"command": "dir /b tests\\schema && findstr /s /n /i \"unique.*column OneToOne AddField nullable null\" tests\\schem...
+    [tool] read {"path": "tests/schema/tests.py"}
+    [tool] search {"query": "def add_field", "path": "django/db/backends/base/schema.py"}
+    [tool] read {"path": "django/db/backends/base/schema.py"}
+    [tool] read {"path": "django/db/backends/sqlite3/features.py"}
+    [tool] read {"path": "tests/schema/tests.py"}
+    [tool] execute {"command": "findstr /n /c:\"test_add_field_o2o_nullable\" /c:\"new_field = OneToOneField(Note\" tests\\schema\\tests...
+    [tool] execute {"command": "more +620 tests\\schema\\tests.py | findstr /n /c:\"\" | more +0 | findstr /r \"^[1-35]:\" && python tes...
+  => [FAIL] setup=True pre_fail_ok=True 172.7s tools=['execute', 'read', 'search', 'search', 'execute', 'read', 'search', 'read', 'read', 'read', 'execute', 'execute']
+  post: ERROR tests\view_tests\tests\test_defaults.py | ERROR tests\view_tests\tests\test_i18n.py | ERROR tests\view_tests\tests\test_json.py | ERROR tests\view_tests\tests\test_specials.py | ERROR tests\view
+
+===== matplotlib__matplotlib-13989 =====
+  cloning matplotlib/matplotlib...
+    [tool] execute {"command": "dir /b && findstr /s /n /c:\"def hist\" lib\\matplotlib\\*.py lib\\matplotlib\\**\\*.py 2>nul | head -50"}
+    [tool] search {"query": "def hist", "path": "lib"}
+    [tool] read {"path": "lib/matplotlib/axes/_axes.py"}
+    [tool] execute {"command": "python -c \"p='lib/matplotlib/axes/_axes.py'; lines=open(p,encoding='utf8').read().splitlines(); print('...
+    [tool] execute {"command": "python -c \"p='lib/matplotlib/axes/_axes.py'; l=open(p,encoding='utf8').read().splitlines(); print('\\n'...
+    [tool] execute {"command": "python -c \"p='lib/matplotlib/axes/_axes.py'; l=open(p,encoding='utf8').read().splitlines(); print('\\n'...
+    [tool] patch {"path": "lib/matplotlib/axes/_axes.py", "old_text": "        density = bool(density) or bool(normed)\n        if den...
+    [tool] execute {"command": "set PYTHONPATH=lib&&python -c \"import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as pl...
+    [tool] search {"query": "range=(0, 1)", "path": "lib/matplotlib/axes/_axes.py"}
+    [tool] execute {"command": "python -m py_compile lib\\matplotlib\\axes\\_axes.py && python -c \"import numpy as np; x=np.random.rand...
+  => [FAIL] setup=True pre_fail_ok=True 113.4s tools=['execute', 'search', 'read', 'execute', 'execute', 'execute', 'patch', 'execute', 'search', 'execute']
+  post:     from . import cbook, rcsetup | lib\matplotlib\rcsetup.py:24: in <module> |     from matplotlib.fontconfig_pattern import parse_fontconfig_pattern | lib\matplotlib\fontconfig_pattern.py:18: in <mod
+
+===== psf__requests-5414 =====
+  cloning psf/requests...
+    [tool] search {"query": "InvalidUrl", "path": "."}
+    [tool] search {"query": "idna", "path": "requests"}
+    [tool] execute {"command": "dir /b"}
+    [tool] read {"path": "requests/models.py"}
+    [tool] search {"query": "InvalidURL", "path": "requests"}
+    [tool] search {"query": "invalid label", "path": "tests"}
+    [tool] execute {"command": "python -c \"import requests; print(requests.__version__); requests.get('http://.example.com', timeout=1)...
+    [tool] search {"query": "invalid label", "path": "tests"}
+    [tool] search {"query": "idna", "path": "tests"}
+    [tool] search {"query": "prepare_url", "path": "tests"}
+    [tool] execute {"command": "python -c \"import idna; \nfor h in ['.example.com','example.com','*example.com','example..com','example...
+    [tool] execute {"command": "python -c \"import idna; print(idna.__version__); print(idna.encode('.example.com', uts46=True))\""}
+  => [FAIL] setup=True pre_fail_ok=True 50.7s tools=['search', 'search', 'execute', 'read', 'search', 'search', 'execute', 'search', 'search', 'search', 'execute', 'execute']
+  post: ImportError while loading conftest 'C:\Users\littletiger\codingKid\evals\v02-baseline\verified_workspaces\psf__requests-5414\tests\conftest.py'. | tests\__init__.py:8: in <module> |     from urllib3.e
+
+===== pydata__xarray-2905 =====
+  cloning pydata/xarray...
+    [tool] execute {"command": "dir /b && findstr /s /n /c:\"class Variable\" xarray\\core\\variable.py && findstr /s /n /c:\"__setitem_...
+    [tool] read {"path": "xarray/core/variable.py"}
+    [tool] search {"query": "values property", "path": "xarray"}
+    [tool] search {"query": "setitem", "path": "xarray/tests"}
+    [tool] execute {"command": "python -c \"p='xarray/core/variable.py'; lines=open(p).read().splitlines(); print('\\n'.join(f'{i+1}: {l...
+    [tool] execute {"command": "python -c \"p='xarray/core/variable.py'; lines=open(p,encoding='utf8').read().splitlines(); print('\\\\n...
+    [tool] execute {"command": "python -c \"p='xarray/core/indexing.py'; lines=open(p,encoding='utf8').read().splitlines(); print('\\\\n...
+    [tool] execute {"command": "python -c \"p='xarray/tests/test_variable.py'; lines=open(p,encoding='utf8').read().splitlines(); print(...
+    [tool] search {"query": "def is_scalar", "path": "xarray/core/utils.py"}
+    [tool] execute {"command": "python -c \"p='xarray/core/utils.py'; lines=open(p,encoding='utf8').read().splitlines(); print('\\\\n'.j...
+    [tool] execute {"command": "python -c \"import numpy as np; H=type('H',(),{'values':5}); h=H(); a=np.array(h,dtype=object); print(a,...
+    [tool] patch {"path": "xarray/core/variable.py", "old_text": "        if not isinstance(value, Variable):\n            value = as_...
+  => [FAIL] setup=True pre_fail_ok=True 61.2s tools=['execute', 'read', 'search', 'search', 'execute', 'execute', 'execute', 'execute', 'search', 'execute', 'execute', 'patch']
+  post:     import pkg_resources | E   ModuleNotFoundError: No module named 'pkg_resources' | =========================== short test summary info =========================== | ERROR xarray/tests/test_variable
+
+===== pylint-dev__pylint-4970 =====
+  cloning pylint-dev/pylint...
+    [tool] execute {"command": "dir /b && echo --- && type pyproject.toml 2>nul || type setup.cfg 2>nul || type tox.ini 2>nul || type RE...
+    [tool] search {"query": "min-similarity-lines", "path": "pylint"}
+    [tool] search {"query": "similarity_lines", "path": "pylint"}
+    [tool] search {"query": "R0801", "path": "pylint"}
+    [tool] read {"path": "pylint/checkers/similar.py"}
+    [tool] search {"query": "SimilarChecker", "path": "tests"}
+    [tool] search {"query": "min_similarity_lines", "path": "tests"}
+    [tool] search {"query": "min-similarity-lines", "path": "tests"}
+    [tool] patch {"path": "pylint/checkers/similar.py", "old_text": "    def _compute_sims(self) -> List[Tuple[int, Set[LinesChunkLimi...
+    [tool] execute {"command": "python -m pytest tests/checkers/unittest_similar.py -q --disable-warnings --maxfail=1"}
+    [tool] execute {"command": "python -m py_compile pylint\\checkers\\similar.py"}
+  => [FAIL] setup=True pre_fail_ok=True 65.6s tools=['execute', 'search', 'search', 'search', 'read', 'search', 'search', 'search', 'patch', 'execute', 'execute']
+  post:     from pylint.config.configuration_mixin import ConfigurationMixIn | pylint\config\configuration_mixin.py:4: in <module> |     from pylint.config.option_manager_mixin import OptionsManagerMixIn | py
+
+===== pytest-dev__pytest-5809 =====
+    [tool] search {"query": "python3", "path": "."}
+    [tool] read {"path": "src/_pytest/pastebin.py"}
+    [tool] search {"query": "pastebin", "path": "tests"}
+    [tool] patch {"path": "src/_pytest/pastebin.py", "old_text": "    params = {\n        \"code\": contents,\n        \"lexer\": \"py...
+    [tool] search {"query": "create_new_paste", "path": "testing"}
+    [tool] read {"path": "testing/test_pastebin.py"}
+    [tool] execute {"command": "python -m pytest testing/test_pastebin.py -q"}
+    [tool] execute {"command": "dir /b"}
+    [tool] search {"query": "RemovedInPytest4Warning", "path": "."}
+    [tool] read {"path": "setup.cfg"}
+    [tool] execute {"command": "python -m pytest testing/test_pastebin.py -q -c NUL"}
+    [tool] execute {"command": "set PYTHONPATH=src&& python -m pytest testing/test_pastebin.py::TestPaste::test_create_new_paste -q -c N...
+  => [FAIL] setup=True pre_fail_ok=True 72.0s tools=['search', 'read', 'search', 'patch', 'search', 'read', 'execute', 'execute', 'search', 'read', 'execute', 'execute']
+  post:     category: type[Warning] = _resolve_warning_category(category_) |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ |   File "C:\Users\littletiger\codingKid\.venv\Lib\site-packages
+
+===== scikit-learn__scikit-learn-15100 =====
+  cloning scikit-learn/scikit-learn...
+    [tool] search {"query": "strip_accents_unicode", "path": "."}
+    [tool] read {"path": "sklearn\\feature_extraction\\text.py"}
+    [tool] patch {"path": "sklearn\\feature_extraction\\text.py", "old_text": "    normalized = unicodedata.normalize('NFKD', s)\n    ...
+    [tool] read {"path": "sklearn\\feature_extraction\\tests\\test_text.py"}
+    [tool] execute {"command": "python -c \"from sklearn.feature_extraction.text import strip_accents_unicode; s1=chr(241); s2=chr(110)+...
+    [tool] execute {"command": "python -m py_compile sklearn\\feature_extraction\\text.py"}
+    [tool] execute {"command": "python -c \"import ast, unicodedata; tree=ast.parse(open('sklearn/feature_extraction/text.py', encoding=...
+  => [FAIL] setup=True pre_fail_ok=True 69.7s tools=['search', 'read', 'patch', 'read', 'execute', 'execute', 'execute']
+  post: E   If you have installed scikit-learn from source, please do not forget | E   to build the package before using it: run `python setup.py install` or | E   `make` in the source directory. | E | E   If
+
+===== sphinx-doc__sphinx-8269 =====
+  cloning sphinx-doc/sphinx...
+    [tool] search {"query": "Anchor '", "path": "."}
+    [tool] search {"query": "linkcheck_anchors", "path": "."}
+    [tool] execute {"command": "dir /b"}
+    [tool] read {"path": "sphinx/builders/linkcheck.py"}
+    [tool] read {"path": "tests/test_build_linkcheck.py"}
+    [tool] read {"path": "tests/roots/test-linkcheck-localserver/index.rst"}
+    [tool] patch {"path": "sphinx/builders/linkcheck.py", "old_text": "                    response = requests.get(req_url, stream=Tru...
+    [tool] execute {"command": "python -m pytest tests/test_build_linkcheck.py::test_raises_for_invalid_status -q"}
+    [tool] execute {"command": "python -m py_compile sphinx\\builders\\linkcheck.py"}
+  => [FAIL] setup=True pre_fail_ok=True 67.9s tools=['search', 'search', 'execute', 'read', 'read', 'read', 'patch', 'execute', 'execute']
+  post: ImportError while loading conftest 'C:\Users\littletiger\codingKid\evals\v02-baseline\verified_workspaces\sphinx-doc__sphinx-8269\tests\conftest.py'. | tests\conftest.py:12: in <module> |     import d
+
+===== sympy__sympy-20590 =====
+  cloning sympy/sympy...
+    [tool] execute {"command": "dir /b && (if exist README.md type README.md) && (if exist pyproject.toml type pyproject.toml) && (if ex...
+    [tool] search {"query": "class Symbol", "path": "sympy"}
+    [tool] search {"query": "__slots__", "path": "sympy/core"}
+    [tool] search {"query": "class Basic", "path": "sympy/core"}
+    [tool] read {"path": "sympy/core/symbol.py"}
+    [tool] read {"path": "sympy/core/basic.py"}
+    [tool] read {"path": "sympy/core/expr.py"}
+    [tool] read {"path": "sympy/core/core.py"}
+    [tool] search {"query": "class Boolean", "path": "sympy/logic/boolalg.py"}
+    [tool] read {"path": "sympy/logic/boolalg.py"}
+    [tool] search {"query": "class ManagedProperties", "path": "sympy/core/assumptions.py"}
+    [tool] read {"path": "sympy/core/assumptions.py"}
+  => [FAIL] setup=True pre_fail_ok=True 89.0s tools=['execute', 'search', 'search', 'search', 'read', 'read', 'read', 'read', 'search', 'read', 'search', 'read']
+  post: ImportError while loading conftest 'C:\Users\littletiger\codingKid\evals\v02-baseline\verified_workspaces\sympy__sympy-20590\conftest.py'. | conftest.py:11: in <module> |     from sympy.testing.runtes
+
+========== SUMMARY ==========
+Valid baselines (setup+pre-fail): 10/10
+Resolved by Coding Kid V01: 0/10
+  FAIL astropy__astropy-12907 (setup=True, pre_fail_ok=True, tools=6)
+  FAIL django__django-15278 (setup=True, pre_fail_ok=True, tools=12)
+  FAIL matplotlib__matplotlib-13989 (setup=True, pre_fail_ok=True, tools=10)
+  FAIL psf__requests-5414 (setup=True, pre_fail_ok=True, tools=12)
+  FAIL pydata__xarray-2905 (setup=True, pre_fail_ok=True, tools=12)
+  FAIL pylint-dev__pylint-4970 (setup=True, pre_fail_ok=True, tools=11)
+  FAIL pytest-dev__pytest-5809 (setup=True, pre_fail_ok=True, tools=12)
+  FAIL scikit-learn__scikit-learn-15100 (setup=True, pre_fail_ok=True, tools=7)
+  FAIL sphinx-doc__sphinx-8269 (setup=True, pre_fail_ok=True, tools=9)
+  FAIL sympy__sympy-20590 (setup=True, pre_fail_ok=True, tools=12)
+Report: C:\Users\littletiger\codingKid\evals\v02-baseline\v1_verified_10_report.json

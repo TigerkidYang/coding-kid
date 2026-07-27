@@ -1,0 +1,89 @@
+diff --git a/_swe_test.patch b/_swe_test.patch
+deleted file mode 100644
+index 61812af3f..000000000
+--- a/_swe_test.patch
++++ /dev/null
+@@ -1,36 +0,0 @@
+-diff --git a/astropy/modeling/tests/test_separable.py b/astropy/modeling/tests/test_separable.py
+---- a/astropy/modeling/tests/test_separable.py
+-+++ b/astropy/modeling/tests/test_separable.py
+-@@ -28,6 +28,13 @@
+- p1 = models.Polynomial1D(1, name='p1')
+- 
+- 
+-+cm_4d_expected = (np.array([False, False, True, True]),
+-+                  np.array([[True,  True,  False, False],
+-+                            [True,  True,  False, False],
+-+                            [False, False, True,  False],
+-+                            [False, False, False, True]]))
+-+
+-+
+- compound_models = {
+-     'cm1': (map3 & sh1 | rot & sh1 | sh1 & sh2 & sh1,
+-             (np.array([False, False, True]),
+-@@ -52,7 +59,17 @@
+-     'cm7': (map2 | p2 & sh1,
+-             (np.array([False, True]),
+-              np.array([[True, False], [False, True]]))
+--            )
+-+            ),
+-+    'cm8': (rot & (sh1 & sh2), cm_4d_expected),
+-+    'cm9': (rot & sh1 & sh2, cm_4d_expected),
+-+    'cm10': ((rot & sh1) & sh2, cm_4d_expected),
+-+    'cm11': (rot & sh1 & (scl1 & scl2),
+-+             (np.array([False, False, True, True, True]),
+-+              np.array([[True,  True,  False, False, False],
+-+                        [True,  True,  False, False, False],
+-+                        [False, False, True,  False, False],
+-+                        [False, False, False, True,  False],
+-+                        [False, False, False, False, True]]))),
+- }
+- 
+- 
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e2729..59e9fa168 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -193,26 +193,25 @@ def _coord_matrix(model, pos, noutp):
+             axis[i] = 1
+             axes.append(axis)
+         m = np.vstack(axes)
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[: model.n_outputs, :model.n_inputs] = m
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = m
+-        return mat
+-    if not model.separable:
++    elif isinstance(model, CompoundModel):
++        # A compound model may itself contain a compound model.  Using the
++        # ``separable`` flag here loses the correlations between the nested
++        # model's outputs and inputs, and treats all of them as dependent.
++        # Compute its matrix recursively instead.
++        m = _separable(model)
++    elif not model.separable:
+         # this does not work for more than 2 coordinates
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[:model.n_outputs, : model.n_inputs] = 1
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = 1
++        m = np.ones((model.n_outputs, model.n_inputs))
+     else:
+-        mat = np.zeros((noutp, model.n_inputs))
+-
++        m = np.zeros((model.n_outputs, model.n_inputs))
+         for i in range(model.n_inputs):
+-            mat[i, i] = 1
+-        if pos == 'right':
+-            mat = np.roll(mat, (noutp - model.n_outputs))
++            m[i, i] = 1
++
++    mat = np.zeros((noutp, model.n_inputs))
++    if pos == 'left':
++        mat[:model.n_outputs, :model.n_inputs] = m
++    else:
++        mat[-model.n_outputs:, -model.n_inputs:] = m
+     return mat
+ 
+ 

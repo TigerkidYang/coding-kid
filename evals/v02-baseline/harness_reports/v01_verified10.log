@@ -1,0 +1,59 @@
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+<frozen runpy>:128: RuntimeWarning: 'swebench.harness.run_evaluation' found in sys.modules after import of package 'swebench.harness', but prior to execution of 'swebench.harness.run_evaluation'; this may result in unpredictable behaviour
+2026-07-25 10:40:18,639 - httpx - INFO - HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"
+2026-07-25 10:40:19,030 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-07-25 10:40:19,031 - huggingface_hub.utils._http - WARNING - Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-07-25 10:40:19,353 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/SWE-bench/SWE-bench_Verified/91aa3ed51b709be6457e12d00300a6a596d4c6a3/README.md "HTTP/1.1 200 OK"
+2026-07-25 10:40:19,689 - httpx - INFO - HTTP Request: GET https://huggingface.co/api/resolve-cache/datasets/SWE-bench/SWE-bench_Verified/91aa3ed51b709be6457e12d00300a6a596d4c6a3/README.md "HTTP/1.1 200 OK"
+2026-07-25 10:40:20,086 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/SWE-bench_Verified.py "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:21,788 - httpx - INFO - HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/SWE-bench/SWE-bench_Verified/SWE-bench/SWE-bench_Verified.py "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:22,213 - httpx - INFO - HTTP Request: GET https://huggingface.co/api/datasets/SWE-bench/SWE-bench_Verified/revision/91aa3ed51b709be6457e12d00300a6a596d4c6a3 "HTTP/1.1 200 OK"
+2026-07-25 10:40:22,608 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:24,256 - httpx - INFO - HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=SWE-bench/SWE-bench_Verified "HTTP/1.1 200 OK"
+2026-07-25 10:40:24,692 - httpx - INFO - HTTP Request: GET https://huggingface.co/api/datasets/SWE-bench/SWE-bench_Verified/tree/91aa3ed51b709be6457e12d00300a6a596d4c6a3/data?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-07-25 10:40:25,083 - httpx - INFO - HTTP Request: GET https://huggingface.co/api/datasets/SWE-bench/SWE-bench_Verified/tree/91aa3ed51b709be6457e12d00300a6a596d4c6a3?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-07-25 10:40:25,489 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:25,897 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/data/test-00000-of-00001.parquet "HTTP/1.1 302 Found"
+
+Generating test split:   0%|          | 0/500 [00:00<?, ? examples/s]
+Generating test split: 100%|鈻堚枅鈻堚枅鈻堚枅鈻堚枅鈻堚枅| 500/500 [00:00<00:00, 8507.54 examples/s]
+2026-07-25 10:40:34,418 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-07-25 10:40:34,739 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/SWE-bench/SWE-bench_Verified/91aa3ed51b709be6457e12d00300a6a596d4c6a3/README.md "HTTP/1.1 200 OK"
+2026-07-25 10:40:35,133 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/SWE-bench_Verified.py "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:36,775 - httpx - INFO - HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/SWE-bench/SWE-bench_Verified/SWE-bench/SWE-bench_Verified.py "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:37,168 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-07-25 10:40:38,721 - httpx - INFO - HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=SWE-bench/SWE-bench_Verified "HTTP/1.1 200 OK"
+2026-07-25 10:40:39,120 - httpx - INFO - HTTP Request: HEAD https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified/resolve/91aa3ed51b709be6457e12d00300a6a596d4c6a3/dataset_infos.json "HTTP/1.1 404 Not Found"
+Running 7 instances...
+
+Evaluation:   0%|          | 0/7 [00:00<?, ?it/s, error=0, 鉁?0, 鉁?0]
+Evaluation:   0%|          | 0/7 [03:58<?, ?it/s, 鉁?1, 鉁?0, error=0]
+Evaluation:  14%|鈻堚枍        | 1/7 [03:58<23:51, 238.52s/it, 鉁?1, 鉁?0, error=0]
+Evaluation:  14%|鈻堚枍        | 1/7 [09:09<23:51, 238.52s/it, 鉁?2, 鉁?0, error=0]
+Evaluation:  29%|鈻堚枅鈻?      | 2/7 [09:09<23:25, 281.12s/it, 鉁?2, 鉁?0, error=0]
+Evaluation:  29%|鈻堚枅鈻?      | 2/7 [14:57<23:25, 281.12s/it, 鉁?2, 鉁?1, error=0]
+Evaluation:  43%|鈻堚枅鈻堚枅鈻?    | 3/7 [14:57<20:46, 311.63s/it, 鉁?2, 鉁?1, error=0]
+Evaluation:  43%|鈻堚枅鈻堚枅鈻?    | 3/7 [18:21<20:46, 311.63s/it, 鉁?2, 鉁?2, error=0]
+Evaluation:  57%|鈻堚枅鈻堚枅鈻堚枊    | 4/7 [18:21<13:27, 269.24s/it, 鉁?2, 鉁?2, error=0]
+Evaluation:  57%|鈻堚枅鈻堚枅鈻堚枊    | 4/7 [21:20<13:27, 269.24s/it, 鉁?3, 鉁?2, error=0]
+Evaluation:  71%|鈻堚枅鈻堚枅鈻堚枅鈻堚枏  | 5/7 [21:20<07:53, 236.55s/it, 鉁?3, 鉁?2, error=0]
+Evaluation:  71%|鈻堚枅鈻堚枅鈻堚枅鈻堚枏  | 5/7 [25:13<07:53, 236.55s/it, 鉁?4, 鉁?2, error=0]
+Evaluation:  86%|鈻堚枅鈻堚枅鈻堚枅鈻堚枅鈻?| 6/7 [25:13<03:55, 235.34s/it, 鉁?4, 鉁?2, error=0]
+Evaluation:  86%|鈻堚枅鈻堚枅鈻堚枅鈻堚枅鈻?| 6/7 [28:42<03:55, 235.34s/it, 鉁?5, 鉁?2, error=0]
+Evaluation: 100%|鈻堚枅鈻堚枅鈻堚枅鈻堚枅鈻堚枅| 7/7 [28:42<00:00, 226.81s/it, 鉁?5, 鉁?2, error=0]
+Evaluation: 100%|鈻堚枅鈻堚枅鈻堚枅鈻堚枅鈻堚枅| 7/7 [28:42<00:00, 246.08s/it, 鉁?5, 鉁?2, error=0]
+All instances run.
+Cleaning cached images...
+Removed 0 images.
+Total instances: 10
+Instances submitted: 10
+Instances completed: 7
+Instances incomplete: 0
+Instances resolved: 5
+Instances unresolved: 2
+Instances with empty patches: 3
+Instances with errors: 0
+Unstopped containers: 0
+Unremoved images: 0
+Report written to coding-kid-v01.coding_kid_v01_verified10.json

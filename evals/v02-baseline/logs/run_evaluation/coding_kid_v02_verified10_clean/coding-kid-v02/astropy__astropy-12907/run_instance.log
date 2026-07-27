@@ -1,0 +1,109 @@
+2026-07-25 19:07:10,773 - INFO - Creating container for astropy__astropy-12907...
+2026-07-25 19:07:10,890 - INFO - Container for astropy__astropy-12907 created: 237391f3a6a8dc9814dceb7998dfa6042a3910db112417ed24bdc504c620b068
+2026-07-25 19:07:11,108 - INFO - Container for astropy__astropy-12907 started: 237391f3a6a8dc9814dceb7998dfa6042a3910db112417ed24bdc504c620b068
+2026-07-25 19:07:11,112 - INFO - Intermediate patch for astropy__astropy-12907 written to logs/run_evaluation/coding_kid_v02_verified10_clean/coding-kid-v02/astropy__astropy-12907/patch.diff, now applying to container...
+2026-07-25 19:07:11,403 - INFO - >>>>> Applied Patch:
+Checking patch astropy/modeling/separable.py...
+Applied patch astropy/modeling/separable.py cleanly.
+
+2026-07-25 19:07:12,462 - INFO - Git diff before:
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e2729..59e9fa168 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -193,26 +193,25 @@ def _coord_matrix(model, pos, noutp):
+             axis[i] = 1
+             axes.append(axis)
+         m = np.vstack(axes)
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[: model.n_outputs, :model.n_inputs] = m
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = m
+-        return mat
+-    if not model.separable:
++    elif isinstance(model, CompoundModel):
++        # A compound model may itself contain a compound model.  Using the
++        # ``separable`` flag here loses the correlations between the nested
++        # model's outputs and inputs, and treats all of them as dependent.
++        # Compute its matrix recursively instead.
++        m = _separable(model)
++    elif not model.separable:
+         # this does not work for more than 2 coordinates
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[:model.n_outputs, : model.n_inputs] = 1
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = 1
++        m = np.ones((model.n_outputs, model.n_inputs))
+     else:
+-        mat = np.zeros((noutp, model.n_inputs))
+-
++        m = np.zeros((model.n_outputs, model.n_inputs))
+         for i in range(model.n_inputs):
+-            mat[i, i] = 1
+-        if pos == 'right':
+-            mat = np.roll(mat, (noutp - model.n_outputs))
++            m[i, i] = 1
++
++    mat = np.zeros((noutp, model.n_inputs))
++    if pos == 'left':
++        mat[:model.n_outputs, :model.n_inputs] = m
++    else:
++        mat[-model.n_outputs:, -model.n_inputs:] = m
+     return mat
+2026-07-25 19:07:12,465 - INFO - Eval script for astropy__astropy-12907 written to logs/run_evaluation/coding_kid_v02_verified10_clean/coding-kid-v02/astropy__astropy-12907/eval.sh; copying to container...
+2026-07-25 19:08:32,947 - INFO - Test runtime: 80.34 seconds
+2026-07-25 19:08:32,951 - INFO - Test output for astropy__astropy-12907 written to logs/run_evaluation/coding_kid_v02_verified10_clean/coding-kid-v02/astropy__astropy-12907/test_output.txt
+2026-07-25 19:08:33,039 - INFO - Git diff after:
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e2729..59e9fa168 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -193,26 +193,25 @@ def _coord_matrix(model, pos, noutp):
+             axis[i] = 1
+             axes.append(axis)
+         m = np.vstack(axes)
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[: model.n_outputs, :model.n_inputs] = m
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = m
+-        return mat
+-    if not model.separable:
++    elif isinstance(model, CompoundModel):
++        # A compound model may itself contain a compound model.  Using the
++        # ``separable`` flag here loses the correlations between the nested
++        # model's outputs and inputs, and treats all of them as dependent.
++        # Compute its matrix recursively instead.
++        m = _separable(model)
++    elif not model.separable:
+         # this does not work for more than 2 coordinates
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[:model.n_outputs, : model.n_inputs] = 1
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = 1
++        m = np.ones((model.n_outputs, model.n_inputs))
+     else:
+-        mat = np.zeros((noutp, model.n_inputs))
+-
++        m = np.zeros((model.n_outputs, model.n_inputs))
+         for i in range(model.n_inputs):
+-            mat[i, i] = 1
+-        if pos == 'right':
+-            mat = np.roll(mat, (noutp - model.n_outputs))
++            m[i, i] = 1
++
++    mat = np.zeros((noutp, model.n_inputs))
++    if pos == 'left':
++        mat[:model.n_outputs, :model.n_inputs] = m
++    else:
++        mat[-model.n_outputs:, -model.n_inputs:] = m
+     return mat
+2026-07-25 19:08:33,039 - INFO - Grading answer for astropy__astropy-12907...
+2026-07-25 19:08:33,044 - INFO - report: {'astropy__astropy-12907': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/modeling/tests/test_separable.py::test_separable[compound_model6-result6]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model9-result9]']}, 'PASS_TO_PASS': {'success': ['astropy/modeling/tests/test_separable.py::test_coord_matrix', 'astropy/modeling/tests/test_separable.py::test_cdot', 'astropy/modeling/tests/test_separable.py::test_cstack', 'astropy/modeling/tests/test_separable.py::test_arith_oper', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model0-result0]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model1-result1]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model2-result2]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model3-result3]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model4-result4]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model5-result5]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model7-result7]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model8-result8]', 'astropy/modeling/tests/test_separable.py::test_custom_model_separable'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for astropy__astropy-12907: resolved: False
+2026-07-25 19:08:33,047 - INFO - Attempting to stop container sweb.eval.astropy__astropy-12907.coding_kid_v02_verified10_clean...
+2026-07-25 19:08:48,304 - INFO - Attempting to remove container sweb.eval.astropy__astropy-12907.coding_kid_v02_verified10_clean...
+2026-07-25 19:08:48,367 - INFO - Container sweb.eval.astropy__astropy-12907.coding_kid_v02_verified10_clean removed.

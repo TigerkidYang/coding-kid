@@ -1,0 +1,55 @@
+2026-07-25 10:37:25,161 - INFO - Creating container for pytest-dev__pytest-5809...
+2026-07-25 10:37:25,634 - INFO - Container for pytest-dev__pytest-5809 created: 1a6d6da4c99d119d2d32718e279d93f682e738d3a9917116fc6390ff1503e50b
+2026-07-25 10:37:26,031 - INFO - Container for pytest-dev__pytest-5809 started: 1a6d6da4c99d119d2d32718e279d93f682e738d3a9917116fc6390ff1503e50b
+2026-07-25 10:37:26,038 - INFO - Intermediate patch for pytest-dev__pytest-5809 written to logs/run_evaluation/validate_gold_pytest5809/gold/pytest-dev__pytest-5809/patch.diff, now applying to container...
+2026-07-25 10:37:26,327 - INFO - >>>>> Applied Patch:
+Checking patch src/_pytest/pastebin.py...
+Applied patch src/_pytest/pastebin.py cleanly.
+
+2026-07-25 10:37:26,445 - INFO - Git diff before:
+diff --git a/src/_pytest/pastebin.py b/src/_pytest/pastebin.py
+index 41576a615..7a3e80231 100644
+--- a/src/_pytest/pastebin.py
++++ b/src/_pytest/pastebin.py
+@@ -77,11 +77,7 @@ def create_new_paste(contents):
+         from urllib.request import urlopen
+         from urllib.parse import urlencode
+ 
+-    params = {
+-        "code": contents,
+-        "lexer": "python3" if sys.version_info[0] >= 3 else "python",
+-        "expiry": "1week",
+-    }
++    params = {"code": contents, "lexer": "text", "expiry": "1week"}
+     url = "https://bpaste.net"
+     response = urlopen(url, data=urlencode(params).encode("ascii")).read()
+     m = re.search(r'href="/raw/(\w+)"', response.decode("utf-8"))
+2026-07-25 10:37:26,448 - INFO - Eval script for pytest-dev__pytest-5809 written to logs/run_evaluation/validate_gold_pytest5809/gold/pytest-dev__pytest-5809/eval.sh; copying to container...
+2026-07-25 10:37:49,564 - INFO - Test runtime: 22.98 seconds
+2026-07-25 10:37:49,567 - INFO - Test output for pytest-dev__pytest-5809 written to logs/run_evaluation/validate_gold_pytest5809/gold/pytest-dev__pytest-5809/test_output.txt
+2026-07-25 10:37:49,679 - INFO - Git diff after:
+diff --git a/src/_pytest/pastebin.py b/src/_pytest/pastebin.py
+index 41576a615..7a3e80231 100644
+--- a/src/_pytest/pastebin.py
++++ b/src/_pytest/pastebin.py
+@@ -77,11 +77,7 @@ def create_new_paste(contents):
+         from urllib.request import urlopen
+         from urllib.parse import urlencode
+ 
+-    params = {
+-        "code": contents,
+-        "lexer": "python3" if sys.version_info[0] >= 3 else "python",
+-        "expiry": "1week",
+-    }
++    params = {"code": contents, "lexer": "text", "expiry": "1week"}
+     url = "https://bpaste.net"
+     response = urlopen(url, data=urlencode(params).encode("ascii")).read()
+     m = re.search(r'href="/raw/(\w+)"', response.decode("utf-8"))
+2026-07-25 10:37:49,680 - INFO - Grading answer for pytest-dev__pytest-5809...
+2026-07-25 10:37:49,695 - INFO - report: {'pytest-dev__pytest-5809': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['testing/test_pastebin.py::TestPaste::test_create_new_paste'], 'failure': []}, 'PASS_TO_PASS': {'success': ['testing/test_pastebin.py::TestPasteCapture::test_failed', 'testing/test_pastebin.py::TestPasteCapture::test_all', 'testing/test_pastebin.py::TestPasteCapture::test_non_ascii_paste_text'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for pytest-dev__pytest-5809: resolved: True
+2026-07-25 10:37:49,700 - INFO - Attempting to stop container sweb.eval.pytest-dev__pytest-5809.validate_gold_pytest5809...
+2026-07-25 10:38:04,935 - INFO - Attempting to remove container sweb.eval.pytest-dev__pytest-5809.validate_gold_pytest5809...
+2026-07-25 10:38:04,975 - INFO - Container sweb.eval.pytest-dev__pytest-5809.validate_gold_pytest5809 removed.
+2026-07-25 10:38:04,976 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5809:latest...
+2026-07-25 10:38:06,760 - INFO - Image swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5809:latest removed.

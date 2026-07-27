@@ -1,0 +1,26 @@
+2026-07-25 18:46:06,413 - INFO - Creating container for astropy__astropy-12907...
+2026-07-25 18:46:06,574 - INFO - Container for astropy__astropy-12907 created: 86c5d103beb4e3d79fe9c2630fe4f9467b423642d5078bbad7684a60522491c4
+2026-07-25 18:46:06,855 - INFO - Container for astropy__astropy-12907 started: 86c5d103beb4e3d79fe9c2630fe4f9467b423642d5078bbad7684a60522491c4
+2026-07-25 18:46:06,859 - INFO - Intermediate patch for astropy__astropy-12907 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/astropy__astropy-12907/patch.diff, now applying to container...
+2026-07-25 18:46:07,171 - INFO - Failed to apply patch to container: git apply --verbose
+2026-07-25 18:46:07,285 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-07-25 18:46:07,388 - INFO - >>>>> Applied Patch:
+The next patch would delete the file _swe_test.patch,
+which does not exist!  Assuming -R.
+patching file _swe_test.patch
+patching file astropy/modeling/separable.py
+Reversed (or previously applied) patch detected!  Assuming -R.
+
+2026-07-25 18:46:08,209 - INFO - Git diff before:
+
+2026-07-25 18:46:08,214 - INFO - Eval script for astropy__astropy-12907 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/astropy__astropy-12907/eval.sh; copying to container...
+2026-07-25 18:47:26,410 - INFO - Test runtime: 78.03 seconds
+2026-07-25 18:47:26,417 - INFO - Test output for astropy__astropy-12907 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/astropy__astropy-12907/test_output.txt
+2026-07-25 18:47:26,536 - INFO - Git diff after:
+
+2026-07-25 18:47:26,536 - INFO - Grading answer for astropy__astropy-12907...
+2026-07-25 18:47:26,545 - INFO - report: {'astropy__astropy-12907': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/modeling/tests/test_separable.py::test_separable[compound_model6-result6]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model9-result9]']}, 'PASS_TO_PASS': {'success': ['astropy/modeling/tests/test_separable.py::test_coord_matrix', 'astropy/modeling/tests/test_separable.py::test_cdot', 'astropy/modeling/tests/test_separable.py::test_cstack', 'astropy/modeling/tests/test_separable.py::test_arith_oper', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model0-result0]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model1-result1]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model2-result2]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model3-result3]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model4-result4]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model5-result5]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model7-result7]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model8-result8]', 'astropy/modeling/tests/test_separable.py::test_custom_model_separable'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for astropy__astropy-12907: resolved: False
+2026-07-25 18:47:26,553 - INFO - Attempting to stop container sweb.eval.astropy__astropy-12907.coding_kid_v02_verified10...
+2026-07-25 18:47:41,799 - INFO - Attempting to remove container sweb.eval.astropy__astropy-12907.coding_kid_v02_verified10...
+2026-07-25 18:47:41,859 - INFO - Container sweb.eval.astropy__astropy-12907.coding_kid_v02_verified10 removed.

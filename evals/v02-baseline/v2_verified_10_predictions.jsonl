@@ -1,0 +1,10 @@
+{"instance_id": "astropy__astropy-12907", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "django__django-15278", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "matplotlib__matplotlib-13989", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "psf__requests-5414", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "pydata__xarray-2905", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "pylint-dev__pylint-4970", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "pytest-dev__pytest-5809", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "scikit-learn__scikit-learn-15100", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "sphinx-doc__sphinx-8269", "model_name_or_path": "coding-kid-v02", "model_patch": ""}
+{"instance_id": "sympy__sympy-20590", "model_name_or_path": "coding-kid-v02", "model_patch": ""}

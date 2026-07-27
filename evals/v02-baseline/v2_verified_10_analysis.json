@@ -17,21 +17,24 @@
       "execute",
       "search",
       "search",
-      "execute",
+      "read",
+      "read",
       "read",
       "read",
       "search",
+      "read",
+      "execute",
       "todo",
       "patch",
       "todo",
       "execute"
     ],
-    "tool_count": 12,
+    "tool_count": 15,
     "hit_tool_budget": true,
-    "patch_line_count": 55,
-    "gold_line_overlap": 2,
-    "gold_line_jaccard": 0.061,
-    "answer_preview": "Fixed the nested `CompoundModel` separability bug in `astropy/modeling/separable.py`.\n\n### Change\nWhen stacking an already-computed separability matrix on the right side of `&`, the code now preserves that matrix instead of filling the block with ones:\n\n```python\ncright[-right.shape[0]:, -right.shap"
+    "patch_line_count": 47,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "Implemented the nested `CompoundModel` separability fix in `astropy/modeling/separable.py`.\n\n### Change\n`_coord_matrix` now recursively computes the separability matrix for nested `CompoundModel` instances instead of relying on the compound model’s boolean `separable` flag, which caused all nested c"
   },
   {
     "instance_id": "django__django-15278",
@@ -49,21 +52,22 @@
       "execute",
       "search",
       "search",
-      "execute",
-      "read",
       "search",
       "search",
       "read",
       "read",
-      "execute",
+      "read",
+      "read",
+      "search",
+      "search",
       "search"
     ],
-    "tool_count": 12,
+    "tool_count": 13,
     "hit_tool_budget": true,
-    "patch_line_count": 28,
+    "patch_line_count": 0,
     "gold_line_overlap": 0,
     "gold_line_jaccard": 0.0,
-    "answer_preview": "I identified the bug in `django/db/backends/sqlite3/schema.py`: `add_field()` uses `ALTER TABLE ... ADD COLUMN` for nullable fields, but SQLite rejects this when the field is unique, as with `OneToOneField`.\n\nThe fix is to rebuild the table for unique fields:\n\n```python\ndef add_field(self, model, fi"
+    "answer_preview": "I inspected the SQLite schema editor and identified the issue in `django/db/backends/sqlite3/schema.py`: `add_field()` uses `ALTER TABLE ... ADD COLUMN` for nullable fields even when `field.unique` is set. SQLite rejects that syntax with `Cannot add a UNIQUE column`.\n\nThe required fix is to rebuild "
   },
   {
     "instance_id": "matplotlib__matplotlib-13989",
@@ -71,11 +75,13 @@
     "gold_files": [
       "lib/matplotlib/axes/_axes.py"
     ],
-    "agent_changed_files": [],
-    "agent_edited_via_tools": false,
-    "touched_gold_file": false,
+    "agent_changed_files": [
+      "lib/matplotlib/axes/_axes.py"
+    ],
+    "agent_edited_via_tools": true,
+    "touched_gold_file": true,
     "used_todo": true,
-    "todo_calls": 1,
+    "todo_calls": 3,
     "tool_calls": [
       "todo",
       "execute",
@@ -85,17 +91,20 @@
       "read",
       "read",
       "read",
-      "read",
       "execute",
+      "execute",
+      "todo",
+      "patch",
+      "todo",
       "execute",
       "execute"
     ],
-    "tool_count": 12,
+    "tool_count": 15,
     "hit_tool_budget": true,
-    "patch_line_count": 20,
-    "gold_line_overlap": 0,
-    "gold_line_jaccard": 0.0,
-    "answer_preview": "I wasn’t able to complete the code change because the tool-call budget was exhausted during repository inspection. The relevant implementation is `lib/matplotlib/axes/_axes.py`, in `Axes.hist`; no files were modified and verification was not run."
+    "patch_line_count": 13,
+    "gold_line_overlap": 2,
+    "gold_line_jaccard": 1.0,
+    "answer_preview": "Fixed `hist()` so `density=True` preserves the requested `range`.\n\n### Change\nIn `lib/matplotlib/axes/_axes.py`, density is now added to the existing `hist_kwargs` instead of replacing it:\n\n```python\nif density and not stacked:\n    hist_kwargs['density'] = density\n```\n\nPreviously, assigning `hist_kw"
   },
   {
     "instance_id": "psf__requests-5414",
@@ -107,27 +116,29 @@
     "agent_edited_via_tools": false,
     "touched_gold_file": false,
     "used_todo": true,
-    "todo_calls": 1,
+    "todo_calls": 2,
     "tool_calls": [
       "todo",
-      "execute",
       "search",
       "search",
-      "search",
+      "execute",
       "read",
       "read",
+      "read",
+      "read",
+      "todo",
       "execute",
       "execute",
       "execute",
-      "read",
+      "execute",
       "execute"
     ],
-    "tool_count": 12,
+    "tool_count": 14,
     "hit_tool_budget": true,
-    "patch_line_count": 18,
+    "patch_line_count": 0,
     "gold_line_overlap": 0,
     "gold_line_jaccard": 0.0,
-    "answer_preview": "I identified the issue in `requests/models.py`: ASCII hosts only reject labels beginning with `*`, so `.example.com` passes through unvalidated.\n\nThe required fix is:\n\n```diff\n-        elif host.startswith(u'*'):\n+        elif host.startswith((u'*', u'.')):\n             raise InvalidURL('URL has an "
+    "answer_preview": "I inspected the URL preparation logic. The malformed hostname is not passed through IDNA validation when it contains only ASCII characters; the existing check only rejects ASCII hosts beginning with `*`. As a result, `.example.com` reaches the lower-level IDNA encoder and raises `UnicodeError`.\n\nThe"
   },
   {
     "instance_id": "pydata__xarray-2905",
@@ -139,7 +150,7 @@
     "agent_edited_via_tools": false,
     "touched_gold_file": false,
     "used_todo": true,
-    "todo_calls": 2,
+    "todo_calls": 1,
     "tool_calls": [
       "todo",
       "execute",
@@ -149,17 +160,18 @@
       "read",
       "search",
       "search",
+      "search",
       "execute",
       "execute",
-      "execute",
-      "todo"
+      "search",
+      "search"
     ],
-    "tool_count": 12,
+    "tool_count": 13,
     "hit_tool_budget": true,
-    "patch_line_count": 32,
+    "patch_line_count": 0,
     "gold_line_overlap": 0,
     "gold_line_jaccard": 0.0,
-    "answer_preview": "I wasn’t able to apply or verify the fix because the tool-call budget was exhausted during the repository inspection.\n\nThe intended change is in `xarray/core/variable.py`, inside `Variable.__setitem__`: preserve scalar objects with a `.values` attribute when assigning into an object-dtype array, ins"
+    "answer_preview": "I wasn’t able to complete the code change because the tool-call budget was exhausted while inspecting the repository. No files or tests were modified."
   },
   {
     "instance_id": "pylint-dev__pylint-4970",
@@ -180,20 +192,23 @@
       "search",
       "search",
       "read",
-      "execute",
-      "execute",
       "read",
+      "read",
+      "execute",
       "todo",
+      "execute",
       "patch",
-      "todo",
-      "execute"
+      "search",
+      "execute",
+      "execute",
+      "todo"
     ],
-    "tool_count": 12,
+    "tool_count": 15,
     "hit_tool_budget": true,
-    "patch_line_count": 35,
-    "gold_line_overlap": 0,
-    "gold_line_jaccard": 0.0,
-    "answer_preview": "Implemented the core fix in `pylint/checkers/similar.py`:\n\n- `Similar._compute_sims()` now immediately returns no similarities when `min-similarity-lines <= 0`.\n- This prevents duplicate-code messages from being generated when the option is set to `0`.\n\nVerification:\n\n- Direct check confirms `Simila"
+    "patch_line_count": 20,
+    "gold_line_overlap": 1,
+    "gold_line_jaccard": 0.2,
+    "answer_preview": "Implemented the fix in `pylint/checkers/similar.py`.\n\nChanges:\n- `min-similarity-lines <= 0` now disables similarity computation.\n- The standalone `symilar` command produces no output when disabled.\n- The Pylint checker emits no `R0801` messages and skips duplicate-code processing.\n\nVerification:\n- "
   },
   {
     "instance_id": "pytest-dev__pytest-5809",
@@ -207,27 +222,30 @@
     "agent_edited_via_tools": true,
     "touched_gold_file": true,
     "used_todo": true,
-    "todo_calls": 2,
+    "todo_calls": 3,
     "tool_calls": [
       "todo",
       "read",
       "search",
-      "read",
       "execute",
       "search",
       "search",
       "read",
       "read",
+      "execute",
+      "read",
       "todo",
       "patch",
-      "execute"
+      "todo",
+      "execute",
+      "search"
     ],
-    "tool_count": 12,
+    "tool_count": 15,
     "hit_tool_budget": true,
-    "patch_line_count": 31,
+    "patch_line_count": 13,
     "gold_line_overlap": 1,
-    "gold_line_jaccard": 0.056,
-    "answer_preview": "Updated `src/_pytest/pastebin.py` so `create_new_paste()` always submits:\n\n```python\n\"lexer\": \"text\"\n```\n\nThis correctly treats pytest output as arbitrary text and avoids `bpaste.net` HTTP 400 errors caused by the `python3` lexer.\n\nThe targeted test could not run because the repository’s older pytes"
+    "gold_line_jaccard": 0.143,
+    "answer_preview": "Implemented the fix in `src/_pytest/pastebin.py`:\n\n- Changed the bpaste lexer from version-dependent `\"python3\"`/`\"python\"` to `\"text\"`.\n- Tests were not modified.\n- Confirmed no remaining `\"lexer\": \"python3\"` reference exists in the implementation.\n\nThe focused test run was blocked by the repositor"
   },
   {
     "instance_id": "scikit-learn__scikit-learn-15100",
@@ -241,10 +259,9 @@
     "agent_edited_via_tools": true,
     "touched_gold_file": true,
     "used_todo": true,
-    "todo_calls": 3,
+    "todo_calls": 4,
     "tool_calls": [
       "todo",
-      "execute",
       "search",
       "execute",
       "read",
@@ -254,14 +271,16 @@
       "patch",
       "todo",
       "execute",
-      "execute"
+      "execute",
+      "execute",
+      "todo"
     ],
-    "tool_count": 12,
+    "tool_count": 13,
     "hit_tool_budget": true,
-    "patch_line_count": 47,
+    "patch_line_count": 16,
     "gold_line_overlap": 2,
-    "gold_line_jaccard": 0.071,
-    "answer_preview": "Implemented the fix in `sklearn/feature_extraction/text.py`.\n\n### Change\n`strip_accents_unicode` now always removes combining Unicode marks after NFKD normalization, including strings that were already decomposed:\n\n```python\nnormalized = unicodedata.normalize('NFKD', s)\nreturn ''.join([c for c in no"
+    "gold_line_jaccard": 0.2,
+    "answer_preview": "Fixed `strip_accents_unicode` in `sklearn/feature_extraction/text.py`.\n\n### Change\nRemoved the early return for strings already in NFKD form. The function now always filters combining characters after normalization, so both composed and decomposed inputs are handled correctly:\n\n- `ñ` → `n`\n- `ñ` → "
   },
   {
     "instance_id": "sphinx-doc__sphinx-8269",
@@ -275,7 +294,7 @@
     "agent_edited_via_tools": true,
     "touched_gold_file": true,
     "used_todo": true,
-    "todo_calls": 2,
+    "todo_calls": 4,
     "tool_calls": [
       "todo",
       "execute",
@@ -284,18 +303,19 @@
       "read",
       "read",
       "read",
-      "read",
-      "read",
-      "execute",
       "todo",
-      "patch"
+      "patch",
+      "todo",
+      "execute",
+      "execute",
+      "todo"
     ],
-    "tool_count": 12,
+    "tool_count": 13,
     "hit_tool_budget": true,
-    "patch_line_count": 90,
+    "patch_line_count": 12,
     "gold_line_overlap": 1,
-    "gold_line_jaccard": 0.017,
-    "answer_preview": "Implemented the fix in `sphinx/builders/linkcheck.py`.\n\n### Change\nWhen anchor checking is enabled, the linkcheck builder now calls:\n\n```python\nresponse.raise_for_status()\n```\n\nbefore parsing the response for the anchor. This ensures HTTP errors such as 404 or 500 are reported instead of being maske"
+    "gold_line_jaccard": 1.0,
+    "answer_preview": "Implemented the linkcheck fix in `sphinx/builders/linkcheck.py`.\n\n### Change\nWhen checking an anchor, linkcheck now calls `response.raise_for_status()` before parsing the response for the anchor. This ensures HTTP errors such as 404 or 500 are reported instead of being incorrectly reported as `Ancho"
   },
   {
     "instance_id": "sympy__sympy-20590",
@@ -313,20 +333,21 @@
       "execute",
       "search",
       "search",
-      "read",
-      "read",
-      "read",
-      "read",
       "search",
+      "read",
+      "read",
+      "read",
+      "read",
+      "read",
       "search",
       "read",
       "execute"
     ],
-    "tool_count": 12,
+    "tool_count": 13,
     "hit_tool_budget": true,
-    "patch_line_count": 22,
-    "gold_line_overlap": 1,
-    "gold_line_jaccard": 0.059,
-    "answer_preview": "I inspected the relevant inheritance hierarchy. `Symbol` inherits from `AtomicExpr`, which inherits from `Expr`; `Expr` also inherits from `EvalfMixin`. The likely regression is that `EvalfMixin` does not define `__slots__ = ()`, causing a `__dict__` slot to be introduced into expression instances.\n"
+    "patch_line_count": 0,
+    "gold_line_overlap": 0,
+    "gold_line_jaccard": 0.0,
+    "answer_preview": "I inspected the relevant inheritance chain:\n\n```text\nSymbol → AtomicExpr → Expr → Basic\n       ↘ Boolean → Basic\n```\n\nThe relevant classes already define `__slots__ = ()`, including `Boolean`, `Expr`, and `AtomicExpr`. However, verification could not be completed because the repository’s runtime dep"
   }
 ]

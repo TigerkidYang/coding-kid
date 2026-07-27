@@ -1,0 +1,47 @@
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e2729..59e9fa168 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -193,26 +193,25 @@ def _coord_matrix(model, pos, noutp):
+             axis[i] = 1
+             axes.append(axis)
+         m = np.vstack(axes)
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[: model.n_outputs, :model.n_inputs] = m
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = m
+-        return mat
+-    if not model.separable:
++    elif isinstance(model, CompoundModel):
++        # A compound model may itself contain a compound model.  Using the
++        # ``separable`` flag here loses the correlations between the nested
++        # model's outputs and inputs, and treats all of them as dependent.
++        # Compute its matrix recursively instead.
++        m = _separable(model)
++    elif not model.separable:
+         # this does not work for more than 2 coordinates
+-        mat = np.zeros((noutp, model.n_inputs))
+-        if pos == 'left':
+-            mat[:model.n_outputs, : model.n_inputs] = 1
+-        else:
+-            mat[-model.n_outputs:, -model.n_inputs:] = 1
++        m = np.ones((model.n_outputs, model.n_inputs))
+     else:
+-        mat = np.zeros((noutp, model.n_inputs))
+-
++        m = np.zeros((model.n_outputs, model.n_inputs))
+         for i in range(model.n_inputs):
+-            mat[i, i] = 1
+-        if pos == 'right':
+-            mat = np.roll(mat, (noutp - model.n_outputs))
++            m[i, i] = 1
++
++    mat = np.zeros((noutp, model.n_inputs))
++    if pos == 'left':
++        mat[:model.n_outputs, :model.n_inputs] = m
++    else:
++        mat[-model.n_outputs:, -model.n_inputs:] = m
+     return mat
+ 
+ 

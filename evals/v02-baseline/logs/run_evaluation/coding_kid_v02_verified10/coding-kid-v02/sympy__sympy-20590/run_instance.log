@@ -1,0 +1,24 @@
+2026-07-25 18:52:48,893 - INFO - Creating container for sympy__sympy-20590...
+2026-07-25 18:52:48,980 - INFO - Container for sympy__sympy-20590 created: 6d81d6294c7d9f4e3476ee815480bb6168e40f9940464e158cd06ee376a354f3
+2026-07-25 18:52:49,263 - INFO - Container for sympy__sympy-20590 started: 6d81d6294c7d9f4e3476ee815480bb6168e40f9940464e158cd06ee376a354f3
+2026-07-25 18:52:49,267 - INFO - Intermediate patch for sympy__sympy-20590 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/sympy__sympy-20590/patch.diff, now applying to container...
+2026-07-25 18:52:49,536 - INFO - Failed to apply patch to container: git apply --verbose
+2026-07-25 18:52:49,630 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-07-25 18:52:49,796 - INFO - >>>>> Applied Patch:
+The next patch would delete the file _swe_test.patch,
+which does not exist!  Assuming -R.
+patching file _swe_test.patch
+
+2026-07-25 18:52:51,344 - INFO - Git diff before:
+
+2026-07-25 18:52:51,348 - INFO - Eval script for sympy__sympy-20590 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/sympy__sympy-20590/eval.sh; copying to container...
+2026-07-25 18:52:56,434 - INFO - Test runtime: 4.97 seconds
+2026-07-25 18:52:56,437 - INFO - Test output for sympy__sympy-20590 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/sympy__sympy-20590/test_output.txt
+2026-07-25 18:52:56,542 - INFO - Git diff after:
+
+2026-07-25 18:52:56,543 - INFO - Grading answer for sympy__sympy-20590...
+2026-07-25 18:52:56,546 - INFO - report: {'sympy__sympy-20590': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['test_immutable']}, 'PASS_TO_PASS': {'success': ['test__aresame', 'test_structure', 'test_equality', 'test_matches_basic', 'test_has', 'test_subs', 'test_subs_with_unicode_symbols', 'test_atoms', 'test_free_symbols_empty', 'test_doit', 'test_S', 'test_xreplace', 'test_preorder_traversal', 'test_sorted_args', 'test_call', 'test_rewrite', 'test_literal_evalf_is_number_is_zero_is_comparable', 'test_as_Basic', 'test_atomic', 'test_as_dummy', 'test_canonical_variables'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sympy__sympy-20590: resolved: False
+2026-07-25 18:52:56,549 - INFO - Attempting to stop container sweb.eval.sympy__sympy-20590.coding_kid_v02_verified10...
+2026-07-25 18:53:11,795 - INFO - Attempting to remove container sweb.eval.sympy__sympy-20590.coding_kid_v02_verified10...
+2026-07-25 18:53:11,836 - INFO - Container sweb.eval.sympy__sympy-20590.coding_kid_v02_verified10 removed.

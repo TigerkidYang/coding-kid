@@ -1,0 +1,26 @@
+2026-07-25 18:51:20,229 - INFO - Creating container for pytest-dev__pytest-5809...
+2026-07-25 18:51:20,302 - INFO - Container for pytest-dev__pytest-5809 created: ab638bbf4fc8ed6dbbf02e46e2305a04395ff118a69e7a6b9c705809e033c572
+2026-07-25 18:51:20,526 - INFO - Container for pytest-dev__pytest-5809 started: ab638bbf4fc8ed6dbbf02e46e2305a04395ff118a69e7a6b9c705809e033c572
+2026-07-25 18:51:20,529 - INFO - Intermediate patch for pytest-dev__pytest-5809 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/pytest-dev__pytest-5809/patch.diff, now applying to container...
+2026-07-25 18:51:20,729 - INFO - Failed to apply patch to container: git apply --verbose
+2026-07-25 18:51:20,820 - INFO - Failed to apply patch to container: git apply --verbose --reject
+2026-07-25 18:51:20,915 - INFO - >>>>> Applied Patch:
+The next patch would delete the file _swe_test.patch,
+which does not exist!  Assuming -R.
+patching file _swe_test.patch
+patching file src/_pytest/pastebin.py
+Reversed (or previously applied) patch detected!  Assuming -R.
+
+2026-07-25 18:51:21,115 - INFO - Git diff before:
+
+2026-07-25 18:51:21,117 - INFO - Eval script for pytest-dev__pytest-5809 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/pytest-dev__pytest-5809/eval.sh; copying to container...
+2026-07-25 18:51:39,070 - INFO - Test runtime: 17.85 seconds
+2026-07-25 18:51:39,073 - INFO - Test output for pytest-dev__pytest-5809 written to logs/run_evaluation/coding_kid_v02_verified10/coding-kid-v02/pytest-dev__pytest-5809/test_output.txt
+2026-07-25 18:51:39,168 - INFO - Git diff after:
+
+2026-07-25 18:51:39,168 - INFO - Grading answer for pytest-dev__pytest-5809...
+2026-07-25 18:51:39,171 - INFO - report: {'pytest-dev__pytest-5809': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['testing/test_pastebin.py::TestPaste::test_create_new_paste']}, 'PASS_TO_PASS': {'success': ['testing/test_pastebin.py::TestPasteCapture::test_failed', 'testing/test_pastebin.py::TestPasteCapture::test_all', 'testing/test_pastebin.py::TestPasteCapture::test_non_ascii_paste_text'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for pytest-dev__pytest-5809: resolved: False
+2026-07-25 18:51:39,173 - INFO - Attempting to stop container sweb.eval.pytest-dev__pytest-5809.coding_kid_v02_verified10...
+2026-07-25 18:51:54,381 - INFO - Attempting to remove container sweb.eval.pytest-dev__pytest-5809.coding_kid_v02_verified10...
+2026-07-25 18:51:54,421 - INFO - Container sweb.eval.pytest-dev__pytest-5809.coding_kid_v02_verified10 removed.

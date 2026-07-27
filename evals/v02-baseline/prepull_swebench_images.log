@@ -1,0 +1,34 @@
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.astropy_1776_astropy-12907:latest
+OK   pulled in 565.5s
+TAG  docker.1ms.run/swebench/sweb.eval.x86_64.astropy_1776_astropy-12907:latest -> swebench/sweb.eval.x86_64.astropy_1776_astropy-12907:latest
+PASS astropy__astropy-12907
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.django_1776_django-15278:latest
+OK   pulled in 295.4s
+TAG  docker.1ms.run/swebench/sweb.eval.x86_64.django_1776_django-15278:latest -> swebench/sweb.eval.x86_64.django_1776_django-15278:latest
+PASS django__django-15278
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-13989:latest
+OK   pulled in 1844.8s
+TAG  docker.1ms.run/swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-13989:latest -> swebench/sweb.eval.x86_64.matplotlib_1776_matplotlib-13989:latest
+PASS matplotlib__matplotlib-13989
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.psf_1776_requests-5414:latest
+OK   pulled in 784.7s
+TAG  docker.1ms.run/swebench/sweb.eval.x86_64.psf_1776_requests-5414:latest -> swebench/sweb.eval.x86_64.psf_1776_requests-5414:latest
+PASS psf__requests-5414
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.pydata_1776_xarray-2905:latest
+FAIL pydata__xarray-2905: pull failed (101.1s): short read: expected 1326126606 bytes but got 791077009: unexpected EOF
+
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-4970:latest
+FAIL pylint-dev__pylint-4970: pull failed (0.2s): Error response from daemon: failed to resolve reference "docker.1ms.run/swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-4970:latest": failed to do request: Head "https://docker.1ms.run/v2/swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-4970/manifests/latest": writing response to docker.1ms.run:443: connecting to 127.0.0.1:7890: dial tcp 127.0.0.1:7890: connectex: No connection could be made because the target machine actively refused it.
+
+SKIP swebench/sweb.eval.x86_64.pytest-dev_1776_pytest-5809:latest (already local)
+PASS pytest-dev__pytest-5809
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-15100:latest
+FAIL scikit-learn__scikit-learn-15100: pull failed (0.2s): Error response from daemon: failed to resolve reference "docker.1ms.run/swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-15100:latest": failed to do request: Head "https://docker.1ms.run/v2/swebench/sweb.eval.x86_64.scikit-learn_1776_scikit-learn-15100/manifests/latest": writing response to docker.1ms.run:443: connecting to 127.0.0.1:7890: dial tcp 127.0.0.1:7890: connectex: No connection could be made because the target machine actively refused it.
+
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8269:latest
+FAIL sphinx-doc__sphinx-8269: pull failed (0.2s): Error response from daemon: failed to resolve reference "docker.1ms.run/swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8269:latest": failed to do request: Head "https://docker.1ms.run/v2/swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8269/manifests/latest": writing response to docker.1ms.run:443: connecting to 127.0.0.1:7890: dial tcp 127.0.0.1:7890: connectex: No connection could be made because the target machine actively refused it.
+
+PULL docker.1ms.run/swebench/sweb.eval.x86_64.sympy_1776_sympy-20590:latest
+FAIL sympy__sympy-20590: pull failed (0.2s): Error response from daemon: failed to resolve reference "docker.1ms.run/swebench/sweb.eval.x86_64.sympy_1776_sympy-20590:latest": failed to do request: Head "https://docker.1ms.run/v2/swebench/sweb.eval.x86_64.sympy_1776_sympy-20590/manifests/latest": writing response to docker.1ms.run:443: connecting to 127.0.0.1:7890: dial tcp 127.0.0.1:7890: connectex: No connection could be made because the target machine actively refused it.
+
+Failed 5/10 image pulls

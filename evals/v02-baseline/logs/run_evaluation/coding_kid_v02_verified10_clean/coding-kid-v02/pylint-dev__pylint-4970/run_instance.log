@@ -1,0 +1,59 @@
+2026-07-25 19:10:08,736 - INFO - Creating container for pylint-dev__pylint-4970...
+2026-07-25 19:10:08,799 - INFO - Container for pylint-dev__pylint-4970 created: 0c14301f298d21bca575c43b5af4bdf8f8894836681bf1055d11f878c4bfb8e5
+2026-07-25 19:10:09,021 - INFO - Container for pylint-dev__pylint-4970 started: 0c14301f298d21bca575c43b5af4bdf8f8894836681bf1055d11f878c4bfb8e5
+2026-07-25 19:10:09,024 - INFO - Intermediate patch for pylint-dev__pylint-4970 written to logs/run_evaluation/coding_kid_v02_verified10_clean/coding-kid-v02/pylint-dev__pylint-4970/patch.diff, now applying to container...
+2026-07-25 19:10:09,236 - INFO - >>>>> Applied Patch:
+Checking patch pylint/checkers/similar.py...
+Applied patch pylint/checkers/similar.py cleanly.
+
+2026-07-25 19:10:09,619 - INFO - Git diff before:
+diff --git a/pylint/checkers/similar.py b/pylint/checkers/similar.py
+index c65b1c89..5e6ceba7 100644
+--- a/pylint/checkers/similar.py
++++ b/pylint/checkers/similar.py
+@@ -390,10 +390,15 @@ class Similar:
+ 
+     def run(self) -> None:
+         """start looking for similarities and display results on stdout"""
++        if self.min_lines <= 0:
++            return
+         self._display_sims(self._compute_sims())
+ 
+     def _compute_sims(self) -> List[Tuple[int, Set[LinesChunkLimits_T]]]:
+         """compute similarities in appended files"""
++        if self.min_lines <= 0:
++            return []
++
+         no_duplicates: Dict[int, List[Set[LinesChunkLimits_T]]] = defaultdict(list)
+ 
+         for commonality in self._iter_sims():
+2026-07-25 19:10:09,622 - INFO - Eval script for pylint-dev__pylint-4970 written to logs/run_evaluation/coding_kid_v02_verified10_clean/coding-kid-v02/pylint-dev__pylint-4970/eval.sh; copying to container...
+2026-07-25 19:10:14,504 - INFO - Test runtime: 4.77 seconds
+2026-07-25 19:10:14,507 - INFO - Test output for pylint-dev__pylint-4970 written to logs/run_evaluation/coding_kid_v02_verified10_clean/coding-kid-v02/pylint-dev__pylint-4970/test_output.txt
+2026-07-25 19:10:14,605 - INFO - Git diff after:
+diff --git a/pylint/checkers/similar.py b/pylint/checkers/similar.py
+index c65b1c89..5e6ceba7 100644
+--- a/pylint/checkers/similar.py
++++ b/pylint/checkers/similar.py
+@@ -390,10 +390,15 @@ class Similar:
+ 
+     def run(self) -> None:
+         """start looking for similarities and display results on stdout"""
++        if self.min_lines <= 0:
++            return
+         self._display_sims(self._compute_sims())
+ 
+     def _compute_sims(self) -> List[Tuple[int, Set[LinesChunkLimits_T]]]:
+         """compute similarities in appended files"""
++        if self.min_lines <= 0:
++            return []
++
+         no_duplicates: Dict[int, List[Set[LinesChunkLimits_T]]] = defaultdict(list)
+ 
+         for commonality in self._iter_sims():
+2026-07-25 19:10:14,605 - INFO - Grading answer for pylint-dev__pylint-4970...
+2026-07-25 19:10:14,608 - INFO - report: {'pylint-dev__pylint-4970': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['tests/checkers/unittest_similar.py::test_set_duplicate_lines_to_zero'], 'failure': []}, 'PASS_TO_PASS': {'success': ['tests/checkers/unittest_similar.py::test_ignore_comments', 'tests/checkers/unittest_similar.py::test_ignore_docstrings', 'tests/checkers/unittest_similar.py::test_ignore_imports', 'tests/checkers/unittest_similar.py::test_multiline_imports', 'tests/checkers/unittest_similar.py::test_ignore_multiline_imports', 'tests/checkers/unittest_similar.py::test_ignore_signatures_fail', 'tests/checkers/unittest_similar.py::test_ignore_signatures_pass', 'tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_fail', 'tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_pass', 'tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_fail', 'tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_pass', 'tests/checkers/unittest_similar.py::test_no_hide_code_with_imports', 'tests/checkers/unittest_similar.py::test_ignore_nothing', 'tests/checkers/unittest_similar.py::test_lines_without_meaningful_content_do_not_trigger_similarity', 'tests/checkers/unittest_similar.py::test_help', 'tests/checkers/unittest_similar.py::test_no_args', 'tests/checkers/unittest_similar.py::test_get_map_data'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for pylint-dev__pylint-4970: resolved: True
+2026-07-25 19:10:14,610 - INFO - Attempting to stop container sweb.eval.pylint-dev__pylint-4970.coding_kid_v02_verified10_clean...
+2026-07-25 19:10:29,829 - INFO - Attempting to remove container sweb.eval.pylint-dev__pylint-4970.coding_kid_v02_verified10_clean...
+2026-07-25 19:10:29,865 - INFO - Container sweb.eval.pylint-dev__pylint-4970.coding_kid_v02_verified10_clean removed.

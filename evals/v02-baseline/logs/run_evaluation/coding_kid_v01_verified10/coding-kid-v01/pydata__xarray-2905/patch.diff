@@ -1,0 +1,21 @@
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+index 45553eb9..244e6c1f 100644
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -855,7 +855,15 @@ class Variable(
+         dims, index_tuple, new_order = self._broadcast_indexes(key)
+ 
+         if not isinstance(value, Variable):
+-            value = as_compatible_data(value)
++            # Do not unwrap scalar objects with a ``values`` attribute when
++            # assigning into an object array.  ``as_compatible_data`` normally
++            # unwraps such objects to support array-like objects (e.g. a
++            # DataArray), but for a scalar object this changes the value being
++            # assigned rather than broadcasting it.
++            if self.dtype.kind == "O" and utils.is_scalar(value):
++                value = np.asarray(value, dtype=object)
++            else:
++                value = as_compatible_data(value)
+             if value.ndim > len(dims):
+                 raise ValueError(
+                     "shape mismatch: value array of shape %s could not be "
