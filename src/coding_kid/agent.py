@@ -9,7 +9,13 @@ from typing import Any
 
 from coding_kid.parser import parse_output
 from coding_kid.provider import generate
-from coding_kid.tools import dispatch_tool, format_todos, get_todos, tool_definitions
+from coding_kid.tools import (
+    clear_todos,
+    dispatch_tool,
+    format_todos,
+    get_todos,
+    tool_definitions,
+)
 
 SYSTEM_PROMPT = f"""You are Coding Kid, a coding agent working in the current directory.
 Only call the tools provided in the current request. Never invent tool names.
@@ -40,8 +46,16 @@ reasoning. Call another provided tool only if a specific missing fact requires i
 
 TOOL_BUDGET_RECOVERY = """
 
-Tool-call budget reached: Do not call any more tools in this turn. Use the
-evidence already available and answer the user now."""
+Tool-call budget reached: Do not call any more file or shell tools in this turn.
+Use the evidence already available and answer the user now. You may call todo
+once to reconcile the checklist before answering."""
+
+TODO_RECONCILIATION = """
+
+Todo reconciliation required: A checklist item is still in_progress. Before
+answering, call todo once to reflect the actual state. Mark finished work
+completed; if work must continue later, move the active item back to pending.
+Then answer the user honestly about what is complete and what remains."""
 
 Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
@@ -68,6 +82,7 @@ def run_turn(
     tools = tool_definitions()
     working_messages = list(messages)
     empty_responses = 0
+    todo_reconciliation_requested = False
     tool_calls_executed = 0
     instructions = current_instructions()
 
@@ -83,6 +98,20 @@ def run_turn(
         working_messages.extend(response.output)
         if not parsed.tool_calls:
             if parsed.text.strip():
+                todos = get_todos()
+                has_active_todo = any(item["status"] == "in_progress" for item in todos)
+                if has_active_todo and not todo_reconciliation_requested:
+                    todo_reconciliation_requested = True
+                    instructions = f"{current_instructions()}{TODO_RECONCILIATION}"
+                    if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                        instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
+                    continue
+                if has_active_todo:
+                    raise RuntimeError(
+                        "Model returned a final answer with a todo still in_progress"
+                    )
+                if todos and all(item["status"] == "completed" for item in todos):
+                    clear_todos()
                 messages[:] = working_messages
                 return parsed.text
 

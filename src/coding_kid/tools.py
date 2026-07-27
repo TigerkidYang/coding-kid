@@ -132,6 +132,8 @@ def delete(path: str) -> str:
 
 
 VALID_TODO_STATUSES = {"pending", "in_progress", "completed"}
+MAX_TODO_ITEMS = 20
+MAX_TODO_CONTENT_CHARS = 200
 _current_todos: list[dict[str, str]] = []
 
 
@@ -140,10 +142,38 @@ def get_todos() -> list[dict[str, str]]:
     return [dict(item) for item in _current_todos]
 
 
-def set_todos(todos: list[dict[str, str]]) -> None:
-    """Replace the process-local todo checklist."""
+def set_todos(todos: list[dict[str, Any]]) -> None:
+    """Validate and replace the process-local todo checklist."""
+    if not isinstance(todos, list):
+        raise ValueError("todos must be a list")
+    if len(todos) > MAX_TODO_ITEMS:
+        raise ValueError(f"todos may contain at most {MAX_TODO_ITEMS} items")
+
+    normalized: list[dict[str, str]] = []
+    in_progress_count = 0
+    for item in todos:
+        if not isinstance(item, dict):
+            raise ValueError("each todo must be an object")
+        content = item.get("content")
+        status = item.get("status")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("todo content must be a non-empty string")
+        content = content.strip()
+        if len(content) > MAX_TODO_CONTENT_CHARS:
+            raise ValueError(
+                f"todo content may contain at most {MAX_TODO_CONTENT_CHARS} characters"
+            )
+        if status not in VALID_TODO_STATUSES:
+            raise ValueError("todo status must be pending, in_progress, or completed")
+        if status == "in_progress":
+            in_progress_count += 1
+        normalized.append({"content": content, "status": status})
+
+    if in_progress_count > 1:
+        raise ValueError("at most one todo may be in_progress")
+
     global _current_todos
-    _current_todos = [dict(item) for item in todos]
+    _current_todos = normalized
 
 
 def clear_todos() -> None:
@@ -165,28 +195,9 @@ def format_todos(todos: list[dict[str, str]] | None = None) -> str:
 
 def todo(todos: list[dict[str, Any]]) -> str:
     """Replace the full session todo checklist."""
-    if not isinstance(todos, list) or not todos:
-        raise ValueError("todos must be a non-empty list")
-
-    normalized: list[dict[str, str]] = []
-    in_progress_count = 0
-    for item in todos:
-        if not isinstance(item, dict):
-            raise ValueError("each todo must be an object")
-        content = item.get("content")
-        status = item.get("status")
-        if not isinstance(content, str) or not content.strip():
-            raise ValueError("todo content must be a non-empty string")
-        if status not in VALID_TODO_STATUSES:
-            raise ValueError("todo status must be pending, in_progress, or completed")
-        if status == "in_progress":
-            in_progress_count += 1
-        normalized.append({"content": content.strip(), "status": status})
-
-    if in_progress_count > 1:
-        raise ValueError("at most one todo may be in_progress")
-
-    set_todos(normalized)
+    set_todos(todos)
+    if not todos:
+        return "Cleared todos."
     return (
         "Updated todos:\n"
         f"{format_todos()}\n"
@@ -278,18 +289,22 @@ TOOLS: dict[str, ToolEntry] = {
             "Replace the full session task checklist. Use for multi-step work. "
             "Each item needs content and status "
             "(pending, in_progress, or completed). At most one item may be "
-            "in_progress."
+            "in_progress. Pass an empty list to clear a finished checklist."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "todos": {
                     "type": "array",
-                    "minItems": 1,
+                    "maxItems": MAX_TODO_ITEMS,
                     "items": {
                         "type": "object",
                         "properties": {
-                            "content": {"type": "string", "minLength": 1},
+                            "content": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": MAX_TODO_CONTENT_CHARS,
+                            },
                             "status": {
                                 "type": "string",
                                 "enum": [

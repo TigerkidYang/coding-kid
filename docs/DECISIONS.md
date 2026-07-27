@@ -55,14 +55,19 @@ Version 02 adds one `todo` tool that replaces the full checklist on each call.
 State lives in process memory beside conversation history, rolls back with
 failed CLI turns, and is injected into model instructions when non-empty.
 Statuses are `pending`, `in_progress`, and `completed`, with at most one
-`in_progress` item. `activeForm`, Plan Mode, Glob/Grep, and disk persistence
-are out of scope. Todo calls do not consume the per-turn file/shell tool
-budget.
+`in_progress` item. Lists are bounded to 20 items of 200 characters each and
+may be cleared with an empty update. New chats start empty, fully completed
+lists are cleared after success, and a final answer gets one reconciliation
+retry while an item remains `in_progress`. `activeForm`, Plan Mode, Glob/Grep,
+and disk persistence are out of scope. Todo calls do not consume the per-turn
+file/shell tool budget.
 
 Consequence:
 Task decomposition stays a small, teachable tool addition on top of the Version
 01 loop instead of introducing a planning mode or durable task database.
-Planning updates cannot starve the 12-call budget used for real work.
+Planning updates cannot starve the 12-call budget used for real work, grow
+without bound, leak into a new chat, or silently report an active step as
+finished.
 
 ## Prefer domestic Docker mirrors with explicit prefix pulls for SWE-bench
 

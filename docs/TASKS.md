@@ -13,7 +13,8 @@ the Version 01 loop shape.
 - A `todo` tool that replaces the full checklist on each call.
 - Todo item fields: `content` and `status` (`pending` / `in_progress` /
   `completed`).
-- Validation: non-empty list; valid statuses; at most one `in_progress`.
+- Validation: at most 20 items of 200 characters each; valid statuses; at most
+  one `in_progress`. An empty list clears the checklist.
 - Process-local todo state (same lifetime as conversation history).
 - Failed or interrupted CLI turns roll todo state back with message history.
 - System-prompt guidance to use `todo` on three-or-more-step tasks.
@@ -110,16 +111,16 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Finish Version 02 quality gates in order: unit tests → live todo smoke →
-  Docker mirror smoke → pre-pull remaining eval images → one-instance harness
-  smoke → only then full Verified × 10 scoring.
-- Consider whether `todo` calls should be excluded from the 12-tool budget;
-  V02 used todo on 10/10 but hit the budget on 10/10 and gold-file edits fell
-  from 7/10 to 5/10 versus Version 01.
+- Re-run the live todo smoke after the todo lifecycle hardening.
+- Review Version 02 against its completion criteria. Archive and tag it only
+  after the user declares the version complete.
 
 ## Verification (in progress)
 
-- Unit / live / mirror smokes: passed earlier in Version 02.
+- Unit suite after todo lifecycle hardening: **52 passed**.
+- Ruff lint and formatting checks: passed.
+- Live / mirror smokes: passed earlier in Version 02; the live todo smoke still
+  needs to be repeated for the hardened behavior.
 - First V02 harness score **0 / 10** was invalid (predictions deleted
   `_swe_test.patch`, harness reverse-applied fixes).
 - After cleaning predictions: V02 official **5 / 10 resolved** (same count as

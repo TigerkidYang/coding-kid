@@ -62,7 +62,9 @@ Coding Kid> Created hello.txt.
 - `delete`: delete one file.
 - `todo`: replace the full session task checklist. Use it for multi-step work.
   Statuses are `pending`, `in_progress`, and `completed`, with at most one item
-  `in_progress`. The list lives only while the process is running.
+  `in_progress`. A checklist has at most 20 items and each item has at most 200
+  characters. Pass an empty list to clear it. New chats start empty, and a
+  fully completed checklist is cleared after the final answer.
 
 ## Test
 
@@ -85,6 +87,10 @@ do not count toward that budget. Calls beyond the budget are skipped internally
 and the model is instructed to answer from evidence already collected.
 Repository-overview requests are guided toward selective inspection instead of
 recursive trees, dependency scans, test runs, or Git archaeology.
+
+Before returning a final answer, Coding Kid gives the model one chance to
+reconcile any todo still marked `in_progress`. A second unreconciled final
+answer becomes an explicit error rather than committing misleading progress.
 
 ## First-Version Limits
 

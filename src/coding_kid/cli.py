@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from coding_kid.agent import run_turn
-from coding_kid.tools import get_todos, set_todos
+from coding_kid.tools import clear_todos, get_todos, set_todos
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
@@ -57,6 +57,7 @@ def chat(
 ) -> None:
     """Keep accepting user messages until the user exits."""
     messages: list[Any] = []
+    clear_todos()
     output_function("Coding Kid is ready. Type /exit to quit.")
 
     def show_tool(name: str, arguments: dict[str, Any], result: str) -> None:

@@ -57,7 +57,8 @@ files larger than 1 MB, and caps each result at 100 matches. Every tool result
 is capped at 50,000 characters before it enters model context. Foreground
 commands have a fixed two-minute timeout. The `todo` tool replaces the full
 process-local checklist on each call and enforces at most one `in_progress`
-item.
+item. It accepts an empty list to clear the checklist and bounds state to 20
+items of at most 200 characters each.
 
 ## Context
 
@@ -76,8 +77,9 @@ selective inspection strategy that avoids recursive trees, dependencies, tests,
 Git state, and version archives unless requested.
 
 There is no persistent session, automatic context trimming, repository
-instruction loading, or long-term memory. Todo state shares the process lifetime
-of conversation history and rolls back with failed or interrupted CLI turns.
+instruction loading, or long-term memory. A new chat starts with empty todo
+state. Todo changes roll back with failed or interrupted CLI turns, and a fully
+completed checklist is cleared after a successful final answer.
 
 ## Tool Loop
 
@@ -87,7 +89,9 @@ of conversation history and rolls back with failed or interrupted CLI turns.
 4. If tools were requested, the agent executes each call in order.
 5. Each result is appended with the matching call ID.
 6. The agent calls the provider again.
-7. A response without tool calls becomes the final answer.
+7. A response without tool calls becomes the final answer unless a todo is
+   still `in_progress`. In that case the model gets one chance to reconcile the
+   checklist; a second unreconciled answer is an error.
 
 The loop stops with an error after 20 model/tool steps and stops executing new
 tools after 12 calls in one turn. These separate limits bound both repeated

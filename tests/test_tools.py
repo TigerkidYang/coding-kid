@@ -2,7 +2,14 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TOOLS, dispatch_tool, get_todos
+from coding_kid.tools import (
+    MAX_TODO_CONTENT_CHARS,
+    MAX_TODO_ITEMS,
+    MAX_TOOL_OUTPUT_CHARS,
+    TOOLS,
+    dispatch_tool,
+    get_todos,
+)
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -179,6 +186,12 @@ def test_every_tool_has_model_visible_metadata() -> None:
     for name in {"read", "write", "search", "patch", "delete"}:
         assert TOOLS[name]["parameters"]["properties"]["path"]["minLength"] == 1
     assert TOOLS["todo"]["parameters"]["required"] == ["todos"]
+    todo_items = TOOLS["todo"]["parameters"]["properties"]["todos"]
+    assert todo_items["maxItems"] == MAX_TODO_ITEMS
+    assert (
+        todo_items["items"]["properties"]["content"]["maxLength"]
+        == MAX_TODO_CONTENT_CHARS
+    )
 
 
 def test_todo_replaces_the_full_checklist() -> None:
@@ -211,11 +224,19 @@ def test_todo_replaces_the_full_checklist() -> None:
     assert get_todos()[1]["status"] == "in_progress"
 
 
-def test_todo_rejects_invalid_updates() -> None:
-    empty = dispatch_tool("todo", {"todos": []})
-    assert empty.startswith("ERROR:")
-    assert "non-empty" in empty
+def test_todo_can_clear_a_finished_checklist() -> None:
+    dispatch_tool(
+        "todo",
+        {"todos": [{"content": "Finished", "status": "completed"}]},
+    )
 
+    result = dispatch_tool("todo", {"todos": []})
+
+    assert result == "Cleared todos."
+    assert get_todos() == []
+
+
+def test_todo_rejects_invalid_updates() -> None:
     two_active = dispatch_tool(
         "todo",
         {
@@ -235,3 +256,37 @@ def test_todo_rejects_invalid_updates() -> None:
     )
     assert bad_status.startswith("ERROR:")
     assert "status" in bad_status
+
+
+def test_todo_rejects_oversized_updates_without_changing_state() -> None:
+    dispatch_tool(
+        "todo",
+        {"todos": [{"content": "Keep me", "status": "pending"}]},
+    )
+
+    too_many = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": f"Item {index}", "status": "pending"}
+                for index in range(MAX_TODO_ITEMS + 1)
+            ]
+        },
+    )
+    too_long = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {
+                    "content": "x" * (MAX_TODO_CONTENT_CHARS + 1),
+                    "status": "pending",
+                }
+            ]
+        },
+    )
+
+    assert too_many.startswith("ERROR:")
+    assert f"at most {MAX_TODO_ITEMS}" in too_many
+    assert too_long.startswith("ERROR:")
+    assert f"at most {MAX_TODO_CONTENT_CHARS}" in too_long
+    assert get_todos() == [{"content": "Keep me", "status": "pending"}]

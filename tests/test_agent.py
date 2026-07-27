@@ -7,6 +7,7 @@ import pytest
 
 import coding_kid.agent as agent_module
 from coding_kid.agent import MAX_TOOL_CALLS_PER_TURN, SYSTEM_PROMPT, run_turn
+from coding_kid.tools import get_todos
 
 
 def tool_call(call_id: str, name: str, arguments: dict[str, Any]) -> SimpleNamespace:
@@ -392,6 +393,27 @@ def test_run_turn_uses_todo_and_injects_current_list(
                     )
                 ]
             ),
+            SimpleNamespace(output=[text_message("I think the work is finished.")]),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "call-3",
+                        "todo",
+                        {
+                            "todos": [
+                                {
+                                    "content": "Write hello.txt",
+                                    "status": "completed",
+                                },
+                                {
+                                    "content": "Confirm contents",
+                                    "status": "completed",
+                                },
+                            ]
+                        },
+                    )
+                ]
+            ),
             SimpleNamespace(output=[text_message("Todo-driven work finished.")]),
         ]
     )
@@ -413,4 +435,50 @@ def test_run_turn_uses_todo_and_injects_current_list(
     assert provider_instructions[0] == SYSTEM_PROMPT
     assert "Current todos:" in provider_instructions[1]
     assert "[in_progress] Write hello.txt" in provider_instructions[1]
+    assert "Todo reconciliation required:" in provider_instructions[3]
+    assert get_todos() == []
     assert (tmp_path / "hello.txt").read_text(encoding="utf-8") == "hello"
+
+
+def test_run_turn_rejects_a_second_final_answer_with_an_active_todo() -> None:
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "call-1",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Finish work", "status": "in_progress"}
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Finished.")]),
+            SimpleNamespace(output=[text_message("Still finished.")]),
+        ]
+    )
+    messages = [{"role": "user", "content": "Finish the work"}]
+
+    with pytest.raises(RuntimeError, match="todo still in_progress"):
+        run_turn(messages, lambda instructions, messages, tools: next(responses))
+
+    assert messages == [{"role": "user", "content": "Finish the work"}]
+
+
+def test_run_turn_preserves_pending_todos_for_a_later_turn() -> None:
+    agent_module.dispatch_tool(
+        "todo",
+        {"todos": [{"content": "Continue later", "status": "pending"}]},
+    )
+    response = SimpleNamespace(output=[text_message("The remaining step is pending.")])
+
+    answer = run_turn(
+        [{"role": "user", "content": "Pause here"}],
+        lambda instructions, messages, tools: response,
+    )
+
+    assert answer == "The remaining step is pending."
+    assert get_todos() == [{"content": "Continue later", "status": "pending"}]
