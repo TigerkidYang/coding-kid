@@ -1,0 +1,916 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "public_runs": [
+    "20241022_tools_claude-3-5-haiku",
+    "20241022_tools_claude-3-5-sonnet-updated",
+    "20241028_agentless-1.5_gpt4o",
+    "20241029_OpenHands-CodeAct-2.1-sonnet-20241022",
+    "20241108_autocoderover-v2.0-claude-3-5-sonnet-20241022",
+    "20250225_sweagent_claude-3-7-sonnet",
+    "20250511_sweagent_lm_32b",
+    "20250520_openhands_devstral_small"
+  ],
+  "selection_note": "Calibration candidates only. Do not treat this ranking as the frozen final evaluation set.",
+  "candidates": [
+    {
+      "instance_id": "sphinx-doc__sphinx-10673",
+      "repo": "sphinx-doc/sphinx",
+      "title": "toctree contains reference to nonexisting document 'genindex', 'modindex', 'search'",
+      "source_files": [
+        "sphinx/directives/other.py",
+        "sphinx/environment/adapters/toctree.py",
+        "sphinx/environment/collectors/toctree.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 26,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1333,
+      "public_resolved": 2,
+      "public_runs": 8,
+      "decomposition_score": 15
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6528",
+      "repo": "pylint-dev/pylint",
+      "title": "Pylint does not respect ignores in `--recursive=y` mode",
+      "source_files": [
+        "pylint/lint/expand_modules.py",
+        "pylint/lint/pylinter.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 35,
+      "fail_to_pass_count": 4,
+      "problem_chars": 2359,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 14
+    },
+    {
+      "instance_id": "pydata__xarray-3993",
+      "repo": "pydata/xarray",
+      "title": "DataArray.integrate has a 'dim' arg, but Dataset.integrate has a 'coord' arg",
+      "source_files": [
+        "xarray/core/dataarray.py",
+        "xarray/core/dataset.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 49,
+      "fail_to_pass_count": 2,
+      "problem_chars": 919,
+      "public_resolved": 2,
+      "public_runs": 8,
+      "decomposition_score": 14
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-25102",
+      "repo": "scikit-learn/scikit-learn",
+      "title": "Preserving dtypes for DataFrame output by transformers that do not modify the input values",
+      "source_files": [
+        "sklearn/base.py",
+        "sklearn/feature_selection/_base.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 29,
+      "fail_to_pass_count": 2,
+      "problem_chars": 2534,
+      "public_resolved": 2,
+      "public_runs": 8,
+      "decomposition_score": 13
+    },
+    {
+      "instance_id": "django__django-14631",
+      "repo": "django/django",
+      "title": "BaseForm's _clean_fields() and changed_data should access values via BoundField",
+      "source_files": [
+        "django/forms/boundfield.py",
+        "django/forms/forms.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 65,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1399,
+      "public_resolved": 2,
+      "public_runs": 8,
+      "decomposition_score": 13
+    },
+    {
+      "instance_id": "django__django-16032",
+      "repo": "django/django",
+      "title": "__in doesn't clear selected fields on the RHS when QuerySet.alias() is used after annotate().",
+      "source_files": [
+        "django/db/models/fields/related_lookups.py",
+        "django/db/models/sql/query.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 11,
+      "fail_to_pass_count": 2,
+      "problem_chars": 778,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 12
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25775",
+      "repo": "matplotlib/matplotlib",
+      "title": "[ENH]: Add get/set_antialiased to Text objects",
+      "source_files": [
+        "lib/matplotlib/backends/backend_agg.py",
+        "lib/matplotlib/backends/backend_cairo.py",
+        "lib/matplotlib/text.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 39,
+      "fail_to_pass_count": 7,
+      "problem_chars": 718,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 12
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-12682",
+      "repo": "scikit-learn/scikit-learn",
+      "title": "`SparseCoder` doesn't expose `max_iter` for `Lasso`",
+      "source_files": [
+        "examples/decomposition/plot_sparse_coding.py",
+        "sklearn/decomposition/dict_learning.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 90,
+      "fail_to_pass_count": 1,
+      "problem_chars": 518,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 12
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8120",
+      "repo": "sphinx-doc/sphinx",
+      "title": "locale/<language>/LC_MESSAGES/sphinx.po translation ignored",
+      "source_files": [
+        "sphinx/application.py",
+        "sphinx/locale/__init__.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 9,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1855,
+      "public_resolved": 2,
+      "public_runs": 8,
+      "decomposition_score": 12
+    },
+    {
+      "instance_id": "django__django-11138",
+      "repo": "django/django",
+      "title": "TIME_ZONE value in DATABASES settings is not used when making dates timezone-aware on MySQL, SQLite, and Oracle.",
+      "source_files": [
+        "django/db/backends/mysql/operations.py",
+        "django/db/backends/oracle/operations.py",
+        "django/db/backends/sqlite3/base.py",
+        "django/db/backends/sqlite3/operations.py"
+      ],
+      "source_file_count": 4,
+      "patch_changed_lines": 69,
+      "fail_to_pass_count": 1,
+      "problem_chars": 3135,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 12
+    },
+    {
+      "instance_id": "django__django-11333",
+      "repo": "django/django",
+      "title": "Optimization: Multiple URLResolvers may be unintentionally be constructed by calls to `django.urls.resolvers.get_resolver`",
+      "source_files": [
+        "django/urls/base.py",
+        "django/urls/resolvers.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 10,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1493,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "pydata__xarray-3305",
+      "repo": "pydata/xarray",
+      "title": "DataArray.quantile does not honor `keep_attrs`",
+      "source_files": [
+        "xarray/core/dataset.py",
+        "xarray/core/variable.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 22,
+      "fail_to_pass_count": 1,
+      "problem_chars": 2188,
+      "public_resolved": 6,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "pydata__xarray-3095",
+      "repo": "pydata/xarray",
+      "title": "REGRESSION: copy(deep=True) casts unicode indices to object",
+      "source_files": [
+        "xarray/core/indexing.py",
+        "xarray/core/variable.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 49,
+      "fail_to_pass_count": 1,
+      "problem_chars": 2811,
+      "public_resolved": 2,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "astropy__astropy-14369",
+      "repo": "astropy/astropy",
+      "title": "Incorrect units read from MRT (CDS format) files with astropy.table",
+      "source_files": [
+        "astropy/units/format/cds.py",
+        "astropy/units/format/cds_parsetab.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 65,
+      "fail_to_pass_count": 3,
+      "problem_chars": 2597,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7462",
+      "repo": "sphinx-doc/sphinx",
+      "title": "`IndexError: pop from empty list` for empty tuple type annotation",
+      "source_files": [
+        "sphinx/domains/python.py",
+        "sphinx/pycode/ast.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 20,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1169,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "pydata__xarray-6938",
+      "repo": "pydata/xarray",
+      "title": "`.swap_dims()` can modify original object",
+      "source_files": [
+        "xarray/core/dataset.py",
+        "xarray/core/variable.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 24,
+      "fail_to_pass_count": 1,
+      "problem_chars": 2978,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "django__django-15629",
+      "repo": "django/django",
+      "title": "Errors with db_collation – no propagation to foreignkeys",
+      "source_files": [
+        "django/db/backends/base/schema.py",
+        "django/db/backends/oracle/features.py",
+        "django/db/backends/sqlite3/schema.py",
+        "django/db/models/fields/related.py"
+      ],
+      "source_file_count": 4,
+      "patch_changed_lines": 42,
+      "fail_to_pass_count": 2,
+      "problem_chars": 2395,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9461",
+      "repo": "sphinx-doc/sphinx",
+      "title": "Methods decorated with @classmethod and @property do not get documented.",
+      "source_files": [
+        "sphinx/domains/python.py",
+        "sphinx/util/inspect.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 52,
+      "fail_to_pass_count": 3,
+      "problem_chars": 2294,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 11
+    },
+    {
+      "instance_id": "sympy__sympy-19783",
+      "repo": "sympy/sympy",
+      "title": "Dagger() * IdentityOperator() is not simplified",
+      "source_files": [
+        "sympy/physics/quantum/dagger.py",
+        "sympy/physics/quantum/operator.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 13,
+      "fail_to_pass_count": 2,
+      "problem_chars": 422,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "sympy__sympy-13877",
+      "repo": "sympy/sympy",
+      "title": "Matrix determinant raises Invalid NaN comparison with particular symbolic entries",
+      "source_files": [
+        "sympy/matrices/matrices.py",
+        "sympy/utilities/randtest.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 34,
+      "fail_to_pass_count": 1,
+      "problem_chars": 4361,
+      "public_resolved": 3,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "django__django-15103",
+      "repo": "django/django",
+      "title": "Make the element_id argument of json_script optional",
+      "source_files": [
+        "django/template/defaultfilters.py",
+        "django/utils/html.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 17,
+      "fail_to_pass_count": 2,
+      "problem_chars": 378,
+      "public_resolved": 6,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6386",
+      "repo": "pylint-dev/pylint",
+      "title": "Argument expected for short verbose option",
+      "source_files": [
+        "pylint/config/argument.py",
+        "pylint/config/arguments_manager.py",
+        "pylint/config/utils.py",
+        "pylint/lint/base_options.py"
+      ],
+      "source_file_count": 4,
+      "patch_changed_lines": 15,
+      "fail_to_pass_count": 1,
+      "problem_chars": 739,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "django__django-12406",
+      "repo": "django/django",
+      "title": "ModelForm RadioSelect widget for foreign keys should not present a blank option if blank=False on the model",
+      "source_files": [
+        "django/db/models/fields/related.py",
+        "django/forms/models.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 17,
+      "fail_to_pass_count": 3,
+      "problem_chars": 1066,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "django__django-13195",
+      "repo": "django/django",
+      "title": "HttpResponse.delete_cookie() should preserve cookie's samesite.",
+      "source_files": [
+        "django/contrib/messages/storage/cookie.py",
+        "django/contrib/sessions/middleware.py",
+        "django/http/response.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 22,
+      "fail_to_pass_count": 5,
+      "problem_chars": 2402,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "django__django-11400",
+      "repo": "django/django",
+      "title": "Ordering problem in admin.RelatedFieldListFilter and admin.RelatedOnlyFieldListFilter",
+      "source_files": [
+        "django/contrib/admin/filters.py",
+        "django/db/models/fields/__init__.py",
+        "django/db/models/fields/reverse_related.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 26,
+      "fail_to_pass_count": 6,
+      "problem_chars": 799,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "django__django-13344",
+      "repo": "django/django",
+      "title": "Coroutine passed to the first middleware's process_response() instead of HttpResponse.",
+      "source_files": [
+        "django/contrib/sessions/middleware.py",
+        "django/middleware/cache.py",
+        "django/middleware/security.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 32,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1361,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898",
+      "repo": "pylint-dev/pylint",
+      "title": "bad-names-rgxs mangles regular expressions with commas",
+      "source_files": [
+        "pylint/config/argument.py",
+        "pylint/utils/__init__.py",
+        "pylint/utils/utils.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 32,
+      "fail_to_pass_count": 1,
+      "problem_chars": 3455,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 10
+    },
+    {
+      "instance_id": "django__django-16315",
+      "repo": "django/django",
+      "title": "QuerySet.bulk_create() crashes on mixed case columns in unique_fields/update_fields.",
+      "source_files": [
+        "django/db/models/query.py",
+        "django/db/models/sql/compiler.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 13,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1298,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623",
+      "repo": "matplotlib/matplotlib",
+      "title": "Inverting an axis using its limits does not work for log scale",
+      "source_files": [
+        "lib/matplotlib/axes/_base.py",
+        "lib/matplotlib/ticker.py",
+        "lib/mpl_toolkits/mplot3d/axes3d.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 19,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1117,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "django__django-13121",
+      "repo": "django/django",
+      "title": "durations-only expressions doesn't work on SQLite and MySQL",
+      "source_files": [
+        "django/db/backends/base/operations.py",
+        "django/db/backends/mysql/operations.py",
+        "django/db/backends/sqlite3/operations.py",
+        "django/db/models/expressions.py"
+      ],
+      "source_file_count": 4,
+      "patch_changed_lines": 70,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1189,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "django__django-11734",
+      "repo": "django/django",
+      "title": "OuterRef in exclude() or ~Q() uses wrong model.",
+      "source_files": [
+        "django/db/models/fields/__init__.py",
+        "django/db/models/fields/related_lookups.py",
+        "django/db/models/sql/query.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 10,
+      "fail_to_pass_count": 1,
+      "problem_chars": 832,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "django__django-10554",
+      "repo": "django/django",
+      "title": "Union queryset with ordering breaks on ordering with derived querysets",
+      "source_files": [
+        "django/db/models/sql/compiler.py",
+        "django/db/models/sql/query.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 11,
+      "fail_to_pass_count": 2,
+      "problem_chars": 2909,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4661",
+      "repo": "pylint-dev/pylint",
+      "title": "Make pylint XDG Base Directory Specification compliant",
+      "source_files": [
+        "pylint/config/__init__.py",
+        "setup.cfg"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 18,
+      "fail_to_pass_count": 1,
+      "problem_chars": 995,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "sympy__sympy-20438",
+      "repo": "sympy/sympy",
+      "title": "`is_subset` gives wrong results",
+      "source_files": [
+        "sympy/core/relational.py",
+        "sympy/sets/handlers/comparison.py",
+        "sympy/sets/handlers/issubset.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 20,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1269,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "django__django-14170",
+      "repo": "django/django",
+      "title": "Query optimization in YearLookup breaks filtering by \"__iso_year\"",
+      "source_files": [
+        "django/db/backends/base/operations.py",
+        "django/db/models/lookups.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 38,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1739,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "sympy__sympy-14248",
+      "repo": "sympy/sympy",
+      "title": "The difference of MatrixSymbols prints as a sum with (-1) coefficient",
+      "source_files": [
+        "sympy/printing/latex.py",
+        "sympy/printing/pretty/pretty.py",
+        "sympy/printing/str.py"
+      ],
+      "source_file_count": 3,
+      "patch_changed_lines": 65,
+      "fail_to_pass_count": 2,
+      "problem_chars": 583,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 9
+    },
+    {
+      "instance_id": "django__django-12741",
+      "repo": "django/django",
+      "title": "Simplify signature of `DatabaseOperations.execute_sql_flush()`",
+      "source_files": [
+        "django/core/management/commands/flush.py",
+        "django/db/backends/base/operations.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 9,
+      "fail_to_pass_count": 2,
+      "problem_chars": 398,
+      "public_resolved": 5,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-14376",
+      "repo": "django/django",
+      "title": "MySQL backend uses deprecated \"db\" and \"passwd\" kwargs.",
+      "source_files": [
+        "django/db/backends/mysql/base.py",
+        "django/db/backends/mysql/client.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 13,
+      "fail_to_pass_count": 3,
+      "problem_chars": 782,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-15561",
+      "repo": "django/django",
+      "title": "AlterField operation should be noop when adding/changing choices on SQLite.",
+      "source_files": [
+        "django/db/backends/base/schema.py",
+        "django/db/models/fields/__init__.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 35,
+      "fail_to_pass_count": 1,
+      "problem_chars": 359,
+      "public_resolved": 7,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-16560",
+      "repo": "django/django",
+      "title": "Allow to customize the code attribute of ValidationError raised by BaseConstraint.validate",
+      "source_files": [
+        "django/contrib/postgres/constraints.py",
+        "django/db/models/constraints.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 85,
+      "fail_to_pass_count": 8,
+      "problem_chars": 840,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "pytest-dev__pytest-8399",
+      "repo": "pytest-dev/pytest",
+      "title": "Starting v6.2.0, unittest setUpClass fixtures are no longer \"private\"",
+      "source_files": [
+        "src/_pytest/python.py",
+        "src/_pytest/unittest.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 10,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1083,
+      "public_resolved": 8,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "mwaskom__seaborn-3187",
+      "repo": "mwaskom/seaborn",
+      "title": "Wrong legend values of large ranges",
+      "source_files": [
+        "seaborn/_core/scales.py",
+        "seaborn/utils.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 12,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1438,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "sympy__sympy-22080",
+      "repo": "sympy/sympy",
+      "title": "Mod function lambdify bug",
+      "source_files": [
+        "sympy/printing/codeprinter.py",
+        "sympy/printing/precedence.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 12,
+      "fail_to_pass_count": 3,
+      "problem_chars": 645,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-15563",
+      "repo": "django/django",
+      "title": "Wrong behavior on queryset update when multiple inheritance",
+      "source_files": [
+        "django/db/models/sql/compiler.py",
+        "django/db/models/sql/subqueries.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 25,
+      "fail_to_pass_count": 2,
+      "problem_chars": 1727,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5840",
+      "repo": "pytest-dev/pytest",
+      "title": "5.1.2 ImportError while loading conftest (windows import folder casing issues)",
+      "source_files": [
+        "src/_pytest/config/__init__.py",
+        "src/_pytest/pathlib.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 27,
+      "fail_to_pass_count": 2,
+      "problem_chars": 625,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-16631",
+      "repo": "django/django",
+      "title": "SECRET_KEY_FALLBACKS is not used for sessions",
+      "source_files": [
+        "django/contrib/auth/__init__.py",
+        "django/contrib/auth/base_user.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 33,
+      "fail_to_pass_count": 1,
+      "problem_chars": 824,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24870",
+      "repo": "matplotlib/matplotlib",
+      "title": "[ENH]: Auto-detect bool arrays passed to contour()?",
+      "source_files": [
+        "lib/matplotlib/contour.py",
+        "lib/matplotlib/tri/_tricontour.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 33,
+      "fail_to_pass_count": 1,
+      "problem_chars": 1150,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-16256",
+      "repo": "django/django",
+      "title": "acreate(), aget_or_create(), and aupdate_or_create() doesn't work as intended on related managers.",
+      "source_files": [
+        "django/contrib/contenttypes/fields.py",
+        "django/db/models/fields/related_descriptors.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 55,
+      "fail_to_pass_count": 9,
+      "problem_chars": 2110,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "astropy__astropy-8707",
+      "repo": "astropy/astropy",
+      "title": "Header.fromstring does not accept Python 3 bytes",
+      "source_files": [
+        "astropy/io/fits/card.py",
+        "astropy/io/fits/header.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 75,
+      "fail_to_pass_count": 1,
+      "problem_chars": 840,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "django__django-16263",
+      "repo": "django/django",
+      "title": "Strip unused annotations from count queries",
+      "source_files": [
+        "django/db/models/expressions.py",
+        "django/db/models/query_utils.py",
+        "django/db/models/sql/query.py",
+        "django/db/models/sql/where.py"
+      ],
+      "source_file_count": 4,
+      "patch_changed_lines": 93,
+      "fail_to_pass_count": 3,
+      "problem_chars": 656,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 8
+    },
+    {
+      "instance_id": "sympy__sympy-17318",
+      "repo": "sympy/sympy",
+      "title": "sqrtdenest raises IndexError",
+      "source_files": [
+        "sympy/simplify/radsimp.py",
+        "sympy/simplify/sqrtdenest.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 9,
+      "fail_to_pass_count": 1,
+      "problem_chars": 2310,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 7
+    },
+    {
+      "instance_id": "django__django-13212",
+      "repo": "django/django",
+      "title": "Make validators include the provided value in ValidationError",
+      "source_files": [
+        "django/core/validators.py",
+        "django/forms/fields.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 44,
+      "fail_to_pass_count": 5,
+      "problem_chars": 468,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 7
+    },
+    {
+      "instance_id": "django__django-12325",
+      "repo": "django/django",
+      "title": "pk setup for MTI to parent get confused by multiple OneToOne references.",
+      "source_files": [
+        "django/db/models/base.py",
+        "django/db/models/options.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 8,
+      "fail_to_pass_count": 2,
+      "problem_chars": 900,
+      "public_resolved": 0,
+      "public_runs": 8,
+      "decomposition_score": 6
+    },
+    {
+      "instance_id": "django__django-13512",
+      "repo": "django/django",
+      "title": "Admin doesn't display properly unicode chars in JSONFields.",
+      "source_files": [
+        "django/contrib/admin/utils.py",
+        "django/forms/fields.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 5,
+      "fail_to_pass_count": 3,
+      "problem_chars": 462,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 5
+    },
+    {
+      "instance_id": "django__django-14315",
+      "repo": "django/django",
+      "title": "database client runshell doesn't respect os.environ values in some cases",
+      "source_files": [
+        "django/db/backends/base/client.py",
+        "django/db/backends/postgresql/client.py"
+      ],
+      "source_file_count": 2,
+      "patch_changed_lines": 5,
+      "fail_to_pass_count": 11,
+      "problem_chars": 489,
+      "public_resolved": 1,
+      "public_runs": 8,
+      "decomposition_score": 5
+    }
+  ]
+}

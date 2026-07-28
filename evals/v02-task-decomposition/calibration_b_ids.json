@@ -1,0 +1,16 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Easy, unseen calibration after the first set proved too difficult.",
+  "selection_rule": {
+    "public_resolved_min": 3,
+    "source_file_count": 2,
+    "patch_changed_lines_max": 17,
+    "problem_chars_max": 1100
+  },
+  "instance_ids": [
+    "pytest-dev__pytest-8399",
+    "django__django-15103",
+    "django__django-12741",
+    "sympy__sympy-19783"
+  ]
+}

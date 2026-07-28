@@ -1,0 +1,6 @@
+{
+  "phase": "infrastructure-smoke",
+  "instance_ids": [
+    "pytest-dev__pytest-5809"
+  ]
+}

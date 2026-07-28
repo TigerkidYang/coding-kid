@@ -1,0 +1,16 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Secondary calibration on the pre-existing Version 01 baseline slice.",
+  "instance_ids": [
+    "astropy__astropy-12907",
+    "django__django-15278",
+    "matplotlib__matplotlib-13989",
+    "psf__requests-5414",
+    "pydata__xarray-2905",
+    "pylint-dev__pylint-4970",
+    "pytest-dev__pytest-5809",
+    "scikit-learn__scikit-learn-15100",
+    "sphinx-doc__sphinx-8269",
+    "sympy__sympy-20590"
+  ]
+}

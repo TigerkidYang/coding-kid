@@ -1,0 +1,28 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "status": "frozen-before-inference",
+  "selection_rule": {
+    "exclude_all_previously_run_instances": true,
+    "public_resolved_min": 1,
+    "source_file_count_max": 3,
+    "patch_changed_lines_max": 50,
+    "problem_chars_max": 3000,
+    "order": [
+      "public_resolved descending",
+      "patch_changed_lines ascending",
+      "instance_id ascending"
+    ]
+  },
+  "instance_ids": [
+    "django__django-15561",
+    "pydata__xarray-3305",
+    "django__django-11333",
+    "sphinx-doc__sphinx-8120",
+    "pydata__xarray-3095",
+    "django__django-13512",
+    "django__django-14315",
+    "django__django-14376",
+    "django__django-16315",
+    "matplotlib__matplotlib-14623"
+  ]
+}

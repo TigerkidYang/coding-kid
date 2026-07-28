@@ -1,0 +1,11 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Focused calibration on the five unresolved Version 01 baseline instances.",
+  "instance_ids": [
+    "django__django-15278",
+    "psf__requests-5414",
+    "pydata__xarray-2905",
+    "pylint-dev__pylint-4970",
+    "sympy__sympy-20590"
+  ]
+}

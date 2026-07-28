@@ -1,0 +1,13 @@
+{
+  "phase": "calibration",
+  "instance_ids": [
+    "sphinx-doc__sphinx-10673",
+    "pylint-dev__pylint-6528",
+    "pydata__xarray-3993",
+    "scikit-learn__scikit-learn-25102",
+    "django__django-14631",
+    "django__django-16032",
+    "matplotlib__matplotlib-25775",
+    "pylint-dev__pylint-6386"
+  ]
+}
