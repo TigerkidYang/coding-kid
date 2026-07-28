@@ -357,7 +357,8 @@ def test_system_prompt_describes_the_runtime() -> None:
     assert "todo tool" in SYSTEM_PROMPT.lower()
     assert "in_progress" in SYSTEM_PROMPT
     assert "execution schedule" in SYSTEM_PROMPT.lower()
-    assert "reserve tool calls for verification" in SYSTEM_PROMPT.lower()
+    assert "first 6 file or shell calls" in SYSTEM_PROMPT.lower()
+    assert "reserve at least 2 calls" in SYSTEM_PROMPT.lower()
 
 
 def test_run_turn_uses_todo_and_injects_current_list(
