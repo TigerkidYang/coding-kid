@@ -1,0 +1,15 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Check whether deliverable-oriented todo decomposition helps on cached multi-requirement tasks.",
+  "selection_rule": {
+    "chosen_before_this_prompt_variant_ran": true,
+    "requires_multiple_requirements_or_affected_components": true,
+    "official_instance_image_already_cached": true
+  },
+  "instance_ids": [
+    "sphinx-doc__sphinx-10673",
+    "pylint-dev__pylint-6528",
+    "pydata__xarray-3993",
+    "scikit-learn__scikit-learn-25102"
+  ]
+}

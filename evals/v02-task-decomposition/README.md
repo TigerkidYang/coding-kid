@@ -31,6 +31,11 @@ Read:
      --ids-file evals\v02-task-decomposition\final_10_ids.json
    ```
 
+   `--tool-budget` and `--max-steps` may be raised for a calibration, but the
+   two agents must receive identical values. The runner disables Git file-mode
+   tracking and removes mode-only diff blocks so a Windows bind mount cannot
+   make official Linux test runners non-executable.
+
 3. Grade both prediction JSONL files with the official SWE-bench Docker
    harness. Keep `--cache_level instance` and confirm the harness reports that
    all ten local instance images are reused.

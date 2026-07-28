@@ -69,11 +69,19 @@ The calibration sets were deliberately excluded from the frozen final set.
 | Initial moderate 8 | 0 / 8 | 1 / 8 | Initial tasks were mostly too difficult. |
 | Existing baseline 10 | 5 / 10 | 5 / 10 | Scheduling changed behavior but not net outcome. |
 | Easy unseen 4 | 0 / 4 | 1 / 4 | Lower difficulty exposed one V2-only win, but not a large effect. |
+| Long-horizon Django 4 | 3 / 4 | 3 / 4 | A shared 24-call budget raised both versions equally; task tracking did not distinguish them. |
+| Multi-requirement checkpoint 2 | 0 / 2 | 0 / 2 | Scheduling changed the trajectory, but the only patch passed just 2/4 fail-to-pass tests. |
 
 Runtime-enforced scheduling variants were explored only on calibration data.
 Because the frozen final result still tied and introduced a regression, those
 experimental runtime constraints were reverted. The small session-scoped todo
 implementation remains the Version 02 design.
+
+The first long-horizon grading attempt incorrectly reported 0/4 for both
+versions because Windows permission changes made `tests/runtests.py`
+non-executable in the Linux harness. The prediction exporter now removes
+mode-only diffs; regrading the unchanged substantive patches produced the
+valid 3/4 tie above.
 
 ## Docker and network controls
 

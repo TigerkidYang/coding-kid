@@ -126,6 +126,13 @@ def reset_workspace(instance_id: str, image: str) -> Path:
 
     if not (destination / ".git").exists():
         raise RuntimeError(f"official image did not contain /testbed/.git: {image}")
+    configured = run(
+        ["git", "config", "core.filemode", "false"],
+        cwd=destination,
+        timeout=30,
+    )
+    if configured.returncode != 0:
+        raise RuntimeError(configured.stderr or configured.stdout)
     reset = run(["git", "reset", "--hard", "HEAD"], cwd=destination, timeout=120)
     if reset.returncode != 0:
         raise RuntimeError(reset.stderr or reset.stdout)
@@ -205,6 +212,22 @@ def docker_execute(container: str, command: str) -> str:
     return f"exit_code: {completed.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}"
 
 
+def strip_mode_only_diffs(patch: str) -> str:
+    """Remove Windows bind-mount permission noise from a generated patch."""
+    blocks = re.split(r"(?=^diff --git )", patch, flags=re.MULTILINE)
+    substantive = [
+        block
+        for block in blocks
+        if not block.startswith("diff --git ")
+        or re.search(
+            r"^(?:@@|new file mode|deleted file mode|GIT binary patch)",
+            block,
+            flags=re.MULTILINE,
+        )
+    ]
+    return "".join(substantive)
+
+
 def capture_patch(workspace: Path) -> tuple[str, list[str]]:
     untracked = run(
         ["git", "ls-files", "--others", "--exclude-standard"],
@@ -217,8 +240,9 @@ def capture_patch(workspace: Path) -> tuple[str, list[str]]:
     diff = run(["git", "diff", "--binary", "--no-ext-diff"], cwd=workspace)
     if diff.returncode != 0:
         raise RuntimeError(diff.stderr or diff.stdout)
+    patch = strip_mode_only_diffs(diff.stdout)
 
-    names = run(["git", "diff", "--name-only"], cwd=workspace).stdout.splitlines()
+    names = re.findall(r"^diff --git a/(.+?) b/", patch, flags=re.MULTILINE)
     modified_tests = [
         name
         for name in names
@@ -226,7 +250,7 @@ def capture_patch(workspace: Path) -> tuple[str, list[str]]:
         or name.lower().startswith("test")
         or "/tests/" in name.lower()
     ]
-    return diff.stdout, modified_tests
+    return patch, modified_tests
 
 
 def write_outputs(
@@ -278,9 +302,25 @@ def main() -> int:
         default="calibration",
         help="Safe filename prefix for the report and predictions.",
     )
+    parser.add_argument(
+        "--tool-budget",
+        type=int,
+        default=12,
+        help="Shared non-todo tool-call budget for the selected agent.",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=20,
+        help="Maximum model/tool loop iterations.",
+    )
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9_-]+", args.run_name):
         parser.error("--run-name may contain only letters, digits, '_' and '-'")
+    if args.tool_budget < 1:
+        parser.error("--tool-budget must be positive")
+    if args.max_steps < 1:
+        parser.error("--max-steps must be positive")
 
     if not os.getenv("OPENROUTER_API_KEY"):
         print("OPENROUTER_API_KEY is not set", file=sys.stderr)
@@ -306,6 +346,7 @@ def main() -> int:
 
     agent_module, tools_module = import_agent(args.agent)
     adapt_prompt_for_linux(agent_module)
+    agent_module.MAX_TOOL_CALLS_PER_TURN = args.tool_budget
     clear_todos = getattr(tools_module, "clear_todos", lambda: None)
     get_todos = getattr(tools_module, "get_todos", lambda: [])
 
@@ -371,7 +412,11 @@ def main() -> int:
             try:
                 os.chdir(workspace)
                 messages = [{"role": "user", "content": prompt}]
-                answer = agent_module.run_turn(messages, on_tool=on_tool)
+                answer = agent_module.run_turn(
+                    messages,
+                    max_steps=args.max_steps,
+                    on_tool=on_tool,
+                )
             finally:
                 os.chdir(original)
             patch, modified_tests = capture_patch(workspace)
