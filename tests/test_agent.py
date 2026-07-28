@@ -7,6 +7,7 @@ import pytest
 
 import coding_kid.agent as agent_module
 from coding_kid.agent import (
+    MAX_IMPLEMENTATION_INSPECTION_CALLS,
     MAX_TOOL_CALLS_PER_TURN,
     SYSTEM_PROMPT,
     TODO_STEP_CALL_LIMITS,
@@ -317,6 +318,106 @@ def test_run_turn_pauses_a_todo_step_until_the_schedule_advances(
         and item["output"].startswith("Tool call paused")
     ]
     assert len(paused) == 1
+
+
+def test_run_turn_requires_a_real_change_in_an_implementation_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-1",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect code", "status": "completed"},
+                                {"content": "Implement fix", "status": "in_progress"},
+                                {"content": "Verify fix", "status": "pending"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    *[
+                        tool_call(f"read-{number}", "read", {"path": "code.py"})
+                        for number in range(MAX_IMPLEMENTATION_INSPECTION_CALLS + 1)
+                    ],
+                    tool_call(
+                        "todo-too-soon",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect code", "status": "completed"},
+                                {"content": "Implement fix", "status": "completed"},
+                                {"content": "Verify fix", "status": "in_progress"},
+                            ]
+                        },
+                    ),
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "patch-1",
+                        "patch",
+                        {"path": "code.py", "old_text": "old", "new_text": "new"},
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-2",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect code", "status": "completed"},
+                                {"content": "Implement fix", "status": "completed"},
+                                {"content": "Verify fix", "status": "completed"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Implemented.")]),
+        ]
+    )
+    original_dispatch = agent_module.dispatch_tool
+    executed: list[str] = []
+    provider_messages: list[list[Any]] = []
+
+    def dispatch(name: str, arguments: dict[str, Any]) -> str:
+        if name == "todo":
+            return original_dispatch(name, arguments)
+        executed.append(name)
+        return f"{name} result"
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        provider_messages.append(list(messages))
+        return next(responses)
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", dispatch)
+
+    assert run_turn([], provider) == "Implemented."
+    assert executed == ["read"] * MAX_IMPLEMENTATION_INSPECTION_CALLS + ["patch"]
+    second_step_outputs = [
+        item["output"]
+        for item in provider_messages[2]
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert any(output.startswith("Tool call paused") for output in second_step_outputs)
+    assert any(
+        output.startswith("ERROR: The active implementation step")
+        for output in second_step_outputs
+    )
 
 
 def test_run_turn_retries_one_empty_model_response() -> None:

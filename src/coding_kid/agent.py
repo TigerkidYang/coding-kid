@@ -70,6 +70,8 @@ ToolObserver = Callable[[str, dict[str, Any], str], None]
 MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 12
 TODO_STEP_CALL_LIMITS = (4, 5, 3)
+MAX_IMPLEMENTATION_INSPECTION_CALLS = 2
+MUTATING_TOOLS = frozenset({"write", "patch", "delete"})
 
 
 def current_instructions() -> str:
@@ -80,8 +82,8 @@ def current_instructions() -> str:
     return f"{SYSTEM_PROMPT}\n\nCurrent todos:\n{format_todos(todos)}"
 
 
-def todo_step_call_limit(todos: list[dict[str, Any]]) -> int | None:
-    """Allocate the turn's tool budget across the active checklist step."""
+def todo_active_step_index(todos: list[dict[str, Any]]) -> int | None:
+    """Return the active step, falling back to the first pending step."""
     active_index = next(
         (index for index, item in enumerate(todos) if item["status"] == "in_progress"),
         None,
@@ -91,9 +93,38 @@ def todo_step_call_limit(todos: list[dict[str, Any]]) -> int | None:
             (index for index, item in enumerate(todos) if item["status"] == "pending"),
             None,
         )
+    return active_index
+
+
+def todo_step_call_limit(todos: list[dict[str, Any]]) -> int | None:
+    """Allocate the turn's tool budget across the active checklist step."""
+    active_index = todo_active_step_index(todos)
     if active_index is None:
         return None
     return TODO_STEP_CALL_LIMITS[min(active_index, len(TODO_STEP_CALL_LIMITS) - 1)]
+
+
+def todo_step_requires_mutation(
+    todos: list[dict[str, Any]], active_index: int | None
+) -> bool:
+    """Recognize an implementation step from the model's checklist wording."""
+    if active_index is None or active_index >= len(todos):
+        return False
+    content = todos[active_index]["content"].lower()
+    return any(
+        word in content
+        for word in (
+            "implement",
+            "fix",
+            "change",
+            "modify",
+            "write",
+            "create",
+            "update",
+            "add ",
+            "remove",
+        )
+    )
 
 
 def run_turn(
@@ -111,7 +142,10 @@ def run_turn(
     tool_calls_executed = 0
     todo_step_calls = 0
     existing_todos = get_todos()
+    todo_step_index = todo_active_step_index(existing_todos)
     todo_step_limit = todo_step_call_limit(existing_todos)
+    implementation_inspection_calls = 0
+    todo_step_mutated = False
     todo_schedule = tuple(
         (item["content"].strip(), item["status"]) for item in existing_todos
     )
@@ -159,13 +193,49 @@ def run_turn(
 
         # Multiple calls are deliberately sequential in this first version.
         for tool_call in parsed.tool_calls:
+            current_todos = get_todos()
+            requested_todos = (
+                tool_call.arguments.get("todos") if tool_call.name == "todo" else None
+            )
+            mutation_required = todo_step_requires_mutation(
+                current_todos, todo_step_index
+            )
+            implementation_blocked = (
+                tool_call.name != "todo"
+                and mutation_required
+                and not todo_step_mutated
+                and tool_call.name not in MUTATING_TOOLS
+                and implementation_inspection_calls
+                >= MAX_IMPLEMENTATION_INSPECTION_CALLS
+            )
             schedule_blocked = (
                 tool_call.name != "todo"
-                and bool(get_todos())
+                and bool(current_todos)
                 and todo_step_limit is not None
                 and todo_step_calls >= todo_step_limit
             )
-            if schedule_blocked:
+            completing_without_mutation = (
+                tool_call.name == "todo"
+                and mutation_required
+                and not todo_step_mutated
+                and todo_step_index is not None
+                and isinstance(requested_todos, list)
+                and len(requested_todos) > todo_step_index
+                and isinstance(requested_todos[todo_step_index], dict)
+                and requested_todos[todo_step_index].get("status") == "completed"
+            )
+            if completing_without_mutation:
+                result = (
+                    "ERROR: The active implementation step cannot be marked completed "
+                    "before a write, patch, or delete tool succeeds."
+                )
+            elif implementation_blocked:
+                result = (
+                    "Tool call paused: the implementation step already used its two "
+                    "supplementary inspection calls. Make the planned change with "
+                    "write, patch, or delete before inspecting further."
+                )
+            elif schedule_blocked:
                 result = (
                     "Tool call paused: this todo step used its scheduled tool-call "
                     "allocation. Update todo to record the step's actual result and "
@@ -192,12 +262,24 @@ def run_turn(
                     if new_schedule != todo_schedule:
                         todo_schedule = new_schedule
                         todo_step_calls = 0
+                        todo_step_index = todo_active_step_index(
+                            tool_call.arguments["todos"]
+                        )
                         todo_step_limit = todo_step_call_limit(
                             tool_call.arguments["todos"]
                         )
+                        implementation_inspection_calls = 0
+                        todo_step_mutated = False
                 elif tool_call.name != "todo":
                     tool_calls_executed += 1
                     todo_step_calls += 1
+                    if mutation_required:
+                        if tool_call.name in MUTATING_TOOLS and not result.startswith(
+                            "ERROR:"
+                        ):
+                            todo_step_mutated = True
+                        elif not todo_step_mutated:
+                            implementation_inspection_calls += 1
                 if on_tool is not None:
                     on_tool(tool_call.name, tool_call.arguments, result)
                 if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
