@@ -6,7 +6,12 @@ from typing import Any
 import pytest
 
 import coding_kid.agent as agent_module
-from coding_kid.agent import MAX_TOOL_CALLS_PER_TURN, SYSTEM_PROMPT, run_turn
+from coding_kid.agent import (
+    MAX_TOOL_CALLS_PER_TODO_STEP,
+    MAX_TOOL_CALLS_PER_TURN,
+    SYSTEM_PROMPT,
+    run_turn,
+)
 from coding_kid.tools import get_todos
 
 
@@ -216,6 +221,102 @@ def test_run_turn_does_not_count_todo_against_the_tool_budget(
     assert answer == "Budget reserved for real work."
     assert executed.count("todo") == 2
     assert executed.count("read") == MAX_TOOL_CALLS_PER_TURN
+
+
+def test_run_turn_pauses_a_todo_step_until_the_schedule_advances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inspection_calls = [
+        tool_call(f"inspect-{number}", "read", {"path": "code.py"})
+        for number in range(MAX_TOOL_CALLS_PER_TODO_STEP + 1)
+    ]
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-1",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect code", "status": "in_progress"},
+                                {"content": "Implement fix", "status": "pending"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=inspection_calls),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-2",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect code", "status": "completed"},
+                                {"content": "Implement fix", "status": "in_progress"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "patch-1",
+                        "patch",
+                        {"path": "code.py", "old_text": "old", "new_text": "new"},
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-3",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect code", "status": "completed"},
+                                {"content": "Implement fix", "status": "completed"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Implemented.")]),
+        ]
+    )
+    original_dispatch = agent_module.dispatch_tool
+    executed: list[str] = []
+    provider_messages: list[list[Any]] = []
+
+    def dispatch(name: str, arguments: dict[str, Any]) -> str:
+        if name == "todo":
+            return original_dispatch(name, arguments)
+        executed.append(name)
+        return f"{name} result"
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        provider_messages.append(list(messages))
+        return next(responses)
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", dispatch)
+
+    assert run_turn([], provider) == "Implemented."
+    assert executed == ["read"] * MAX_TOOL_CALLS_PER_TODO_STEP + ["patch"]
+    paused = [
+        item["output"]
+        for item in provider_messages[2]
+        if isinstance(item, dict)
+        and item.get("type") == "function_call_output"
+        and item["output"].startswith("Tool call paused")
+    ]
+    assert len(paused) == 1
 
 
 def test_run_turn_retries_one_empty_model_response() -> None:

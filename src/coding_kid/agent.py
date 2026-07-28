@@ -67,6 +67,7 @@ Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
 MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 12
+MAX_TOOL_CALLS_PER_TODO_STEP = 6
 
 
 def current_instructions() -> str:
@@ -90,6 +91,8 @@ def run_turn(
     empty_responses = 0
     todo_reconciliation_requested = False
     tool_calls_executed = 0
+    todo_step_calls = 0
+    todo_schedule: tuple[tuple[str, str], ...] = ()
     instructions = current_instructions()
 
     for _ in range(max_steps):
@@ -134,7 +137,18 @@ def run_turn(
 
         # Multiple calls are deliberately sequential in this first version.
         for tool_call in parsed.tool_calls:
-            if (
+            schedule_blocked = (
+                tool_call.name != "todo"
+                and bool(get_todos())
+                and todo_step_calls >= MAX_TOOL_CALLS_PER_TODO_STEP
+            )
+            if schedule_blocked:
+                result = (
+                    "Tool call paused: this todo step used its scheduled tool-call "
+                    "allocation. Update todo to record the step's actual result and "
+                    "activate the next step before using more file or shell tools."
+                )
+            elif (
                 tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
                 and tool_call.name != "todo"
             ):
@@ -147,8 +161,17 @@ def run_turn(
                 result = dispatch_tool(tool_call.name, tool_call.arguments)
                 # Todo updates are planning overhead and do not consume the
                 # per-turn file/shell tool budget.
-                if tool_call.name != "todo":
+                if tool_call.name == "todo" and not result.startswith("ERROR:"):
+                    new_schedule = tuple(
+                        (item["content"].strip(), item["status"])
+                        for item in tool_call.arguments["todos"]
+                    )
+                    if new_schedule != todo_schedule:
+                        todo_schedule = new_schedule
+                        todo_step_calls = 0
+                elif tool_call.name != "todo":
                     tool_calls_executed += 1
+                    todo_step_calls += 1
                 if on_tool is not None:
                     on_tool(tool_call.name, tool_call.arguments, result)
                 if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
