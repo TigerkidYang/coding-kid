@@ -33,9 +33,11 @@ before making changes. Keep at most one item in_progress. Update the list as you
 finish each step. Treat the checklist as an execution schedule: keep initial
 inspection bounded, move to implementation as soon as the relevant code is
 understood, and reserve tool calls for verification. For coding tasks that use
-todo, spend no more than the first 6 file or shell calls on initial inspection
-and reserve at least 2 calls for focused verification. Do not spend the whole
-turn investigating while implementation or verification remains pending.
+todo, spend no more than the first 4 file or shell calls on initial inspection
+and reserve at least 3 calls for focused verification. A typical three-step
+coding schedule is 4 calls to inspect, 5 to implement, and 3 to verify. Do not
+spend the whole turn investigating while implementation or verification remains
+pending.
 Skip the todo tool for simple one-step requests.
 After using tools, always answer the user with the useful result. Never finish
 with only internal reasoning or an empty response.
@@ -67,7 +69,7 @@ Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
 MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 12
-MAX_TOOL_CALLS_PER_TODO_STEP = 6
+TODO_STEP_CALL_LIMITS = (4, 5, 3)
 
 
 def current_instructions() -> str:
@@ -76,6 +78,22 @@ def current_instructions() -> str:
     if not todos:
         return SYSTEM_PROMPT
     return f"{SYSTEM_PROMPT}\n\nCurrent todos:\n{format_todos(todos)}"
+
+
+def todo_step_call_limit(todos: list[dict[str, Any]]) -> int | None:
+    """Allocate the turn's tool budget across the active checklist step."""
+    active_index = next(
+        (index for index, item in enumerate(todos) if item["status"] == "in_progress"),
+        None,
+    )
+    if active_index is None:
+        active_index = next(
+            (index for index, item in enumerate(todos) if item["status"] == "pending"),
+            None,
+        )
+    if active_index is None:
+        return None
+    return TODO_STEP_CALL_LIMITS[min(active_index, len(TODO_STEP_CALL_LIMITS) - 1)]
 
 
 def run_turn(
@@ -92,7 +110,11 @@ def run_turn(
     todo_reconciliation_requested = False
     tool_calls_executed = 0
     todo_step_calls = 0
-    todo_schedule: tuple[tuple[str, str], ...] = ()
+    existing_todos = get_todos()
+    todo_step_limit = todo_step_call_limit(existing_todos)
+    todo_schedule = tuple(
+        (item["content"].strip(), item["status"]) for item in existing_todos
+    )
     instructions = current_instructions()
 
     for _ in range(max_steps):
@@ -140,7 +162,8 @@ def run_turn(
             schedule_blocked = (
                 tool_call.name != "todo"
                 and bool(get_todos())
-                and todo_step_calls >= MAX_TOOL_CALLS_PER_TODO_STEP
+                and todo_step_limit is not None
+                and todo_step_calls >= todo_step_limit
             )
             if schedule_blocked:
                 result = (
@@ -169,6 +192,9 @@ def run_turn(
                     if new_schedule != todo_schedule:
                         todo_schedule = new_schedule
                         todo_step_calls = 0
+                        todo_step_limit = todo_step_call_limit(
+                            tool_call.arguments["todos"]
+                        )
                 elif tool_call.name != "todo":
                     tool_calls_executed += 1
                     todo_step_calls += 1

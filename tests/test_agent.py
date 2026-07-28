@@ -7,9 +7,9 @@ import pytest
 
 import coding_kid.agent as agent_module
 from coding_kid.agent import (
-    MAX_TOOL_CALLS_PER_TODO_STEP,
     MAX_TOOL_CALLS_PER_TURN,
     SYSTEM_PROMPT,
+    TODO_STEP_CALL_LIMITS,
     run_turn,
 )
 from coding_kid.tools import get_todos
@@ -228,7 +228,7 @@ def test_run_turn_pauses_a_todo_step_until_the_schedule_advances(
 ) -> None:
     inspection_calls = [
         tool_call(f"inspect-{number}", "read", {"path": "code.py"})
-        for number in range(MAX_TOOL_CALLS_PER_TODO_STEP + 1)
+        for number in range(TODO_STEP_CALL_LIMITS[0] + 1)
     ]
     responses = iter(
         [
@@ -308,7 +308,7 @@ def test_run_turn_pauses_a_todo_step_until_the_schedule_advances(
     monkeypatch.setattr(agent_module, "dispatch_tool", dispatch)
 
     assert run_turn([], provider) == "Implemented."
-    assert executed == ["read"] * MAX_TOOL_CALLS_PER_TODO_STEP + ["patch"]
+    assert executed == ["read"] * TODO_STEP_CALL_LIMITS[0] + ["patch"]
     paused = [
         item["output"]
         for item in provider_messages[2]
@@ -458,8 +458,10 @@ def test_system_prompt_describes_the_runtime() -> None:
     assert "todo tool" in SYSTEM_PROMPT.lower()
     assert "in_progress" in SYSTEM_PROMPT
     assert "execution schedule" in SYSTEM_PROMPT.lower()
-    assert "first 6 file or shell calls" in SYSTEM_PROMPT.lower()
-    assert "reserve at least 2 calls" in SYSTEM_PROMPT.lower()
+    assert (
+        "4 calls to inspect, 5 to implement, and 3 to verify" in SYSTEM_PROMPT.lower()
+    )
+    assert "reserve at least 3 calls" in SYSTEM_PROMPT.lower()
 
 
 def test_run_turn_uses_todo_and_injects_current_list(
