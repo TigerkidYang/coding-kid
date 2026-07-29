@@ -44,9 +44,8 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Version 01 is complete. Version 02 is defined in `docs/TASKS.md` as
-session-scoped task decomposition via a `todo` tool. Agents wait for the user
-to choose later versions before those begin.
+Versions 01 through 03 are complete. Agents wait for the user to choose the
+next version before defining or implementing it.
 
 ## Keep Version 02 todos session-scoped and replace-based
 

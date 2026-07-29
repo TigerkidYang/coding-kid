@@ -174,8 +174,10 @@ In particular:
 - Version 02 is complete: it adds a session-scoped `todo` tool for task
   decomposition and is archived under `versions/02-task-decomposition/` with
   tag `version-02-task-decomposition`.
-- Version 03 is active: add bounded, session-stable context assembly with
-  hierarchical project `AGENTS.md` loading. Details are in `docs/TASKS.md`.
+- Version 03 is complete: bounded, session-stable context assembly with
+  hierarchical project `AGENTS.md` loading. It is archived under
+  `versions/03-context-assembly/` with tag `version-03-context-assembly`.
+- No later version is currently defined.
 - The root project contains the living implementation, tests, and usage
   documentation.
 - Existing source-code research is available to support implementation.

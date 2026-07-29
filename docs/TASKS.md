@@ -2,6 +2,10 @@
 
 ## Current Version: 03 — Context Assembly
 
+Completion status: verified. The implementation, deterministic suite, paired
+capability slice, and secondary regression check all passed. Archive and tag:
+`versions/03-context-assembly/` and `version-03-context-assembly`.
+
 ### Goal
 
 Add bounded, source-aware, session-stable input assembly so every model request
@@ -53,9 +57,18 @@ the provider or tool-loop shape.
 - The Verified × 10 score is recorded as a secondary regression check; any
   result below 5/10 is investigated before completion.
 
+### Verification
+
+- Deterministic suite: **68 passed**.
+- Ruff lint and formatting checks: passed.
+- Paired capability slice: Version 02 outcome **4/6**; Version 03 process
+  **6/6** and outcome **6/6**.
+- Official SWE-bench Verified × 10: **7/10 resolved**, 10/10 completed,
+  0 empty patches, and 0 harness errors.
+
 ## Most Recently Completed Version: 02 — Task Decomposition
 
-Completion status: verified and ready for the teaching archive under
+Completion status: verified and archived under
 `versions/02-task-decomposition/` with tag `version-02-task-decomposition`.
 
 ### Goal
@@ -170,8 +183,8 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Implement the Version 03 session-context and project-instruction loader first,
-  then integrate request assembly without changing the provider wire shape.
+- Wait for the user to define the next version. Do not create a later-version
+  roadmap in advance.
 
 ## Version 02 Verification
 
@@ -190,8 +203,9 @@ results back to the model, and returns a final response to the user.
 
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
-- Stay inside Version 03 context-assembly scope.
-- Research only as needed to answer a concrete Version 02 question.
+- Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
+- Do not begin a new version until the user chooses its contents.
+- Research only as needed to answer a concrete current question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.

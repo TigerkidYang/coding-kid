@@ -74,15 +74,18 @@ without explicit permission.
   It passed 52 unit tests, lint/format checks, and the hardened live todo smoke.
 - Version 02 is archived under `versions/02-task-decomposition/` with annotated
   tag `version-02-task-decomposition`.
-- Version 03 is active: bounded, session-stable context assembly with
-  hierarchical project `AGENTS.md` instructions. Scope and completion criteria
-  are in `docs/TASKS.md`.
+- Version 03 is complete: bounded, session-stable context assembly with
+  hierarchical project `AGENTS.md` instructions. It passed 68 deterministic
+  tests, the paired context slice at 6/6 process and 6/6 outcome, and the
+  official SWE-bench Verified × 10 regression check at 7/10.
+- Version 03 is archived under `versions/03-context-assembly/` with annotated
+  tag `version-03-context-assembly`.
+- No later version is currently defined.
 - The user explicitly delegated implementation of Version 03 to the assistant.
 - The user explicitly delegated implementation of Version 02 to the assistant.
-- Evaluation for this stage: Verified × 10 is the SWE bugfix baseline (V01 and
-  cleaned V02 both 5/10). Primary Todo evidence is the goal-only multi-step
-  slice in `evals/v02-baseline/todo_slice/` (see `TODO_SLICE.md` and
-  `todo_slice/SCORECARD.md`).
+- Evaluation for Version 03 is under `evals/v03-context-assembly/`: the paired
+  context slice passed at 6/6 process and 6/6 outcome versus Version 02's 4/6
+  outcome, and the secondary Verified × 10 score was 7/10.
 - Git and completed-version archive management is defined in
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.
