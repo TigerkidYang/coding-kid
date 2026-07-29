@@ -172,7 +172,10 @@ In particular:
   under `versions/01-minimal-agent/` (`version-01-minimal-agent`,
   `version-01-minimal-agent-fix2`).
 - Version 02 is complete: it adds a session-scoped `todo` tool for task
-  decomposition and is ready to archive as `versions/02-task-decomposition/`.
+  decomposition and is archived under `versions/02-task-decomposition/` with
+  tag `version-02-task-decomposition`.
+- Version 03 is active: add bounded, session-stable context assembly with
+  hierarchical project `AGENTS.md` loading. Details are in `docs/TASKS.md`.
 - The root project contains the living implementation, tests, and usage
   documentation.
 - Existing source-code research is available to support implementation.

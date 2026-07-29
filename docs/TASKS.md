@@ -1,5 +1,58 @@
 # Tasks
 
+## Current Version: 03 — Context Assembly
+
+### Goal
+
+Add bounded, source-aware, session-stable input assembly so every model request
+combines Coding Kid's base behavior, a runtime snapshot, hierarchical project
+instructions, conversation history, and dynamic turn guidance without changing
+the provider or tool-loop shape.
+
+### Included Scope
+
+- An immutable `SessionContext` captured once per terminal chat.
+- Runtime context: absolute cwd, operating system, `cmd.exe`, configured model,
+  and the local ISO date at session start.
+- Nearest-Git-root discovery, including `.git` directories and worktree files.
+- Root-to-cwd loading of `AGENTS.md` only.
+- Source labels and a shared 32 KiB project-instruction content budget.
+- UTF-8 replacement decoding, visible truncation, empty-file skipping, and
+  explicit non-`NotFound` read errors.
+- Project instructions injected as synthetic contextual user input without
+  entering conversation history.
+- Stable instruction ordering with todos and recovery overlays rendered
+  dynamically for every model step.
+- Deterministic discovery, assembly, lifecycle, rollback, and integration tests.
+- A paired six-fixture context-assembly capability evaluation.
+
+### Excluded Scope
+
+- Automatic compaction, summarization, token-window monitoring, or long-term
+  memory.
+- Global user instructions, `AGENTS.override.md`, fallback filenames,
+  `CLAUDE.md`, includes, conditional rules, or dynamic child-directory loading.
+- Automatic README, Git status, recent-commit, or arbitrary file injection.
+- Skills, plugins, MCP, multi-workspace context, configurable prompts, provider
+  abstraction, or persistent sessions.
+
+### Completion Criteria
+
+- `SessionContext.capture(cwd)` produces one immutable session snapshot.
+- Project root discovery stops at the nearest `.git` marker and never loads
+  instructions outside that boundary.
+- Multiple `AGENTS.md` files are source-labeled and ordered root to cwd within
+  a 32 KiB shared content budget.
+- Every provider request contains the same cached project context plus current
+  todo/recovery guidance, without mutating or growing conversation history.
+- Existing Version 02 todo, rollback, parser, provider, and tool behavior
+  remains covered and passing.
+- Unit tests, Ruff lint, and Ruff formatting checks pass.
+- The paired capability slice records 6/6 process injection and at least 5/6
+  Version 03 outcomes, above the Version 02 baseline.
+- The Verified × 10 score is recorded as a secondary regression check; any
+  result below 5/10 is investigated before completion.
+
 ## Most Recently Completed Version: 02 — Task Decomposition
 
 Completion status: verified and ready for the teaching archive under
@@ -117,10 +170,10 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Archive and tag Version 02, then record the user-approved Version 03 context
-  assembly scope before implementation.
+- Implement the Version 03 session-context and project-instruction loader first,
+  then integrate request assembly without changing the provider wire shape.
 
-## Verification
+## Version 02 Verification
 
 - Unit suite after todo lifecycle hardening: **52 passed**.
 - Ruff lint and formatting checks: passed.
@@ -136,6 +189,8 @@ results back to the model, and returns a final response to the user.
 ## Current Constraints
 
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
+- Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
+- Stay inside Version 03 context-assembly scope.
 - Research only as needed to answer a concrete Version 02 question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version

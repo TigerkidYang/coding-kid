@@ -69,6 +69,24 @@ Planning updates cannot starve the 12-call budget used for real work, grow
 without bound, leak into a new chat, or silently report an active step as
 finished.
 
+## Assemble Version 03 context in explicit layers
+
+Decision:
+Version 03 captures one immutable session context containing runtime facts and
+project instructions. It discovers the nearest Git root and loads only
+`AGENTS.md` files from that root to the current working directory. Project
+instruction contents share a 32 KiB root-first budget, are labeled by source,
+and enter model input as a synthetic contextual user message. Base behavior and
+runtime facts form the stable instruction prefix; todos and recovery guidance
+are rendered as dynamic suffixes for each model step.
+
+Consequence:
+Large model input becomes bounded, testable, and source-aware without turning
+project documentation into Coding Kid's own system policy or duplicating it in
+conversation history. The project intentionally postpones global instructions,
+fallback filenames, conditional rules, dynamic reload, context compression,
+skills, plugins, MCP, and persistent memory.
+
 ## Prefer domestic Docker mirrors with explicit prefix pulls for SWE-bench
 
 Decision:

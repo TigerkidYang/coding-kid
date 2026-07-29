@@ -72,6 +72,12 @@ without explicit permission.
   tags `version-01-minimal-agent` and `version-01-minimal-agent-fix2`.
 - Version 02 is complete: session-scoped task decomposition via a `todo` tool.
   It passed 52 unit tests, lint/format checks, and the hardened live todo smoke.
+- Version 02 is archived under `versions/02-task-decomposition/` with annotated
+  tag `version-02-task-decomposition`.
+- Version 03 is active: bounded, session-stable context assembly with
+  hierarchical project `AGENTS.md` instructions. Scope and completion criteria
+  are in `docs/TASKS.md`.
+- The user explicitly delegated implementation of Version 03 to the assistant.
 - The user explicitly delegated implementation of Version 02 to the assistant.
 - Evaluation for this stage: Verified × 10 is the SWE bugfix baseline (V01 and
   cleaned V02 both 5/10). Primary Todo evidence is the goal-only multi-step
