@@ -171,8 +171,8 @@ In particular:
 - Version 01 is complete as a minimal terminal coding agent and is archived
   under `versions/01-minimal-agent/` (`version-01-minimal-agent`,
   `version-01-minimal-agent-fix2`).
-- Version 02 is active: add a session-scoped `todo` tool for task decomposition.
-  Details are in `docs/TASKS.md`.
+- Version 02 is complete: it adds a session-scoped `todo` tool for task
+  decomposition and is ready to archive as `versions/02-task-decomposition/`.
 - The root project contains the living implementation, tests, and usage
   documentation.
 - Existing source-code research is available to support implementation.

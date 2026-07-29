@@ -70,8 +70,8 @@ without explicit permission.
   `https://github.com/TigerkidYang/coding-kid`.
 - Version 01 is complete and archived under `versions/01-minimal-agent/` with
   tags `version-01-minimal-agent` and `version-01-minimal-agent-fix2`.
-- Version 02 is active: session-scoped task decomposition via a `todo` tool.
-  Scope and completion criteria are in `docs/TASKS.md`.
+- Version 02 is complete: session-scoped task decomposition via a `todo` tool.
+  It passed 52 unit tests, lint/format checks, and the hardened live todo smoke.
 - The user explicitly delegated implementation of Version 02 to the assistant.
 - Evaluation for this stage: Verified × 10 is the SWE bugfix baseline (V01 and
   cleaned V02 both 5/10). Primary Todo evidence is the goal-only multi-step

@@ -1,6 +1,9 @@
 # Tasks
 
-## Current Version: 02 — Task Decomposition
+## Most Recently Completed Version: 02 — Task Decomposition
+
+Completion status: verified and ready for the teaching archive under
+`versions/02-task-decomposition/` with tag `version-02-task-decomposition`.
 
 ### Goal
 
@@ -57,7 +60,7 @@ the Version 01 loop shape.
   `evals/v02-baseline/verified_10_instances.json`.
   Version 01 and cleaned Version 02 both **5 / 10** on the official harness.
 
-## Most Recently Completed Version
+## Earlier Completed Version
 
 Version 01 is the minimal complete Coding Kid agent.
 
@@ -114,16 +117,15 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Re-run the live todo smoke after the todo lifecycle hardening.
-- Review Version 02 against its completion criteria. Archive and tag it only
-  after the user declares the version complete.
+- Archive and tag Version 02, then record the user-approved Version 03 context
+  assembly scope before implementation.
 
-## Verification (in progress)
+## Verification
 
 - Unit suite after todo lifecycle hardening: **52 passed**.
 - Ruff lint and formatting checks: passed.
-- Live / mirror smokes: passed earlier in Version 02; the live todo smoke still
-  needs to be repeated for the hardened behavior.
+- Hardened live todo smoke: passed on 2026-07-30. The model used and reconciled
+  the checklist, created the package and test, and reported `1 passed`.
 - First V02 harness score **0 / 10** was invalid (predictions deleted
   `_swe_test.patch`, harness reverse-applied fixes).
 - After cleaning predictions: V02 official **5 / 10 resolved** (same count as
@@ -133,7 +135,6 @@ results back to the model, and returns a final response to the user.
 
 ## Current Constraints
 
-- Stay inside Version 02 scope.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Research only as needed to answer a concrete Version 02 question.
 - Do not work on articles unless the user explicitly resumes article work.
