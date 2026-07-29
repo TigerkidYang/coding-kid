@@ -2,41 +2,26 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
+from coding_kid.context import (
+    BASE_INSTRUCTIONS,
+    SessionContext,
+    build_instructions,
+    build_model_input,
+)
 from coding_kid.parser import parse_output
 from coding_kid.provider import generate
 from coding_kid.tools import (
     clear_todos,
     dispatch_tool,
-    format_todos,
     get_todos,
     tool_definitions,
 )
 
-SYSTEM_PROMPT = f"""You are Coding Kid, a coding agent working in the current directory.
-Only call the tools provided in the current request. Never invent tool names.
-Use the available tools to inspect, change, and verify code when needed.
-Read or search before changing code you have not inspected.
-Use "." for the current directory; never send an empty path or search query.
-Use the fewest tool calls needed and stop gathering once you can answer.
-For repository overviews, inspect only the top level, README, project configuration,
-one relevant architecture/context document, and source/test file names. Do not read
-every file, run tests, inspect Git state or diffs, inspect version archives, run
-recursive tree commands, or inspect virtual environments, caches, or dependencies
-unless the user specifically asks.
-For tasks with three or more distinct steps, use the todo tool to list the steps
-before making changes. Keep at most one item in_progress. Update the list as you
-finish each step. Skip the todo tool for simple one-step requests.
-After using tools, always answer the user with the useful result. Never finish
-with only internal reasoning or an empty response.
-When the task is complete, explain the result clearly and briefly.
-Current working directory: {Path.cwd()}
-Configured model (OPENROUTER_MODEL): {os.getenv("OPENROUTER_MODEL", "not set")}
-The execute tool runs commands through Windows cmd.exe. Use Windows commands."""
+# Kept as a named compatibility point for tests and evaluation adapters.
+SYSTEM_PROMPT = BASE_INSTRUCTIONS
 
 EMPTY_RESPONSE_RECOVERY = """
 
@@ -63,12 +48,18 @@ MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 64
 
 
-def current_instructions() -> str:
-    """Build the system instructions, including the active todo list when set."""
-    todos = get_todos()
-    if not todos:
-        return SYSTEM_PROMPT
-    return f"{SYSTEM_PROMPT}\n\nCurrent todos:\n{format_todos(todos)}"
+def current_instructions(
+    session_context: SessionContext | None = None,
+    overlays: tuple[str, ...] = (),
+) -> str:
+    """Build stable runtime instructions plus current dynamic guidance."""
+    context = session_context or SessionContext.capture()
+    return build_instructions(
+        context,
+        get_todos(),
+        overlays,
+        base_instructions=SYSTEM_PROMPT,
+    )
 
 
 def run_turn(
@@ -77,17 +68,21 @@ def run_turn(
     *,
     max_steps: int = 80,
     on_tool: ToolObserver | None = None,
+    session_context: SessionContext | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     tools = tool_definitions()
     working_messages = list(messages)
+    context = session_context or SessionContext.capture()
     empty_responses = 0
     todo_reconciliation_requested = False
     tool_calls_executed = 0
-    instructions = current_instructions()
+    instruction_overlays: tuple[str, ...] = ()
 
     for _ in range(max_steps):
-        response = call_provider(instructions, working_messages, tools)
+        instructions = current_instructions(context, instruction_overlays)
+        model_input = build_model_input(context, working_messages)
+        response = call_provider(instructions, model_input, tools)
 
         # Parse before changing history so malformed provider output cannot
         # leave an incomplete turn behind.
@@ -104,9 +99,9 @@ def run_turn(
                 )
                 if has_incomplete_todo and not todo_reconciliation_requested:
                     todo_reconciliation_requested = True
-                    instructions = f"{current_instructions()}{TODO_RECONCILIATION}"
+                    instruction_overlays = (TODO_RECONCILIATION,)
                     if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
-                        instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
+                        instruction_overlays += (TOOL_BUDGET_RECOVERY,)
                     continue
                 if has_incomplete_todo:
                     raise RuntimeError(
@@ -120,9 +115,9 @@ def run_turn(
             empty_responses += 1
             if empty_responses >= MAX_EMPTY_RESPONSES:
                 raise RuntimeError("Model returned repeated empty responses")
-            instructions = f"{current_instructions()}{EMPTY_RESPONSE_RECOVERY}"
+            instruction_overlays = (EMPTY_RESPONSE_RECOVERY,)
             if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
-                instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
+                instruction_overlays += (TOOL_BUDGET_RECOVERY,)
             continue
 
         empty_responses = 0
@@ -157,8 +152,6 @@ def run_turn(
                 }
             )
 
-        instructions = current_instructions()
-        if tool_budget_reached:
-            instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
+        instruction_overlays = (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
 
     raise RuntimeError("Agent reached the maximum number of model/tool steps")

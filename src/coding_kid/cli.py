@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from coding_kid.agent import run_turn
+from coding_kid.context import SessionContext
 from coding_kid.tools import clear_todos, get_todos, set_todos
 
 InputFunction = Callable[[str], str]
@@ -56,6 +57,12 @@ def chat(
     output_function: OutputFunction = print,
 ) -> None:
     """Keep accepting user messages until the user exits."""
+    try:
+        session_context = SessionContext.capture()
+    except RuntimeError as error:
+        output_function(f"Error: {error}")
+        return
+
     messages: list[Any] = []
     clear_todos()
     output_function("Coding Kid is ready. Type /exit to quit.")
@@ -82,7 +89,11 @@ def chat(
         todos_start = get_todos()
         messages.append({"role": "user", "content": user_input})
         try:
-            answer = run_turn(messages, on_tool=show_tool)
+            answer = run_turn(
+                messages,
+                on_tool=show_tool,
+                session_context=session_context,
+            )
             if not answer.strip():
                 raise RuntimeError("Model returned an empty answer")
         except KeyboardInterrupt:

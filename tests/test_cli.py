@@ -12,7 +12,11 @@ def test_chat_accepts_input_shows_tool_activity_and_exits(monkeypatch: Any) -> N
         outputs.append(prompt)
         return next(inputs)
 
-    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         received_messages.append(list(messages))
         on_tool("write", {"path": "hello.txt", "content": "hello"}, "Wrote hello.txt")
         return "Created hello.txt."
@@ -34,7 +38,11 @@ def test_chat_reports_an_error_and_keeps_running(monkeypatch: Any) -> None:
     inputs = iter(["broken task", "/exit"])
     outputs: list[str] = []
 
-    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         raise RuntimeError("model unavailable")
 
     monkeypatch.setattr(cli, "run_turn", fake_run_turn)
@@ -51,7 +59,11 @@ def test_chat_handles_task_interruption_without_a_traceback(monkeypatch: Any) ->
     inputs = iter(["long task", "/exit"])
     outputs: list[str] = []
 
-    def interrupted_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def interrupted_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         raise KeyboardInterrupt
 
     monkeypatch.setattr(cli, "run_turn", interrupted_run_turn)
@@ -69,7 +81,11 @@ def test_chat_rolls_back_a_failed_turn_before_continuing(monkeypatch: Any) -> No
     inputs = iter(["first task", "second task", "/exit"])
     received_messages: list[list[Any]] = []
 
-    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         received_messages.append(list(messages))
         if len(received_messages) == 1:
             messages.append({"type": "partial-provider-output"})
@@ -90,7 +106,11 @@ def test_chat_preserves_successful_turns(monkeypatch: Any) -> None:
     inputs = iter(["first", "second", "/exit"])
     received_messages: list[list[Any]] = []
 
-    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         received_messages.append(list(messages))
         messages.append({"role": "assistant", "content": "done"})
         return "done"
@@ -113,7 +133,11 @@ def test_chat_never_prints_a_blank_assistant_answer(monkeypatch: Any) -> None:
     inputs = iter(["answer me", "/exit"])
     outputs: list[str] = []
 
-    monkeypatch.setattr(cli, "run_turn", lambda messages, on_tool: "   ")
+    monkeypatch.setattr(
+        cli,
+        "run_turn",
+        lambda messages, on_tool, session_context: "   ",
+    )
 
     cli.chat(
         input_function=lambda prompt: next(inputs),
@@ -128,7 +152,11 @@ def test_chat_hides_tool_results_but_shows_tool_errors(monkeypatch: Any) -> None
     inputs = iter(["inspect files", "/exit"])
     outputs: list[str] = []
 
-    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         on_tool(
             "read",
             {"path": "secret.txt"},
@@ -199,7 +227,11 @@ def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
     inputs = iter(["first task", "second task", "/exit"])
     received_messages: list[list[Any]] = []
 
-    def fake_run_turn(messages: list[Any], on_tool: Any) -> str:
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
         received_messages.append(list(messages))
         if len(received_messages) == 1:
             set_todos([{"content": "Keep me", "status": "pending"}])
@@ -234,6 +266,47 @@ def test_chat_starts_with_a_fresh_todo_session() -> None:
     )
 
     assert get_todos() == []
+
+
+def test_chat_reuses_one_session_context_for_all_turns(monkeypatch: Any) -> None:
+    inputs = iter(["first", "second", "/exit"])
+    contexts: list[Any] = []
+
+    def fake_run_turn(
+        messages: list[Any],
+        on_tool: Any,
+        session_context: Any,
+    ) -> str:
+        contexts.append(session_context)
+        return "done"
+
+    monkeypatch.setattr(cli, "run_turn", fake_run_turn)
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=lambda text: None,
+    )
+
+    assert len(contexts) == 2
+    assert contexts[0] is contexts[1]
+
+
+def test_chat_reports_project_instruction_initialization_errors(
+    monkeypatch: Any,
+) -> None:
+    outputs: list[str] = []
+
+    def fail_capture() -> None:
+        raise RuntimeError("Could not load project instructions from AGENTS.md")
+
+    monkeypatch.setattr(cli.SessionContext, "capture", fail_capture)
+
+    cli.chat(
+        input_function=lambda prompt: "/exit",
+        output_function=outputs.append,
+    )
+
+    assert outputs == ["Error: Could not load project instructions from AGENTS.md"]
 
 
 def test_format_tool_call_bounds_and_flattens_model_arguments() -> None:

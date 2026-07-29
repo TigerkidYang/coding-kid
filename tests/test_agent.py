@@ -6,7 +6,13 @@ from typing import Any
 import pytest
 
 import coding_kid.agent as agent_module
-from coding_kid.agent import MAX_TOOL_CALLS_PER_TURN, SYSTEM_PROMPT, run_turn
+from coding_kid.agent import (
+    MAX_TOOL_CALLS_PER_TURN,
+    SYSTEM_PROMPT,
+    current_instructions,
+    run_turn,
+)
+from coding_kid.context import ProjectInstruction, SessionContext
 from coding_kid.tools import get_todos
 
 
@@ -72,7 +78,8 @@ def test_run_turn_executes_multiple_tools_in_order(
         ("write", "result from write"),
     ]
     assert len(provider_calls) == 2
-    assert provider_calls[0][0] == SYSTEM_PROMPT
+    assert provider_calls[0][0].startswith(SYSTEM_PROMPT)
+    assert "Runtime environment:" in provider_calls[0][0]
     assert [item["name"] for item in provider_calls[0][2]][:2] == ["execute", "read"]
     tool_outputs = [
         item
@@ -242,7 +249,7 @@ def test_run_turn_retries_one_empty_model_response() -> None:
 
     assert answer == "Recovered answer."
     assert len(provider_instructions) == 2
-    assert provider_instructions[0] == SYSTEM_PROMPT
+    assert provider_instructions[0].startswith(SYSTEM_PROMPT)
     assert "previous response was empty" in provider_instructions[1].lower()
     assert "answer the user now" in provider_instructions[1].lower()
 
@@ -278,7 +285,8 @@ def test_run_turn_recovers_from_an_empty_response_after_a_tool(
 
     assert answer == "Directory described."
     assert len(provider_instructions) == 3
-    assert provider_instructions[:2] == [SYSTEM_PROMPT, SYSTEM_PROMPT]
+    assert provider_instructions[0] == provider_instructions[1]
+    assert provider_instructions[0].startswith(SYSTEM_PROMPT)
     assert "answer the user now" in provider_instructions[2].lower()
 
 
@@ -344,10 +352,68 @@ def test_run_turn_does_not_commit_partial_history_on_failure(
     assert messages == [{"role": "user", "content": "Inspect one.py"}]
 
 
+def test_run_turn_injects_cached_project_context_without_storing_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[tool_call("call-1", "read", {"path": "module.py"})]
+            ),
+            SimpleNamespace(output=[text_message("Finished.")]),
+        ]
+    )
+    provider_inputs: list[list[Any]] = []
+    session_context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-07-30",
+        project_root=tmp_path,
+        project_instructions=(
+            ProjectInstruction(tmp_path / "AGENTS.md", "Always run pytest."),
+        ),
+    )
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> SimpleNamespace:
+        provider_inputs.append(list(messages))
+        return next(responses)
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", lambda name, arguments: "ok")
+    messages: list[Any] = [{"role": "user", "content": "Fix module.py"}]
+
+    answer = run_turn(messages, provider, session_context=session_context)
+
+    assert answer == "Finished."
+    assert len(provider_inputs) == 2
+    assert all(
+        "Always run pytest." in request[0]["content"] for request in provider_inputs
+    )
+    assert all(request.count(provider_inputs[0][0]) == 1 for request in provider_inputs)
+    assert messages[0] == {"role": "user", "content": "Fix module.py"}
+    assert all(
+        not (
+            isinstance(item, dict)
+            and item.get("role") == "user"
+            and "Always run pytest." in item.get("content", "")
+        )
+        for item in messages
+    )
+
+
 def test_system_prompt_describes_the_runtime() -> None:
-    assert str(Path.cwd()) in SYSTEM_PROMPT
-    assert "OPENROUTER_MODEL" in SYSTEM_PROMPT
-    assert "cmd.exe" in SYSTEM_PROMPT
+    session_context = SessionContext.capture()
+    instructions = current_instructions(session_context)
+
+    assert str(session_context.cwd) in instructions
+    assert "OPENROUTER_MODEL" in instructions
+    assert "cmd.exe" in instructions
     assert "only call the tools provided" in SYSTEM_PROMPT.lower()
     assert "recursive tree commands" in SYSTEM_PROMPT.lower()
     assert 'use "."' in SYSTEM_PROMPT.lower()
@@ -432,7 +498,7 @@ def test_run_turn_uses_todo_and_injects_current_list(
     answer = run_turn([{"role": "user", "content": "Do the two steps"}], provider)
 
     assert answer == "Todo-driven work finished."
-    assert provider_instructions[0] == SYSTEM_PROMPT
+    assert provider_instructions[0].startswith(SYSTEM_PROMPT)
     assert "Current todos:" in provider_instructions[1]
     assert "[in_progress] Write hello.txt" in provider_instructions[1]
     assert "Todo reconciliation required:" in provider_instructions[3]
