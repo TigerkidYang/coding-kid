@@ -440,7 +440,7 @@ def test_run_turn_uses_todo_and_injects_current_list(
     assert (tmp_path / "hello.txt").read_text(encoding="utf-8") == "hello"
 
 
-def test_run_turn_rejects_a_second_final_answer_with_an_active_todo() -> None:
+def test_run_turn_rejects_a_second_final_answer_with_an_incomplete_todo() -> None:
     responses = iter(
         [
             SimpleNamespace(
@@ -462,23 +462,45 @@ def test_run_turn_rejects_a_second_final_answer_with_an_active_todo() -> None:
     )
     messages = [{"role": "user", "content": "Finish the work"}]
 
-    with pytest.raises(RuntimeError, match="todo still in_progress"):
+    with pytest.raises(RuntimeError, match="unfinished todos"):
         run_turn(messages, lambda instructions, messages, tools: next(responses))
 
     assert messages == [{"role": "user", "content": "Finish the work"}]
 
 
-def test_run_turn_preserves_pending_todos_for_a_later_turn() -> None:
+def test_run_turn_requires_pending_todos_to_be_completed_before_final() -> None:
     agent_module.dispatch_tool(
         "todo",
         {"todos": [{"content": "Continue later", "status": "pending"}]},
     )
-    response = SimpleNamespace(output=[text_message("The remaining step is pending.")])
+    responses = iter(
+        [
+            SimpleNamespace(output=[text_message("The remaining step is pending.")]),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "call-1",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Continue later", "status": "completed"}
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("The remaining step is complete.")]),
+        ]
+    )
+    provider_instructions: list[str] = []
 
     answer = run_turn(
         [{"role": "user", "content": "Pause here"}],
-        lambda instructions, messages, tools: response,
+        lambda instructions, messages, tools: (
+            provider_instructions.append(instructions) or next(responses)
+        ),
     )
 
-    assert answer == "The remaining step is pending."
-    assert get_todos() == [{"content": "Continue later", "status": "pending"}]
+    assert answer == "The remaining step is complete."
+    assert "Todo reconciliation required:" in provider_instructions[1]
+    assert get_todos() == []

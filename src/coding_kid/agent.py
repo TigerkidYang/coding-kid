@@ -52,15 +52,15 @@ once to reconcile the checklist before answering."""
 
 TODO_RECONCILIATION = """
 
-Todo reconciliation required: A checklist item is still in_progress. Before
-answering, call todo once to reflect the actual state. Mark finished work
-completed; if work must continue later, move the active item back to pending.
-Then answer the user honestly about what is complete and what remains."""
+Todo reconciliation required: One or more checklist items are incomplete.
+Before answering, call todo once to reflect the actual state and finish the
+remaining work. Do not give a final answer while any item is pending or
+in_progress."""
 
 Provider = Callable[[str, list[Any], list[dict[str, Any]]], Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
 MAX_EMPTY_RESPONSES = 2
-MAX_TOOL_CALLS_PER_TURN = 12
+MAX_TOOL_CALLS_PER_TURN = 64
 
 
 def current_instructions() -> str:
@@ -75,7 +75,7 @@ def run_turn(
     messages: list[Any],
     call_provider: Provider = generate,
     *,
-    max_steps: int = 20,
+    max_steps: int = 80,
     on_tool: ToolObserver | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
@@ -99,16 +99,18 @@ def run_turn(
         if not parsed.tool_calls:
             if parsed.text.strip():
                 todos = get_todos()
-                has_active_todo = any(item["status"] == "in_progress" for item in todos)
-                if has_active_todo and not todo_reconciliation_requested:
+                has_incomplete_todo = any(
+                    item["status"] != "completed" for item in todos
+                )
+                if has_incomplete_todo and not todo_reconciliation_requested:
                     todo_reconciliation_requested = True
                     instructions = f"{current_instructions()}{TODO_RECONCILIATION}"
                     if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
                         instructions = f"{instructions}{TOOL_BUDGET_RECOVERY}"
                     continue
-                if has_active_todo:
+                if has_incomplete_todo:
                     raise RuntimeError(
-                        "Model returned a final answer with a todo still in_progress"
+                        "Model returned a final answer with unfinished todos"
                     )
                 if todos and all(item["status"] == "completed" for item in todos):
                     clear_todos()
