@@ -1,0 +1,19 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "One-turn batch evaluation for Version 02 task scheduling and decomposition.",
+  "selection_rule": {
+    "coding_kid_outcomes_used_for_task_difficulty": true,
+    "reason": "All six tasks were independently solved by both V1 and the revised V2 with Luna; batching therefore measures scheduling across known-solvable tasks rather than single-task capability.",
+    "official_grading": "Each resulting patch is graded against its original SWE-bench Verified instance.",
+    "tool_call_safety_ceiling": 240,
+    "model_loop_safety_ceiling": 300
+  },
+  "instance_ids": [
+    "django__django-11138",
+    "django__django-14631",
+    "django__django-16032",
+    "matplotlib__matplotlib-25775",
+    "scikit-learn__scikit-learn-12682",
+    "sphinx-doc__sphinx-8120"
+  ]
+}

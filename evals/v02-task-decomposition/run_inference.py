@@ -18,17 +18,22 @@ import subprocess
 import sys
 import time
 import traceback
+import urllib.error
+import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from datasets import load_dataset
+from openai import OpenAI
 
 BASE = Path(__file__).resolve().parent
 ROOT = BASE.parents[1]
 WORK_ROOT = BASE / "workspaces"
 RESULTS_ROOT = BASE / "results"
 DATASET_NAME = "SWE-bench/SWE-bench_Verified"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_CREDITS_URL = f"{OPENROUTER_BASE_URL}/credits"
 
 
 @dataclass
@@ -81,6 +86,20 @@ def load_ids(path: Path) -> list[str]:
     if not isinstance(ids, list) or not ids:
         raise ValueError(f"{path} does not contain instance_ids")
     return ids
+
+
+def account_usage_usd(api_key: str) -> float | None:
+    """Read total billed usage without exposing account or credential details."""
+    request = urllib.request.Request(
+        OPENROUTER_CREDITS_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.load(response)
+        return float(payload["data"]["total_usage"])
+    except (OSError, KeyError, TypeError, ValueError, urllib.error.URLError):
+        return None
 
 
 def assert_within_work_root(path: Path) -> Path:
@@ -234,6 +253,17 @@ def capture_patch(workspace: Path) -> tuple[str, list[str]]:
         cwd=workspace,
     )
     for relative in [line for line in untracked.stdout.splitlines() if line.strip()]:
+        # POSIX commands occasionally create a literal redirection file such as
+        # "NUL". Windows Git cannot add reserved device names, and these shell
+        # artifacts are never part of a solution patch.
+        if any(
+            re.fullmatch(
+                r"(?i)(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?",
+                part,
+            )
+            for part in Path(relative).parts
+        ):
+            continue
         intent = run(["git", "add", "-N", "--", relative], cwd=workspace)
         if intent.returncode != 0:
             raise RuntimeError(intent.stderr or intent.stdout)
@@ -257,12 +287,14 @@ def write_outputs(
     report_path: Path,
     predictions_path: Path,
     results: list[InferenceResult],
+    run_spend_usd: float,
 ) -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(
         json.dumps(
             {
                 "dataset": DATASET_NAME,
+                "run_spend_usd": round(run_spend_usd, 6),
                 "results": [
                     {
                         **asdict(result),
@@ -305,14 +337,26 @@ def main() -> int:
     parser.add_argument(
         "--tool-budget",
         type=int,
-        default=12,
-        help="Shared non-todo tool-call budget for the selected agent.",
+        default=64,
+        help="High shared safety ceiling for non-todo tool calls.",
     )
     parser.add_argument(
         "--max-steps",
         type=int,
-        default=20,
-        help="Maximum model/tool loop iterations.",
+        default=80,
+        help="High safety ceiling for model/tool loop iterations.",
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=8192,
+        help="Maximum output tokens for each model request.",
+    )
+    parser.add_argument(
+        "--max-spend-usd",
+        type=float,
+        default=1.5,
+        help="Stop before starting another instance once this run spends the limit.",
     )
     args = parser.parse_args()
     if not re.fullmatch(r"[A-Za-z0-9_-]+", args.run_name):
@@ -321,11 +365,17 @@ def main() -> int:
         parser.error("--tool-budget must be positive")
     if args.max_steps < 1:
         parser.error("--max-steps must be positive")
+    if args.max_output_tokens < 1:
+        parser.error("--max-output-tokens must be positive")
+    if args.max_spend_usd <= 0:
+        parser.error("--max-spend-usd must be positive")
 
-    if not os.getenv("OPENROUTER_API_KEY"):
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
         print("OPENROUTER_API_KEY is not set", file=sys.stderr)
         return 1
     model = os.getenv("OPENROUTER_MODEL", "not set")
+    usage_at_start = account_usage_usd(api_key)
     ids = load_ids(args.ids_file)
     if args.only:
         only = set(args.only)
@@ -347,6 +397,26 @@ def main() -> int:
     agent_module, tools_module = import_agent(args.agent)
     adapt_prompt_for_linux(agent_module)
     agent_module.MAX_TOOL_CALLS_PER_TURN = args.tool_budget
+    client = OpenAI(
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
+        timeout=120.0,
+        max_retries=2,
+    )
+
+    def call_provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> Any:
+        return client.responses.create(
+            model=model,
+            instructions=instructions,
+            input=messages,
+            tools=tools,
+            max_output_tokens=args.max_output_tokens,
+        )
+
     clear_todos = getattr(tools_module, "clear_todos", lambda: None)
     get_todos = getattr(tools_module, "get_todos", lambda: [])
 
@@ -354,8 +424,19 @@ def main() -> int:
     report_path = RESULTS_ROOT / f"{args.run_name}_{args.agent}_report.json"
     predictions_path = RESULTS_ROOT / f"{args.run_name}_{args.agent}_predictions.jsonl"
     results: list[InferenceResult] = []
+    run_spend_usd = 0.0
 
     for index, instance_id in enumerate(ids, start=1):
+        current_usage = account_usage_usd(api_key)
+        if current_usage is not None and usage_at_start is not None:
+            run_spend_usd = max(0.0, current_usage - usage_at_start)
+        if run_spend_usd >= args.max_spend_usd:
+            print(
+                f"STOP spend limit reached: ${run_spend_usd:.4f} "
+                f">= ${args.max_spend_usd:.4f}",
+                flush=True,
+            )
+            break
         print(
             f"\n===== {index}/{len(ids)} {args.agent} {instance_id} =====", flush=True
         )
@@ -414,6 +495,7 @@ def main() -> int:
                 messages = [{"role": "user", "content": prompt}]
                 answer = agent_module.run_turn(
                     messages,
+                    call_provider,
                     max_steps=args.max_steps,
                     on_tool=on_tool,
                 )
@@ -451,10 +533,14 @@ def main() -> int:
             error=error,
         )
         results.append(result)
-        write_outputs(report_path, predictions_path, results)
+        current_usage = account_usage_usd(api_key)
+        if current_usage is not None and usage_at_start is not None:
+            run_spend_usd = max(0.0, current_usage - usage_at_start)
+        write_outputs(report_path, predictions_path, results, run_spend_usd)
         print(
             f"SAVED patch_lines={result.patch_lines} "
-            f"tools={len(events)} error={bool(error)}",
+            f"tools={len(events)} error={bool(error)} "
+            f"run_spend=${run_spend_usd:.4f}",
             flush=True,
         )
 

@@ -1,5 +1,16 @@
 # Eval Infrastructure Notes
 
+## Todo discrimination slice (primary Todo evidence)
+
+Goal-only multi-step tasks under `todo_slice/` measure Version 02 Todo vs
+Version 01. Protocol: `TODO_SLICE.md`. Do **not** use Verified × 10 as Todo proof.
+
+```text
+uv run python evals/v02-baseline/todo_slice/bootstrap_fixtures.py
+uv run python evals/v02-baseline/todo_slice/run_todo_slice.py --agent v01
+uv run python evals/v02-baseline/todo_slice/run_todo_slice.py --agent v02 --only-v01-fails
+```
+
 ## Rule: test before evaluation
 
 Do not discover Docker/mirror/API problems during a full Verified × 10 harness

@@ -1,0 +1,23 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Frozen task-decomposition slice whose tasks expose multiple components or multiple official fail-to-pass requirements.",
+  "selection_rule": {
+    "source_candidates": "candidate_ranking.json generated before Luna evaluation",
+    "coding_kid_outcomes_used_for_selection": false,
+    "exclude_high_budget_10": true,
+    "minimum_public_resolved": 1,
+    "maximum_public_resolved": 6,
+    "minimum_problem_chars": 700,
+    "complexity_condition": "source_file_count >= 3 OR fail_to_pass_count >= 3",
+    "tool_call_safety_ceiling": 64,
+    "model_loop_safety_ceiling": 80
+  },
+  "instance_ids": [
+    "astropy__astropy-14369",
+    "pylint-dev__pylint-6386",
+    "matplotlib__matplotlib-14623",
+    "django__django-13121",
+    "django__django-14376",
+    "django__django-16560"
+  ]
+}

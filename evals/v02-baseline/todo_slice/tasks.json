@@ -1,0 +1,228 @@
+[
+  {
+    "id": "multi-001",
+    "source": "AgentBench-Live/tasks/multi-step",
+    "title": "Fix three bugs and write CHANGELOG",
+    "fixture": "multi-001",
+    "goal_only_prompt": "The project in the current directory has failing tests caused by bugs in the source code. Make all tests pass without modifying the tests, and write CHANGELOG.md describing what was fixed (Keep a Changelog style is fine). All bugs are in different source files under src/.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-002",
+    "source": "AgentBench-Live/tasks/multi-step",
+    "title": "Remote config loader, tests, and README",
+    "fixture": "multi-002",
+    "goal_only_prompt": "Extend this config system so configuration can be fetched from a remote HTTP URL. Add a RemoteConfigLoader in config/remote.py that fetches JSON, validates it with the existing Pydantic AppConfig schema, handles timeouts and retries sensibly, and works with ConfigManager. Add tests/test_remote_config.py covering success, timeout, invalid JSON, and HTTP errors. Document the remote config feature in README.md. Existing tests must still pass. Use httpx (already appropriate for this project).",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "config/remote.py",
+        "tests/test_remote_config.py",
+        "README.md"
+      ],
+      "require_readme_mentions": [
+        "RemoteConfigLoader",
+        "remote"
+      ]
+    }
+  },
+  {
+    "id": "multi-003",
+    "source": "local-agentbench-style",
+    "title": "Bookstore bugs plus CHANGELOG",
+    "fixture": "multi-003",
+    "goal_only_prompt": "This bookstore project has failing tests due to bugs across inventory, pricing, and cart. Fix the source bugs without changing tests, make pytest pass, and add CHANGELOG.md summarizing the fixes.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-004",
+    "source": "local-agentbench-style",
+    "title": "Stringkit fixes plus USAGE docs",
+    "fixture": "multi-004",
+    "goal_only_prompt": "The stringkit package helpers are wrong. Fix to_snake, pad_center, and slugify so tests pass without editing tests. Also create docs/USAGE.md that briefly documents all three functions with one example each.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "docs/USAGE.md"
+      ],
+      "require_file_mentions": {
+        "docs/USAGE.md": [
+          "to_snake",
+          "pad_center",
+          "slugify"
+        ]
+      },
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-005",
+    "source": "local-agentbench-style",
+    "title": "ContactBook search and exports plus README API",
+    "fixture": "multi-005",
+    "goal_only_prompt": "Finish ContactBook: implement search, export_json, and export_csv so the tests pass. Update README.md with an ## API section documenting those three methods. Do not weaken the tests.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "README.md"
+      ],
+      "require_readme_mentions": [
+        "## API",
+        "search",
+        "export_json",
+        "export_csv"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-006",
+    "source": "local-agentbench-style",
+    "title": "Unit conversion bugs plus notes",
+    "fixture": "multi-006",
+    "goal_only_prompt": "Three unit conversion helpers are incorrect (length, temperature, mass). Fix them so tests pass without editing tests. Write CHANGELOG.md and NOTES.md describing each fix.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md",
+        "NOTES.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-007",
+    "source": "local-agentbench-style",
+    "title": "FIFO queue bugs plus CHANGELOG",
+    "fixture": "multi-007",
+    "goal_only_prompt": "TaskQueue should be FIFO and reject empty titles. Fix the bugs in the package (storage/validation) without modifying tests, make pytest pass, and add CHANGELOG.md.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-008",
+    "source": "local-agentbench-style",
+    "title": "Sales analysis bugs and report outputs",
+    "fixture": "multi-008",
+    "goal_only_prompt": "Fix reportlib/analyze.py so regional totals and top product are correct, tests pass, and write_reports produces totals.json, top_product.txt, and region_summary.md. Do not modify the tests. Also add CHANGELOG.md for the analysis fixes.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-009",
+    "source": "local-agentbench-style",
+    "title": "Four utility bugs plus docs",
+    "fixture": "multi-009",
+    "goal_only_prompt": "The pkg utilities and Service integration have failing tests. Fix the source bugs without editing tests, make pytest pass, and add CHANGELOG.md plus NOTES.md describing each fix.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md",
+        "NOTES.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-010",
+    "source": "local-agentbench-style",
+    "title": "Warehouse stubs plus API docs",
+    "fixture": "multi-010",
+    "goal_only_prompt": "Finish the warehouse package by implementing stock.adjust, pricing.line_total, and orders.place so tests pass. Update README.md with an ## API section covering those methods, and write CHANGELOG.md.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "README.md",
+        "CHANGELOG.md"
+      ],
+      "require_readme_mentions": [
+        "## API",
+        "adjust",
+        "line_total",
+        "place"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-011",
+    "source": "local-agentbench-style",
+    "title": "Analytics metrics and three report files",
+    "fixture": "multi-011",
+    "goal_only_prompt": "Fix analytics metrics/reporting so tests pass without editing tests. write_all must emit clicks.json, purchases.json, and top_spender.txt correctly. Also add CHANGELOG.md and SUMMARY.md with the top spender name.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md",
+        "SUMMARY.md"
+      ],
+      "forbid_test_edits": true
+    }
+  },
+  {
+    "id": "multi-012",
+    "source": "local-agentbench-style",
+    "title": "Form pipeline normalization plus docs",
+    "fixture": "multi-012",
+    "goal_only_prompt": "Fix the forms pipeline so email normalization and validation behave as the tests require, without editing tests. Add CHANGELOG.md and docs/USAGE.md with one example validate_record call.",
+    "grade": {
+      "pytest": [
+        "tests"
+      ],
+      "require_files": [
+        "CHANGELOG.md",
+        "docs/USAGE.md"
+      ],
+      "require_file_mentions": {
+        "docs/USAGE.md": [
+          "validate_record"
+        ]
+      },
+      "forbid_test_edits": true
+    }
+  }
+]

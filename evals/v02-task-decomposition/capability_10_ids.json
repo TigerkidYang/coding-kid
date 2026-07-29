@@ -1,0 +1,22 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Feature-specific capability slice for Version 02 task scheduling and decomposition; not an unbiased leaderboard sample.",
+  "selection_rule": {
+    "official_verified_instances_only": true,
+    "v01_previously_failed_under_12_tool_budget": true,
+    "multiple_requirements_or_multiple_affected_source_locations": true,
+    "official_instance_image_already_cached_from_domestic_mirror": true
+  },
+  "instance_ids": [
+    "sphinx-doc__sphinx-10673",
+    "sphinx-doc__sphinx-8120",
+    "pylint-dev__pylint-6528",
+    "pylint-dev__pylint-6386",
+    "pytest-dev__pytest-8399",
+    "pydata__xarray-3993",
+    "scikit-learn__scikit-learn-25102",
+    "django__django-14631",
+    "django__django-16032",
+    "matplotlib__matplotlib-25775"
+  ]
+}

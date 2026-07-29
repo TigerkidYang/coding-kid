@@ -73,8 +73,10 @@ without explicit permission.
 - Version 02 is active: session-scoped task decomposition via a `todo` tool.
   Scope and completion criteria are in `docs/TASKS.md`.
 - The user explicitly delegated implementation of Version 02 to the assistant.
-- Evaluation for this stage uses the SWE-bench Verified × 10 slice under
-  `evals/v02-baseline/`. Version 01 scored 5/10 on the official harness.
+- Evaluation for this stage: Verified × 10 is the SWE bugfix baseline (V01 and
+  cleaned V02 both 5/10). Primary Todo evidence is the goal-only multi-step
+  slice in `evals/v02-baseline/todo_slice/` (see `TODO_SLICE.md` and
+  `todo_slice/SCORECARD.md`).
 - Git and completed-version archive management is defined in
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.

@@ -1,0 +1,31 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "purpose": "Frozen feature-specific slice for evaluating Version 02 task decomposition with generous execution ceilings.",
+  "selection_rule": {
+    "official_verified_instances_only": true,
+    "coding_kid_outcomes_used_for_selection": false,
+    "ranking_inputs": [
+      "hidden gold-patch source-file count",
+      "hidden gold-patch changed-line count",
+      "official fail-to-pass test count",
+      "problem-statement requirement markers",
+      "aggregate resolved count from eight public agent runs"
+    ],
+    "ranking_order": "Top ten from candidate_ranking.json using its deterministic score and tie-breakers.",
+    "tool_call_safety_ceiling": 64,
+    "model_loop_safety_ceiling": 80,
+    "frozen_before_gpt_4o_mini_v02_results": true
+  },
+  "instance_ids": [
+    "sphinx-doc__sphinx-10673",
+    "pylint-dev__pylint-6528",
+    "pydata__xarray-3993",
+    "scikit-learn__scikit-learn-25102",
+    "django__django-14631",
+    "django__django-16032",
+    "matplotlib__matplotlib-25775",
+    "scikit-learn__scikit-learn-12682",
+    "sphinx-doc__sphinx-8120",
+    "django__django-11138"
+  ]
+}

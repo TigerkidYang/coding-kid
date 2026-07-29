@@ -48,11 +48,14 @@ the Version 01 loop shape.
 
 ### Evaluation Slice
 
-- Dataset: `SWE-bench/SWE-bench_Verified` (10 sampled instances under
-  `evals/v02-baseline/verified_10_instances.json`).
-- Version 01 official harness baseline: **5 / 10 resolved**.
-- Compare Version 02 on the same instances, focusing on gains among the five
-  Version 01 failures (empty patch / unresolved).
+- **Todo evidence (primary):** goal-only multi-step slice under
+  `evals/v02-baseline/todo_slice/` (protocol `TODO_SLICE.md`).
+  After V01 Outcome filtering: **6** survivors. V02 Process **6/6**, Outcome
+  **0/6** (tied with V01) — Todo is used, but wrap-up deliverables still hit the
+  tool budget. Scorecard: `todo_slice/SCORECARD.md`.
+- **SWE bugfix baseline (not Todo proof):** Verified × 10 under
+  `evals/v02-baseline/verified_10_instances.json`.
+  Version 01 and cleaned Version 02 both **5 / 10** on the official harness.
 
 ## Most Recently Completed Version
 
