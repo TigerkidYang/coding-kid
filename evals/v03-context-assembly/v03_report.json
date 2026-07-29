@@ -1,0 +1,84 @@
+{
+  "agent": "v03",
+  "model": "openai/gpt-5.6-luna",
+  "results": [
+    {
+      "task_id": "context-001-root",
+      "agent": "v03",
+      "process_pass": true,
+      "outcome_pass": true,
+      "result_text": "ROOT-CONTEXT",
+      "tool_calls": [
+        "write"
+      ],
+      "answer_preview": "Created `result.txt` containing exactly:\n\n```text\nROOT-CONTEXT\n```",
+      "elapsed_seconds": 7.775,
+      "error": null
+    },
+    {
+      "task_id": "context-002-layered",
+      "agent": "v03",
+      "process_pass": true,
+      "outcome_pass": true,
+      "result_text": "NESTED-VALUE",
+      "tool_calls": [
+        "write"
+      ],
+      "answer_preview": "Created `result.txt` in the current directory containing exactly:\n\n```text\nNESTED-VALUE\n```",
+      "elapsed_seconds": 4.623,
+      "error": null
+    },
+    {
+      "task_id": "context-003-sibling",
+      "agent": "v03",
+      "process_pass": true,
+      "outcome_pass": true,
+      "result_text": "ISOLATED-VALUE",
+      "tool_calls": [
+        "write"
+      ],
+      "answer_preview": "Created `result.txt` in the current directory containing exactly:\n\n```text\nISOLATED-VALUE\n```",
+      "elapsed_seconds": 5.024,
+      "error": null
+    },
+    {
+      "task_id": "context-004-boundary",
+      "agent": "v03",
+      "process_pass": true,
+      "outcome_pass": true,
+      "result_text": "BOUNDARY-VALUE",
+      "tool_calls": [
+        "write"
+      ],
+      "answer_preview": "Created `result.txt` containing exactly:\n\n```text\nBOUNDARY-VALUE\n```",
+      "elapsed_seconds": 5.678,
+      "error": null
+    },
+    {
+      "task_id": "context-005-none",
+      "agent": "v03",
+      "process_pass": true,
+      "outcome_pass": true,
+      "result_text": "DEFAULT-VALUE",
+      "tool_calls": [
+        "write"
+      ],
+      "answer_preview": "Created `result.txt` containing exactly:\n\n`DEFAULT-VALUE`",
+      "elapsed_seconds": 4.389,
+      "error": null
+    },
+    {
+      "task_id": "context-006-budget",
+      "agent": "v03",
+      "process_pass": true,
+      "outcome_pass": true,
+      "result_text": "BUDGET-VALUE",
+      "tool_calls": [
+        "write"
+      ],
+      "answer_preview": "Created `result.txt` containing exactly:\n\n```text\nBUDGET-VALUE\n```",
+      "elapsed_seconds": 6.389,
+      "error": null
+    }
+  ]
+}
