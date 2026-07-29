@@ -2,97 +2,100 @@
 
 ## Overview
 
-Version 02 keeps the synchronous terminal coding agent from Version 01 and adds
-session-scoped task decomposition through a `todo` tool.
+Version 03 keeps the synchronous Version 02 agent loop and adds one context
+assembly boundary in front of every provider request.
 
 ```text
-cli.py
-  -> agent.py
-       -> provider.py
-       -> parser.py
-       -> tools.py  (file/shell tools + todo checklist state)
+cli.py -> context.py -> agent.py -> provider.py
+                         |  |
+                         |  +-> parser.py
+                         +----> tools.py
 ```
+
+`cli.py` captures one immutable `SessionContext` when a chat starts. `agent.py`
+reuses that snapshot while it owns the model/tool loop. `context.py` discovers
+project instructions and creates a fresh request copy for every model step.
 
 ## Modules
 
 ### `cli.py`
 
-Owns the outer conversation loop. It reads terminal input, appends user
-messages to one in-memory list, shows tool activity, and prints the final model
-answer. Failed or interrupted turns are rolled back before accepting the next
-prompt, and blank answers are never printed as successful responses.
+Owns the outer conversation loop and creates one `SessionContext` per terminal
+chat. It appends user messages to in-memory history, shows tool activity, and
+prints final answers. Failed or interrupted turns roll back messages and todo
+state. A project-instruction read error stops initialization with the offending
+path instead of starting a partial session.
+
+### `context.py`
+
+Owns context discovery, capture, and rendering.
+
+- `SessionContext.capture(cwd)` resolves the absolute cwd, local ISO date,
+  operating system, `cmd.exe` shell, configured model, nearest Git root, and
+  project instructions.
+- A `.git` directory or worktree file marks the nearest project root. Without a
+  marker, only the current directory is considered.
+- Non-empty `AGENTS.md` files are read from root to cwd with UTF-8 replacement
+  decoding. Their contents share a 32 KiB root-first budget and carry absolute
+  source labels and visible truncation markers.
+- The captured value is frozen. File changes affect only a new chat.
+- Request rendering combines the stable base/runtime instructions, cached
+  project context, a request-only copy of conversation history, and current
+  todo/recovery overlays.
 
 ### `agent.py`
 
-Owns the inner agent loop. It sends the current context to the provider, keeps
-the raw model output in history, executes requested tools sequentially, appends
-their results, and repeats until the model returns no more tool calls. Changes
-to conversation history are committed only after a successful final answer. A
-single empty model response is retried; a repeated empty response becomes an
-explicit error. The retry receives a direct recovery instruction rather than
-the unchanged prompt. A turn executes at most 12 tools; later requested calls
-receive matched skipped outputs and the model is instructed to answer from the
-evidence already available.
+Owns the inner agent loop. It asks `context.py` to assemble every request,
+parses model output, executes tools sequentially, and commits conversation
+history only after success. Empty-response recovery, the 12-call tool budget,
+todo reconciliation, rollback behavior, and the 20-step loop bound remain here.
+Todo and recovery overlays are re-rendered for every provider request, so state
+changes are visible immediately and no overlay is duplicated.
 
 ### `provider.py`
 
-Makes one non-streaming OpenRouter request through its OpenAI-compatible API and
-returns the raw response. It does not parse output, manage history, execute
-tools, or abstract a second API provider. Requests use a 120-second timeout and
-the client's two automatic retries.
+Sends one non-streaming OpenRouter request containing `instructions`, `input`,
+and tool definitions, then returns the raw response. It does not discover
+files, assemble context, parse output, manage history, or abstract another
+provider.
 
 ### `parser.py`
 
-Extracts assistant text and function calls from one provider response. A parsed
-tool call contains its call ID, name, and decoded argument dictionary.
+Extracts assistant text and function calls from one provider response.
 
 ### `tools.py`
 
-Contains ordinary functions for command execution, file operations, and the
-session todo checklist. The explicit `TOOLS` dictionary associates each function
-with the description and parameter schema shown to the model. `dispatch_tool`
-calls the selected function and converts exceptions into text the model can use
-to recover. Search rejects empty queries, skips common generated directories and
-files larger than 1 MB, and caps each result at 100 matches. Every tool result
-is capped at 50,000 characters before it enters model context. Foreground
-commands have a fixed two-minute timeout. The `todo` tool replaces the full
-process-local checklist on each call and enforces at most one `in_progress`
-item. It accepts an empty list to clear the checklist and bounds state to 20
-items of at most 200 characters each.
+Contains command, file, search, patch, delete, and todo functions plus their
+schemas. Tool results are bounded before entering model context. The
+process-local todo checklist is replace-based, bounded, and rolls back with a
+failed turn.
 
-## Context
+## Request Assembly
 
-Each model request contains only:
+Every provider request has this order:
 
-- The small system prompt in `agent.py`, including todo guidance for multi-step
-  work.
-- The current todo checklist when it is non-empty.
-- The process-local conversation and tool history list.
-- Tool definitions generated from the `TOOLS` dictionary.
+1. Stable Coding Kid base instructions.
+2. The immutable session environment snapshot.
+3. Cached, source-labeled project instructions as a synthetic contextual user
+   message.
+4. A copy of real conversation and tool history.
+5. Current todo state and at most one recovery overlay.
 
-The system prompt also tells the model the current working directory, configured
-model, and that command execution uses Windows `cmd.exe`. It requires registered
-tool names and non-empty parameters, and gives repository-overview tasks a
-selective inspection strategy that avoids recursive trees, dependencies, tests,
-Git state, and version archives unless requested.
+Project context and overlays exist only in the provider request. They never
+enter the mutable conversation list, so repeated model/tool steps do not grow
+history with duplicate synthetic messages.
 
-There is no persistent session, automatic context trimming, repository
-instruction loading, or long-term memory. A new chat starts with empty todo
-state. Todo changes roll back with failed or interrupted CLI turns, and a fully
-completed checklist is cleared after a successful final answer.
+There is no persistent session, automatic trimming, compaction, summarization,
+token-window monitoring, arbitrary project-file injection, or long-term memory.
 
 ## Tool Loop
 
-1. The CLI appends a user message.
-2. The agent sends the full history and tool definitions to the provider.
-3. The parser extracts text and tool calls from the raw response.
-4. If tools were requested, the agent executes each call in order.
-5. Each result is appended with the matching call ID.
-6. The agent calls the provider again.
-7. A response without tool calls becomes the final answer unless a todo is
-   still `in_progress`. In that case the model gets one chance to reconcile the
-   checklist; a second unreconciled answer is an error.
-
-The loop stops with an error after 20 model/tool steps and stops executing new
-tools after 12 calls in one turn. These separate limits bound both repeated
-model rounds and large parallel tool batches.
+1. The CLI appends a real user message.
+2. The agent assembles a request copy from session context, history, and current
+   dynamic overlays.
+3. The provider returns assistant text and optional tool calls.
+4. The agent executes requested tools in order and appends matched results to
+   real history.
+5. Todo updates change the next request immediately.
+6. The loop repeats until a valid final answer is returned or an existing
+   recovery/limit rule ends the turn.

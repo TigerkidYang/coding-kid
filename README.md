@@ -1,14 +1,23 @@
 # Coding Kid
 
 Coding Kid is a small Python coding agent built for learning. The current
-version shows the complete loop plus a session todo checklist:
+version shows the complete loop, a session todo checklist, and automatic
+project-instruction loading:
 
 ```text
-user input -> OpenRouter -> tool call -> local tool -> OpenRouter -> final answer
+session context + project instructions + user input
+  -> OpenRouter -> tool call -> local tool -> OpenRouter -> final answer
 ```
 
 It runs as a plain terminal conversation and keeps history and todos only while
 the process is running.
+
+At startup, Coding Kid finds the nearest Git root and loads each non-empty
+`AGENTS.md` from that root down to the current directory. Deeper files appear
+later, so they can refine the instructions inherited from their parents. The
+loaded files are labeled with absolute source paths, share a 32 KiB content
+budget, and remain fixed for that terminal chat. Restart Coding Kid to pick up
+instruction changes.
 
 ## Requirements
 
@@ -77,6 +86,11 @@ uv run --extra dev ruff format --check src tests
 The tests use a fake provider for the complete agent loop, so they do not call
 OpenRouter or spend API credits.
 
+Every provider request uses the same session snapshot and cached project
+instructions. These contextual messages are assembled only in the request copy;
+they never enter or inflate the real conversation history. Todo changes and
+recovery guidance are rendered again for each model/tool step.
+
 If OpenRouter returns an empty response once, Coding Kid automatically asks the
 model to continue. Repeated empty responses become a visible error instead of a
 blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
@@ -92,19 +106,20 @@ Before returning a final answer, Coding Kid gives the model one chance to
 reconcile any todo still marked `in_progress`. A second unreconciled final
 answer becomes an explicit error rather than committing misleading progress.
 
-## First-Version Limits
+## Current Limits
 
 This teaching version intentionally has no TUI, persistent history, streaming,
-planning, sandbox, approval flow, path restriction, or provider abstraction.
-Tools run with the permissions of the current user. Use it only in a local test
-project you control.
+automatic context compaction, token-window monitoring, long-term memory,
+sandbox, approval flow, path restriction, or provider abstraction. It supports
+only project `AGENTS.md` files: no global instructions, override files,
+fallback names, includes, rules, skills, plugins, or MCP. Tools run with the
+permissions of the current user. Use it only in a local test project you
+control.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
-## Completed Version
+## Completed Versions
 
-The independently runnable Version 01 checkpoint is preserved at
-[`versions/01-minimal-agent/`](versions/01-minimal-agent/README.md) and by the
-original annotated Git tag `version-01-minimal-agent`. The final verified
-checkpoint is tagged `version-01-minimal-agent-fix2` without moving either
-earlier tag.
+Independently runnable checkpoints are preserved under `versions/` and by
+matching annotated tags. Version 01 is the minimal agent, Version 02 adds task
+decomposition, and Version 03 adds context assembly.
