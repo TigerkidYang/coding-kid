@@ -20,7 +20,7 @@ import time
 import traceback
 import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -193,11 +193,15 @@ def start_test_container(instance_id: str, image: str, workspace: Path) -> str:
 
 
 def import_agent(agent: str):
-    source = (
-        ROOT / "versions" / "01-minimal-agent" / "src"
-        if agent == "v01"
-        else ROOT / "src"
-    )
+    sources = {
+        "v01": ROOT / "versions" / "01-minimal-agent" / "src",
+        "v02": ROOT / "versions" / "02-task-decomposition" / "src",
+        "v03": ROOT / "src",
+    }
+    for key in list(sys.modules):
+        if key == "coding_kid" or key.startswith("coding_kid."):
+            del sys.modules[key]
+    source = sources[agent]
     sys.path.insert(0, str(source))
     agent_module = importlib.import_module("coding_kid.agent")
     tools_module = importlib.import_module("coding_kid.tools")
@@ -326,7 +330,7 @@ def write_outputs(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--agent", choices=["v01", "v02"], required=True)
+    parser.add_argument("--agent", choices=["v01", "v02", "v03"], required=True)
     parser.add_argument("--ids-file", type=Path, required=True)
     parser.add_argument("--only", action="append", default=[])
     parser.add_argument(
@@ -397,6 +401,10 @@ def main() -> int:
     agent_module, tools_module = import_agent(args.agent)
     adapt_prompt_for_linux(agent_module)
     agent_module.MAX_TOOL_CALLS_PER_TURN = args.tool_budget
+    tools_module.TOOLS["execute"]["description"] = (
+        "Run one foreground POSIX shell command inside the official Linux "
+        "SWE-bench container."
+    )
     client = OpenAI(
         api_key=api_key,
         base_url=OPENROUTER_BASE_URL,
@@ -493,11 +501,23 @@ def main() -> int:
             try:
                 os.chdir(workspace)
                 messages = [{"role": "user", "content": prompt}]
+                run_kwargs: dict[str, Any] = {
+                    "max_steps": args.max_steps,
+                    "on_tool": on_tool,
+                }
+                if args.agent == "v03":
+                    captured = agent_module.SessionContext.capture(workspace)
+                    run_kwargs["session_context"] = replace(
+                        captured,
+                        cwd=Path("/testbed"),
+                        project_root=Path("/testbed"),
+                        operating_system="Linux (official SWE-bench container)",
+                        shell="bash",
+                    )
                 answer = agent_module.run_turn(
                     messages,
                     call_provider,
-                    max_steps=args.max_steps,
-                    on_tool=on_tool,
+                    **run_kwargs,
                 )
             finally:
                 os.chdir(original)

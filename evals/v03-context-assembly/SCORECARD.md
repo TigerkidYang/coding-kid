@@ -17,3 +17,12 @@ Model: `openai/gpt-5.6-luna`
 - V03 Process: **6/6**
 - V03 Outcome: **6/6**
 - Completion bar: **PASS**
+
+## Secondary Regression Check
+
+- SWE-bench Verified × 10: **7/10 resolved**
+- Completed: **10/10**
+- Empty patches: **0**
+- Harness errors: **0**
+- Existing regression threshold: **5/10**
+- Regression check: **PASS**

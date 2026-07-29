@@ -24,3 +24,29 @@ Metrics:
 Completion bar: Version 03 Process 6/6, Version 03 Outcome at least 5/6, and
 Version 03 Outcome above Version 02.
 
+Recorded result:
+
+- Version 02 outcome: **4/6**
+- Version 03 process: **6/6**
+- Version 03 outcome: **6/6**
+
+## SWE-bench Verified × 10
+
+The same ten-instance secondary regression slice used for Version 02 was run
+with the official SWE-bench harness. The tracked prediction file and official
+summary report make the run reproducible:
+
+```powershell
+uv run python evals/v02-task-decomposition/run_inference.py `
+  --agent v03 `
+  --ids-file evals/v03-context-assembly/verified_10_ids.json `
+  --run-name v03_verified10
+
+docker run --rm `
+  -v /var/run/docker.sock:/var/run/docker.sock `
+  -v "${PWD}/evals/v03-context-assembly:/work" `
+  python:3.11 bash /work/run_verified_harness.sh
+```
+
+Official result: **7/10 resolved**, 10/10 completed, 0 empty patches, and
+0 harness errors. This exceeds the existing 5/10 regression threshold.
