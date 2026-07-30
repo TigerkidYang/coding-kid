@@ -105,6 +105,22 @@ require the user to repeat the authorization each time. Pushing, rewriting
 history, deleting or moving tags, and other destructive Git operations remain
 outside that standing authorization.
 
+## Benchmark and Spending Authorization
+
+Do not run SWE-bench, including inference, prediction generation, smoke runs,
+subsets, reruns, or the official evaluation harness, unless the user explicitly
+authorizes that specific run.
+
+Do not start any benchmark, batch evaluation, or model-inference job that can
+consume paid API credits unless the user explicitly authorizes that specific
+run and its spending scope.
+
+An approved plan, version completion criterion, earlier benchmark request, prior
+authorization, available credentials, or an existing evaluation script is not
+authorization for a new run. Before every such run, obtain fresh explicit user
+approval. Reading existing reports and running ordinary local unit, lint, or
+format checks that do not invoke a paid model remain allowed.
+
 ## Research
 
 Existing research under `docs/RESEARCH.md` and `docs/reports/` remains available
