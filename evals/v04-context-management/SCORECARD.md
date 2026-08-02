@@ -5,8 +5,9 @@
 - Version 03 outcome: **3/3**
 - Version 04 process: **3/3**
 - Version 04 outcome: **3/3**
-- Version 04 CLI compaction: **pass**
-- Version 04 CLI outcome: **fail**
+- Initial Version 04 CLI compaction: **pass**
+- Initial Version 04 CLI outcome: **fail** (repeated completed reads until cap)
+- Post-fix CLI retry: **pass**, process and outcome, **6 / 60** requests
 
 | Fixture | V03 outcome | V04 process | V04 outcome | Compactions |
 | --- | --- | --- | --- | ---: |
@@ -14,5 +15,9 @@
 | tool-evidence | pass | pass | pass | 1 |
 | repeated-compaction | pass | pass | pass | 2 |
 
-Completion target: V04 process and outcome 3/3, V04 outcome not below 
-V03, and both CLI checks pass within the request cap.
+The initial bounded batch exposed a continuation-loop defect. After the handoff
+contract was corrected, the isolated CLI retry compacted once, reused the
+recorded evidence, wrote and verified `result.txt`, and finished successfully.
+
+Completion target met: V04 process and outcome 3/3, V04 outcome not below V03,
+and the corrected real CLI flow passes within its authorized request cap.

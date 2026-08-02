@@ -91,10 +91,12 @@ without explicit permission.
   adds window accounting, protected/recent history policy, compaction, and
   recovery without adding persistence or long-term memory.
 - Version 04 passes 115 deterministic tests, maintained-source Ruff checks,
-  wheel inspection, and fresh-install V1–V4 launches. Its first bounded live
-  batch passed the paired V04 process and outcome slice at 3/3 but exposed a CLI
-  continuation loop after real compaction; the handoff contract was hardened
-  locally and now awaits a separately authorized live retry.
+  wheel inspection, and fresh-install V1–V4 launches. Its bounded live batch
+  passed the paired V04 process and outcome slice at 3/3. The first CLI smoke
+  exposed a continuation loop after real compaction; the handoff contract was
+  hardened, and a separately authorized retry passed process and outcome using
+  6/60 requests. All recorded completion criteria are satisfied on living
+  `main`; archive and tag creation await user acceptance.
 - The user explicitly delegated implementation and verification of Version 04
   to the assistant.
 - The user explicitly delegated implementation of Version 03 to the assistant.

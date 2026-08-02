@@ -2,7 +2,8 @@
 
 ## Current Core Version: 04 — Context Management
 
-Completion status: active.
+Completion status: verified on the living `main` implementation; awaiting user
+acceptance before archive and tag creation.
 
 ### Goal
 
@@ -74,8 +75,12 @@ the current task without losing canonical project or todo state.
   handoff until the request cap stopped it. The implementation now labels
   completed tool actions and evidence as authoritative and explicitly forbids
   repetition caused only by the retained original request. Deterministic tests
-  pass after that correction; a fresh paid live run requires separate explicit
-  authorization and has not been started.
+  pass after that correction.
+- The separately authorized post-fix CLI retry used **6/60** requests on the
+  same model. It compacted once, reused the summarized evidence without
+  rereading, wrote the exact requested result, verified it with a shell command,
+  and completed. Process and outcome both passed. All Version 04 completion
+  criteria are now satisfied on the living implementation.
 
 ## Completed Extra Improvement: Version-Selecting Launcher
 
@@ -330,9 +335,9 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Finish Version 04 deterministic, distribution, and authorized live
-  verification. Record the results, then hand the living implementation to the
-  user for acceptance before any archive or tag is created.
+- Hand the verified living Version 04 implementation to the user for acceptance.
+  Do not create its archive or annotated tag until the user declares the version
+  complete or begins the next version.
 
 ## Version 02 Verification
 

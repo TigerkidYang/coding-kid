@@ -199,6 +199,9 @@ In particular:
 - Version 04 is defined and active: single-session bounded context management
   with separate canonical transcript and model-visible active context,
   window accounting, compaction, and recovery.
+- Version 04 is verified on the living `main` implementation. Its deterministic,
+  distribution, paired live, and corrected CLI-smoke criteria pass; it has not
+  yet been accepted, archived, or tagged.
 - The user explicitly delegated implementation and verification of Version 04
   to the assistant.
 - The root project contains the living implementation, tests, and usage
