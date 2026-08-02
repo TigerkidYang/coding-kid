@@ -1,7 +1,7 @@
-"""Allow `python -m coding_kid` to start the agent."""
+"""Allow `python -m coding_kid` to select and start a teaching runtime."""
 
-from coding_kid.cli import main
+from coding_kid.launcher import main
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

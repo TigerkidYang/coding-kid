@@ -18,7 +18,7 @@ dev = [
 ]
 
 [project.scripts]
-coding-kid = "coding_kid.cli:main"
+coding-kid = "coding_kid.launcher:main"
 
 [tool.pytest.ini_options]
 addopts = "-q"

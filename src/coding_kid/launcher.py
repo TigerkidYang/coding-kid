@@ -1,0 +1,114 @@
+"""Select and start one completed Coding Kid teaching runtime."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+
+from coding_kid import cli
+
+LATEST_VERSION = "v4"
+AVAILABLE_VERSIONS = ("v1", "v2", "v3", LATEST_VERSION)
+BUNDLED_RUNTIME_DIRS = {
+    "v1": "v01",
+    "v2": "v02",
+    "v3": "v03",
+}
+
+
+def normalize_version(value: str) -> str:
+    """Return the canonical teaching-version name for one CLI value."""
+    normalized = value.strip().casefold()
+    if normalized.startswith("v"):
+        normalized = normalized[1:]
+
+    if not normalized.isdecimal():
+        raise ValueError(value)
+
+    version = f"v{int(normalized)}"
+    if version not in AVAILABLE_VERSIONS:
+        raise ValueError(value)
+    return version
+
+
+def bundled_runtime_root(version: str) -> Path:
+    """Return the directory placed first on PYTHONPATH for a historical version."""
+    directory = BUNDLED_RUNTIME_DIRS[version]
+    root = Path(__file__).resolve().parent / "_runtimes" / directory
+    if not (root / "coding_kid" / "__main__.py").is_file():
+        raise RuntimeError(
+            f"Bundled Coding Kid runtime is missing for {version}: {root}"
+        )
+    return root
+
+
+def launch_version(version: str) -> int:
+    """Start a selected runtime while preserving the caller's project directory."""
+    if version == LATEST_VERSION:
+        cli.main()
+        return 0
+
+    runtime_root = bundled_runtime_root(version)
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    pythonpath_parts = [str(runtime_root)]
+    if existing_pythonpath:
+        pythonpath_parts.append(existing_pythonpath)
+    environment["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "coding_kid"],
+        cwd=Path.cwd(),
+        env=environment,
+        check=False,
+    )
+    return completed.returncode
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Create the small public command-line interface."""
+    parser = argparse.ArgumentParser(
+        prog="coding-kid",
+        description="Start a completed Coding Kid teaching runtime.",
+    )
+    parser.add_argument(
+        "version",
+        nargs="?",
+        help=f"teaching version ({', '.join(AVAILABLE_VERSIONS)}; default: {LATEST_VERSION})",
+    )
+    parser.add_argument(
+        "--list-versions",
+        action="store_true",
+        help="list installed teaching versions and exit",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Parse the requested version and start its runtime."""
+    parser = build_parser()
+    arguments = parser.parse_args(argv)
+
+    if arguments.list_versions:
+        for version in AVAILABLE_VERSIONS:
+            suffix = " (latest, default)" if version == LATEST_VERSION else ""
+            print(f"{version}{suffix}")
+        return 0
+
+    try:
+        selected_version = (
+            LATEST_VERSION
+            if arguments.version is None
+            else normalize_version(arguments.version)
+        )
+    except ValueError:
+        parser.error(
+            f"unknown teaching version {arguments.version!r}; "
+            f"available versions: {', '.join(AVAILABLE_VERSIONS)}"
+        )
+
+    return launch_version(selected_version)
