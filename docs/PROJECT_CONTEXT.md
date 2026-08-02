@@ -80,7 +80,10 @@ without explicit permission.
   official SWE-bench Verified × 10 regression check at 7/10.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
-- No later version is currently defined.
+- Version 04 is active: install once, select completed teaching runtimes with a
+  command argument, and default to the latest runtime. Scope and completion
+  criteria are in `docs/TASKS.md`.
+- The user explicitly delegated implementation of Version 04 to the assistant.
 - The user explicitly delegated implementation of Version 03 to the assistant.
 - The user explicitly delegated implementation of Version 02 to the assistant.
 - Evaluation for Version 03 is under `evals/v03-context-assembly/`: the paired

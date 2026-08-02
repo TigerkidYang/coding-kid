@@ -1,6 +1,63 @@
 # Tasks
 
-## Current Version: 03 — Context Assembly
+## Current Version: 04 — Version-Selecting Launcher
+
+Completion status: active. The user explicitly delegated implementation on
+2026-08-02.
+
+### Goal
+
+Install Coding Kid once, then start any completed teaching version from an
+arbitrary project directory by passing a version argument. With no argument,
+start the latest version.
+
+### Included Scope
+
+- `coding-kid` and `python -m coding_kid` default to the current Version 04
+  runtime.
+- `coding-kid v1`, `v2`, `v3`, and `v4` select the corresponding teaching
+  runtime; numeric aliases such as `1` and `01` are accepted.
+- Historical runtime source is bundled without tests, evaluation artifacts,
+  lock files, caches, or separate dependency environments.
+- Historical versions run in an isolated child Python process so their shared
+  `coding_kid` import name cannot collide with the living implementation.
+- The selected runtime inherits the caller's cwd, environment, terminal I/O,
+  and exit status.
+- Invalid versions fail before provider initialization and list the available
+  versions.
+- The version archive workflow records how every future completed version is
+  bundled and registered before development advances.
+- Deterministic tests cover selection, defaulting, isolation, source fidelity,
+  wheel contents, and launch from an unrelated project directory.
+
+### Excluded Scope
+
+- Native executables, standalone installers, auto-update, package publishing,
+  code signing, or a hosted release channel.
+- Separate virtual environments or duplicated third-party dependencies per
+  teaching version.
+- Modifying completed archives or changing their existing tags.
+- Model benchmarks, SWE-bench, paid capability evaluation, or live API smoke.
+- Changes to the agent loop, tools, context assembly, provider, or model prompt.
+
+### Completion Criteria
+
+- One editable or wheel installation exposes a working `coding-kid` command.
+- Omitting a version starts Version 04; explicit `v1` through `v4` select the
+  requested runtime.
+- A selected historical runtime starts with the caller's arbitrary project as
+  its cwd and does not import modules from another teaching version.
+- Bundled V1-V3 runtime files match their archived source snapshots.
+- Distribution inspection confirms all registered runtimes are present without
+  tests, logs, caches, or additional copies of dependencies.
+- README and architecture documentation explain installation, selection, and
+  the distinction between package releases and teaching versions.
+- `docs/VERSIONING.md` makes future launcher registration part of every version
+  transition.
+- Unit tests, integration tests, Ruff lint, and Ruff formatting checks pass
+  without calling a paid model.
+
+## Most Recently Completed Version: 03 — Context Assembly
 
 Completion status: verified. The implementation, deterministic suite, paired
 capability slice, and secondary regression check all passed. Archive and tag:
@@ -183,8 +240,8 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Wait for the user to define the next version. Do not create a later-version
-  roadmap in advance.
+- Implement the Version 04 runtime registry and launcher without changing agent
+  behavior or invoking paid evaluation.
 
 ## Version 02 Verification
 
@@ -204,8 +261,8 @@ results back to the model, and returns a final response to the user.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
 - Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
-- Do not begin a new version until the user chooses its contents.
-- Research only as needed to answer a concrete current question.
+- Stay inside Version 04 version-launcher scope.
+- Research only as needed to answer a concrete Version 04 question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.
