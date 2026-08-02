@@ -86,7 +86,7 @@ without explicit permission.
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.
 - The user explicitly delegated this launcher improvement to the assistant.
-- Version 04 is active: single-session bounded context management. It separates
+- Version 04 is complete: single-session bounded context management. It separates
   the complete in-memory transcript from the model-visible active context and
   adds window accounting, protected/recent history policy, compaction, and
   recovery without adding persistence or long-term memory.
@@ -95,8 +95,8 @@ without explicit permission.
   passed the paired V04 process and outcome slice at 3/3. The first CLI smoke
   exposed a continuation loop after real compaction; the handoff contract was
   hardened, and a separately authorized retry passed process and outcome using
-  6/60 requests. All recorded completion criteria are satisfied on living
-  `main`; archive and tag creation await user acceptance.
+  6/60 requests. It is archived under `versions/04-context-management/` with
+  annotated tag `version-04-context-management`.
 - The user explicitly delegated implementation and verification of Version 04
   to the assistant.
 - The user explicitly delegated implementation of Version 03 to the assistant.
@@ -108,3 +108,4 @@ without explicit permission.
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.
 - Article drafts are preserved but inactive.
+- No Version 05 is currently defined.

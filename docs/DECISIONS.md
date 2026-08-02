@@ -44,9 +44,9 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 03 are complete. The version-selecting launcher is an
-unnumbered cross-version improvement. Version 04 is now defined as bounded
-single-session context management.
+Versions 01 through 04 are complete. The version-selecting launcher is an
+unnumbered cross-version improvement. Do not define Version 05 until the user
+chooses its scope.
 
 ## Manage Version 04 context as canonical state plus an active view
 

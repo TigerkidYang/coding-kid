@@ -196,15 +196,15 @@ In particular:
 - An unnumbered cross-version launcher improvement is complete. Version 04 now
   extends it so one installation selects Versions 01–04 and defaults to the
   living Version 04 runtime. The launcher itself has no version archive or tag.
-- Version 04 is defined and active: single-session bounded context management
-  with separate canonical transcript and model-visible active context,
-  window accounting, compaction, and recovery.
-- Version 04 is verified on the living `main` implementation. Its deterministic,
-  distribution, paired live, and corrected CLI-smoke criteria pass; it has not
-  yet been accepted, archived, or tagged.
+- Version 04 is complete: single-session bounded context management with
+  separate canonical transcript and model-visible active context, window
+  accounting, compaction, and recovery. It is archived under
+  `versions/04-context-management/` with tag
+  `version-04-context-management`.
 - The user explicitly delegated implementation and verification of Version 04
   to the assistant.
 - The root project contains the living implementation, tests, and usage
   documentation.
+- No Version 05 is currently defined.
 - Existing source-code research is available to support implementation.
 - Existing article drafts are preserved, and article work is inactive.

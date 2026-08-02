@@ -182,9 +182,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V3 are preserved under `versions/` and by matching
+Completed checkpoints V1–V4 are preserved under `versions/` and by matching
 annotated tags. Version 01 is the minimal agent, Version 02 adds task
-decomposition, Version 03 adds context assembly, and the active living Version
-04 adds bounded context management. The installed launcher bundles only
+decomposition, Version 03 adds context assembly, and Version 04 adds bounded
+context management. The installed launcher bundles only
 historical runtime source and shares one Python environment and one set of
 third-party dependencies across all versions.

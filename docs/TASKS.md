@@ -2,8 +2,9 @@
 
 ## Current Core Version: 04 — Context Management
 
-Completion status: verified on the living `main` implementation; awaiting user
-acceptance before archive and tag creation.
+Completion status: complete and archived under
+`versions/04-context-management/` with annotated tag
+`version-04-context-management`.
 
 ### Goal
 
@@ -335,9 +336,8 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Hand the verified living Version 04 implementation to the user for acceptance.
-  Do not create its archive or annotated tag until the user declares the version
-  complete or begins the next version.
+- Wait for the user to define Version 05. Do not create a future-version roadmap
+  or begin implementation before that discussion.
 
 ## Version 02 Verification
 
@@ -357,9 +357,9 @@ results back to the model, and returns a final response to the user.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
 - Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
-- Do not define Version 05 while Version 04 is active.
-- Stay inside the agreed Version 04 context-management scope.
-- Research only as needed to answer a concrete Version 04 question.
+- Do not define Version 05 until the user chooses its scope.
+- Treat `versions/04-context-management/` as a read-only historical checkpoint.
+- Research only as needed to answer a concrete current-version question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.
