@@ -69,6 +69,40 @@ Useful takeaways:
 
 ## Candidates
 
+## Version 04 Context-Management Source Reading
+
+The Version 04 design was checked against the source snapshots rather than only
+the earlier reports.
+
+Claude Code paths:
+- `research/repos/claude-code/src/services/compact/autoCompact.ts`
+- `research/repos/claude-code/src/services/compact/compact.ts`
+- `research/repos/claude-code/src/services/compact/microCompact.ts`
+- `research/repos/claude-code/src/services/compact/prompt.ts`
+- `research/repos/claude-code/src/query.ts`
+
+Useful invariants:
+- Reserve output headroom before the window is full.
+- Treat complete model/tool API rounds as the smallest safe split unit.
+- Replace working context only after a valid summary exists.
+- Preserve structured task state and regenerate canonical attachments after
+  compaction instead of relying on summary prose.
+- Bound reactive retries and stop repeated failed automatic compactions.
+
+Codex paths:
+- `research/repos/codex/codex-rs/core/src/session/context_window.rs`
+- `research/repos/codex/codex-rs/core/src/session/turn.rs`
+- `research/repos/codex/codex-rs/core/src/compact.rs`
+- `research/repos/codex/codex-rs/core/src/compact_remote_v2.rs`
+- `research/repos/codex/codex-rs/prompts/templates/compact/prompt.md`
+
+Useful invariants:
+- Model-window accounting is separate from the compaction implementation.
+- Compaction may happen before a turn or inside a continuing tool turn.
+- Recent real user intent is retained alongside a handoff summary.
+- Canonical session context is re-injected after the history transition.
+- Compaction is an observable lifecycle event, not an incidental list rewrite.
+
 ### First Parallel Study Set
 
 Reports:

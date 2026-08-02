@@ -45,8 +45,39 @@ when that version is about to begin.
 
 Consequence:
 Versions 01 through 03 are complete. The version-selecting launcher is an
-unnumbered cross-version improvement, not Version 04. Agents wait for the user
-to choose Version 04 before defining or implementing its core scope.
+unnumbered cross-version improvement. Version 04 is now defined as bounded
+single-session context management.
+
+## Manage Version 04 context as canonical state plus an active view
+
+Decision:
+Keep the full real conversation transcript in process memory while maintaining
+a separate bounded active context for model requests. Classify the latest user
+request and complete recent model/tool rounds as retained context, summarize
+older active history at safe protocol boundaries, and regenerate stable
+session/project context and dynamic todo/recovery guidance from their canonical
+sources.
+
+Consequence:
+Compaction does not erase the session transcript or turn synthetic request
+context into conversation history. A successful compaction atomically replaces
+only the active view; failed and interrupted turns restore both views and todo
+state. Version 04 remains session-local and does not introduce persistence,
+long-term memory, skills, plugins, MCP, or multiple compaction tiers.
+
+## Use measured usage with a conservative context-window fallback
+
+Decision:
+Prefer an explicit `CODING_KID_CONTEXT_WINDOW`, otherwise discover the current
+OpenRouter model's `context_length` once per session. Use provider input-token
+usage to calibrate a conservative local estimate. If model metadata is
+unavailable, continue in passive mode with manual compaction and one reactive
+context-limit recovery rather than inventing a window size.
+
+Consequence:
+Proactive compaction has a defensible budget and remains testable. Metadata
+failure does not prevent ordinary use, while `/context` makes the degraded mode
+visible.
 
 ## Install all completed teaching runtimes together
 

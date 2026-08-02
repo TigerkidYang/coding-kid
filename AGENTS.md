@@ -196,7 +196,9 @@ In particular:
 - An unnumbered cross-version launcher improvement is complete: one installation
   selects Versions 01–03 and defaults to Version 03. This is explicitly not
   Version 04 and has no version archive or tag. Details are in `docs/TASKS.md`.
-- No Version 04 is currently defined.
+- Version 04 is defined and active: single-session bounded context management
+  with separate canonical transcript and model-visible active context,
+  window accounting, compaction, and recovery.
 - The root project contains the living implementation, tests, and usage
   documentation.
 - Existing source-code research is available to support implementation.

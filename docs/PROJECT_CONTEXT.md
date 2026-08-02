@@ -86,7 +86,10 @@ without explicit permission.
   project directory. It is explicitly not Version 04 and has no version archive
   or tag.
 - The user explicitly delegated this launcher improvement to the assistant.
-- No Version 04 is currently defined.
+- Version 04 is active: single-session bounded context management. It separates
+  the complete in-memory transcript from the model-visible active context and
+  adds window accounting, protected/recent history policy, compaction, and
+  recovery without adding persistence or long-term memory.
 - The user explicitly delegated implementation of Version 03 to the assistant.
 - The user explicitly delegated implementation of Version 02 to the assistant.
 - Evaluation for Version 03 is under `evals/v03-context-assembly/`: the paired

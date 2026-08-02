@@ -1,5 +1,62 @@
 # Tasks
 
+## Current Core Version: 04 — Context Management
+
+Completion status: active.
+
+### Goal
+
+Add bounded single-session context management so Coding Kid can keep a full
+in-memory transcript, build a smaller model-visible active context, account for
+model-window pressure, compact older history at safe boundaries, and continue
+the current task without losing canonical project or todo state.
+
+### Included Scope
+
+- Separate canonical transcript and model-visible active context.
+- Complete user and model/tool segments with protocol-safe split boundaries.
+- Explicit or OpenRouter-discovered context-window size, provider usage, and a
+  conservative calibrated preflight estimate.
+- Proactive compaction before and during turns, manual `/compact`, `/context`
+  status, and one reactive context-limit recovery.
+- Structured handoff summaries, latest-user preservation, recent-round
+  retention, repeated compaction, atomic state replacement, and full turn
+  rollback.
+- Passive operation when model metadata is unavailable.
+- Deterministic tests, wheel/install checks, and a focused V03/V04 live slice
+  with one CLI smoke.
+- Launcher selection for V1-V4 with V4 as the living default.
+
+### Excluded Scope
+
+- Persistent or cross-session history, long-term memory, transcript files, or
+  retrieval.
+- Multi-agent context, background compaction, skills, plugins, MCP, TUI, or
+  provider abstraction.
+- Claude Code-style microcompact, context collapse, cache editing, or multiple
+  compression strategies.
+- User-configurable summary prompts or separate summary models.
+- SWE-bench or another broad paid benchmark.
+
+### Completion Criteria
+
+- Short sessions preserve Version 03 behavior and never compact unnecessarily.
+- Window pressure is measurable and visible; missing metadata enters passive
+  mode without blocking chat.
+- Proactive and manual compaction produce one valid summary plus protected and
+  budgeted recent context without splitting tool protocol pairs.
+- Stable project context and dynamic todos are regenerated from canonical state
+  after compaction.
+- Failed summaries and failed/interrupted turns do not damage transcript,
+  active context, or todo state.
+- Repeated compaction stays bounded; explicit context-limit errors get at most
+  one compact-and-retry recovery.
+- Deterministic tests, Ruff checks, wheel inspection, and fresh-install V1-V4
+  launches pass.
+- The focused live slice passes V04 process and outcome at 3/3, does not regress
+  below V03 outcome, and the CLI smoke completes with a real compaction within
+  the authorized 30-request cap.
+
 ## Active Extra Improvement: Version-Selecting Launcher
 
 Classification: unnumbered cross-version tooling, not Version 04. The user
