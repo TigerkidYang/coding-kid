@@ -1,0 +1,20 @@
+[
+  {
+    "id": "intent-correction",
+    "expected": "FINAL-AMBER",
+    "initial": "The original requested marker was OLD-BLUE.",
+    "latest": "Correction: ignore OLD-BLUE. Reply with exactly FINAL-AMBER and nothing else."
+  },
+  {
+    "id": "tool-evidence",
+    "expected": "EVIDENCE-CEDAR",
+    "initial": "Inspect the project evidence before answering.",
+    "latest": "Use the completed tool evidence and reply with exactly EVIDENCE-CEDAR and nothing else."
+  },
+  {
+    "id": "repeated-compaction",
+    "expected": "SECOND-VIOLET",
+    "initial": "The first milestone marker is FIRST-GREEN.",
+    "latest": "The final correction supersedes every earlier marker. Reply with exactly SECOND-VIOLET and nothing else."
+  }
+]
