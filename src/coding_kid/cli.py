@@ -5,9 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from coding_kid.agent import run_turn
+from coding_kid.agent import current_instructions, run_turn
+from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
-from coding_kid.tools import clear_todos, get_todos, set_todos
+from coding_kid.context_manager import ContextManager
+from coding_kid.provider import generate
+from coding_kid.tools import clear_todos, get_todos, set_todos, tool_definitions
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
@@ -59,11 +62,11 @@ def chat(
     """Keep accepting user messages until the user exits."""
     try:
         session_context = SessionContext.capture()
+        manager = ContextManager.capture(session_context)
     except RuntimeError as error:
         output_function(f"Error: {error}")
         return
 
-    messages: list[Any] = []
     clear_todos()
     output_function("Coding Kid is ready. Type /exit to quit.")
 
@@ -71,6 +74,9 @@ def chat(
         output_function(format_tool_call(name, arguments))
         if result.startswith("ERROR:"):
             output_function(result)
+
+    def show_context(message: str) -> None:
+        output_function(message)
 
     while True:
         try:
@@ -84,25 +90,52 @@ def chat(
             return
         if not user_input:
             continue
+        if user_input == "/context":
+            output_function(
+                manager.status_text(
+                    current_instructions(session_context),
+                    tool_definitions(),
+                )
+            )
+            continue
+        if user_input == "/compact":
+            snapshot = manager.clone()
+            try:
+                compact_context(
+                    manager,
+                    generate,
+                    instructions=current_instructions(session_context),
+                    tools=tool_definitions(),
+                    trigger="manual",
+                    on_context=show_context,
+                )
+            except KeyboardInterrupt:
+                manager.restore(snapshot)
+                output_function("\nCompaction interrupted.")
+            except Exception as error:
+                manager.restore(snapshot)
+                output_function(f"Error: {error}")
+            continue
 
-        turn_start = len(messages)
+        turn_start = manager.clone()
         todos_start = get_todos()
-        messages.append({"role": "user", "content": user_input})
+        manager.conversation.append_user(user_input)
         try:
             answer = run_turn(
-                messages,
+                manager,
                 on_tool=show_tool,
+                on_context=show_context,
                 session_context=session_context,
             )
             if not answer.strip():
                 raise RuntimeError("Model returned an empty answer")
         except KeyboardInterrupt:
-            del messages[turn_start:]
+            manager.restore(turn_start)
             set_todos(todos_start)
             output_function("\nTask interrupted. You can enter another request.")
             continue
         except Exception as error:
-            del messages[turn_start:]
+            manager.restore(turn_start)
             set_todos(todos_start)
             output_function(f"Error: {error}")
             continue

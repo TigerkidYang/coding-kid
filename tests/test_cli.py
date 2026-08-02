@@ -1,6 +1,10 @@
 from typing import Any
 
+import pytest
+
 import coding_kid.cli as cli
+from coding_kid.context import SessionContext
+from coding_kid.context_manager import ContextBudget, ContextManager
 
 
 def test_chat_accepts_input_shows_tool_activity_and_exits(monkeypatch: Any) -> None:
@@ -13,11 +17,12 @@ def test_chat_accepts_input_shows_tool_activity_and_exits(monkeypatch: Any) -> N
         return next(inputs)
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
-        received_messages.append(list(messages))
+        received_messages.append(manager.conversation.active_items())
         on_tool("write", {"path": "hello.txt", "content": "hello"}, "Wrote hello.txt")
         return "Created hello.txt."
 
@@ -39,8 +44,9 @@ def test_chat_reports_an_error_and_keeps_running(monkeypatch: Any) -> None:
     outputs: list[str] = []
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
         raise RuntimeError("model unavailable")
@@ -60,8 +66,9 @@ def test_chat_handles_task_interruption_without_a_traceback(monkeypatch: Any) ->
     outputs: list[str] = []
 
     def interrupted_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
         raise KeyboardInterrupt
@@ -82,13 +89,16 @@ def test_chat_rolls_back_a_failed_turn_before_continuing(monkeypatch: Any) -> No
     received_messages: list[list[Any]] = []
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
-        received_messages.append(list(messages))
+        received_messages.append(manager.conversation.active_items())
         if len(received_messages) == 1:
-            messages.append({"type": "partial-provider-output"})
+            manager.conversation.append_model_round(
+                [{"type": "partial-provider-output"}]
+            )
             raise RuntimeError("failed")
         return "Second task completed."
 
@@ -107,12 +117,15 @@ def test_chat_preserves_successful_turns(monkeypatch: Any) -> None:
     received_messages: list[list[Any]] = []
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
-        received_messages.append(list(messages))
-        messages.append({"role": "assistant", "content": "done"})
+        received_messages.append(manager.conversation.active_items())
+        manager.conversation.append_model_round(
+            [{"role": "assistant", "content": "done"}]
+        )
         return "done"
 
     monkeypatch.setattr(cli, "run_turn", fake_run_turn)
@@ -136,7 +149,7 @@ def test_chat_never_prints_a_blank_assistant_answer(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         cli,
         "run_turn",
-        lambda messages, on_tool, session_context: "   ",
+        lambda manager, on_tool, on_context, session_context: "   ",
     )
 
     cli.chat(
@@ -153,8 +166,9 @@ def test_chat_hides_tool_results_but_shows_tool_errors(monkeypatch: Any) -> None
     outputs: list[str] = []
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
         on_tool(
@@ -228,11 +242,12 @@ def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
     received_messages: list[list[Any]] = []
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
-        received_messages.append(list(messages))
+        received_messages.append(manager.conversation.active_items())
         if len(received_messages) == 1:
             set_todos([{"content": "Keep me", "status": "pending"}])
             return "First task completed."
@@ -273,8 +288,9 @@ def test_chat_reuses_one_session_context_for_all_turns(monkeypatch: Any) -> None
     contexts: list[Any] = []
 
     def fake_run_turn(
-        messages: list[Any],
+        manager: Any,
         on_tool: Any,
+        on_context: Any,
         session_context: Any,
     ) -> str:
         contexts.append(session_context)
@@ -321,3 +337,68 @@ def test_format_search_call_displays_an_empty_path_as_current_directory() -> Non
     rendered = cli.format_tool_call("search", {"query": "def ", "path": ""})
 
     assert rendered == '[tool] search: "def " in .'
+
+
+def test_context_command_reports_status_without_calling_model(
+    monkeypatch: Any,
+    tmp_path: Any,
+) -> None:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-03",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(None, "test passive"))
+    monkeypatch.setattr(cli.SessionContext, "capture", lambda: context)
+    monkeypatch.setattr(cli.ContextManager, "capture", lambda captured: manager)
+    monkeypatch.setattr(
+        cli,
+        "run_turn",
+        lambda *args, **kwargs: pytest.fail("model should not be called"),
+    )
+    outputs: list[str] = []
+    inputs = iter(["/context", "/exit"])
+
+    cli.chat(lambda prompt: next(inputs), outputs.append)
+
+    assert any("Context mode: passive" in output for output in outputs)
+
+
+def test_compact_command_uses_manual_trigger_and_keeps_chat_running(
+    monkeypatch: Any,
+    tmp_path: Any,
+) -> None:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-03",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(None, "test"))
+    manager.conversation.append_user("old")
+    manager.conversation.append_model_round([{"content": "work"}])
+    manager.conversation.append_user("latest")
+    triggers: list[str] = []
+    monkeypatch.setattr(cli.SessionContext, "capture", lambda: context)
+    monkeypatch.setattr(cli.ContextManager, "capture", lambda captured: manager)
+
+    def fake_compact(*args: Any, trigger: str, on_context: Any, **kwargs: Any) -> bool:
+        triggers.append(trigger)
+        on_context("[context] compacting: manual")
+        return True
+
+    monkeypatch.setattr(cli, "compact_context", fake_compact)
+    outputs: list[str] = []
+    inputs = iter(["/compact", "/exit"])
+
+    cli.chat(lambda prompt: next(inputs), outputs.append)
+
+    assert triggers == ["manual"]
+    assert "[context] compacting: manual" in outputs
