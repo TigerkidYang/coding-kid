@@ -1,0 +1,251 @@
+{
+  "model": "openai/gpt-5.6-luna",
+  "request_cap": 30,
+  "results": [
+    {
+      "task_id": "intent-correction",
+      "version": "v03",
+      "process_pass": null,
+      "outcome_pass": true,
+      "answer": "FINAL-AMBER",
+      "compactions": 0,
+      "requests": 1,
+      "error": null,
+      "elapsed_seconds": 3.858
+    },
+    {
+      "task_id": "tool-evidence",
+      "version": "v03",
+      "process_pass": null,
+      "outcome_pass": true,
+      "answer": "EVIDENCE-CEDAR",
+      "compactions": 0,
+      "requests": 1,
+      "error": null,
+      "elapsed_seconds": 3.155
+    },
+    {
+      "task_id": "repeated-compaction",
+      "version": "v03",
+      "process_pass": null,
+      "outcome_pass": true,
+      "answer": "SECOND-VIOLET",
+      "compactions": 0,
+      "requests": 1,
+      "error": null,
+      "elapsed_seconds": 1.69
+    }
+  ],
+  "request_log": [
+    {
+      "number": 1,
+      "kind": "regular",
+      "input_items": 3,
+      "input_tokens": 5772,
+      "output_tokens": 19
+    },
+    {
+      "number": 2,
+      "kind": "regular",
+      "input_items": 4,
+      "input_tokens": 5798,
+      "output_tokens": 10
+    },
+    {
+      "number": 3,
+      "kind": "regular",
+      "input_items": 3,
+      "input_tokens": 5773,
+      "output_tokens": 23
+    },
+    {
+      "number": 4,
+      "kind": "summary",
+      "input_items": 4,
+      "input_tokens": 5135,
+      "output_tokens": 157
+    },
+    {
+      "number": 5,
+      "kind": "regular",
+      "input_items": 2,
+      "input_tokens": 856,
+      "output_tokens": 7
+    },
+    {
+      "number": 6,
+      "kind": "summary",
+      "input_items": 5,
+      "input_tokens": 5163,
+      "output_tokens": 203
+    },
+    {
+      "number": 7,
+      "kind": "regular",
+      "input_items": 2,
+      "input_tokens": 883,
+      "output_tokens": 10
+    },
+    {
+      "number": 8,
+      "kind": "summary",
+      "input_items": 4,
+      "input_tokens": 5136,
+      "output_tokens": 234
+    },
+    {
+      "number": 9,
+      "kind": "summary",
+      "input_items": 5,
+      "input_tokens": 5288,
+      "output_tokens": 121
+    },
+    {
+      "number": 10,
+      "kind": "regular",
+      "input_items": 2,
+      "input_tokens": 858,
+      "output_tokens": 8
+    },
+    {
+      "number": 11,
+      "kind": "regular",
+      "input_items": 2,
+      "input_tokens": 866,
+      "output_tokens": 112
+    },
+    {
+      "number": 12,
+      "kind": "summary",
+      "input_items": 9,
+      "input_tokens": 15303,
+      "output_tokens": 324
+    },
+    {
+      "number": 13,
+      "kind": "regular",
+      "input_items": 3,
+      "input_tokens": 1165,
+      "output_tokens": 148
+    },
+    {
+      "number": 14,
+      "kind": "summary",
+      "input_items": 10,
+      "input_tokens": 15638,
+      "output_tokens": 356
+    },
+    {
+      "number": 15,
+      "kind": "regular",
+      "input_items": 3,
+      "input_tokens": 1179,
+      "output_tokens": 112
+    },
+    {
+      "number": 16,
+      "kind": "summary",
+      "input_items": 10,
+      "input_tokens": 15616,
+      "output_tokens": 358
+    },
+    {
+      "number": 17,
+      "kind": "regular",
+      "input_items": 3,
+      "input_tokens": 1208,
+      "output_tokens": 283
+    },
+    {
+      "number": 18,
+      "kind": "summary",
+      "input_items": 10,
+      "input_tokens": 15816,
+      "output_tokens": 388
+    },
+    {
+      "number": 19,
+      "kind": "regular",
+      "input_items": 3,
+      "input_tokens": 1228,
+      "output_tokens": 118
+    },
+    {
+      "number": 20,
+      "kind": "regular",
+      "input_items": 6,
+      "input_tokens": 1466,
+      "output_tokens": 68
+    },
+    {
+      "number": 21,
+      "kind": "summary",
+      "input_items": 9,
+      "input_tokens": 15621,
+      "output_tokens": 405
+    },
+    {
+      "number": 22,
+      "kind": "regular",
+      "input_items": 6,
+      "input_tokens": null,
+      "output_tokens": null
+    },
+    {
+      "number": 23,
+      "kind": "regular",
+      "input_items": 6,
+      "input_tokens": 1533,
+      "output_tokens": 68
+    },
+    {
+      "number": 24,
+      "kind": "summary",
+      "input_items": 9,
+      "input_tokens": 15641,
+      "output_tokens": 407
+    },
+    {
+      "number": 25,
+      "kind": "regular",
+      "input_items": 6,
+      "input_tokens": 1490,
+      "output_tokens": 68
+    },
+    {
+      "number": 26,
+      "kind": "summary",
+      "input_items": 9,
+      "input_tokens": 15645,
+      "output_tokens": 433
+    },
+    {
+      "number": 27,
+      "kind": "regular",
+      "input_items": 6,
+      "input_tokens": 1509,
+      "output_tokens": 68
+    },
+    {
+      "number": 28,
+      "kind": "summary",
+      "input_items": 9,
+      "input_tokens": 15664,
+      "output_tokens": 434
+    },
+    {
+      "number": 29,
+      "kind": "regular",
+      "input_items": 6,
+      "input_tokens": 1505,
+      "output_tokens": 68
+    },
+    {
+      "number": 30,
+      "kind": "summary",
+      "input_items": 9,
+      "input_tokens": 15660,
+      "output_tokens": 298
+    }
+  ]
+}
