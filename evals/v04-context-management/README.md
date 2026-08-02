@@ -27,3 +27,13 @@ uv run python evals/v04-context-management/run_context_management_slice.py
 
 Generated reports are `v03_report.json`, `v04_report.json`,
 `cli_smoke_report.json`, and `SCORECARD.md`. Temporary workspaces are ignored.
+
+After the first bounded batch exposed a continuation loop, the corrected CLI
+flow can be retried independently without paying to repeat the paired slice:
+
+```powershell
+uv run python evals/v04-context-management/run_cli_retry.py
+```
+
+That one-purpose runner has its own 60-request hard cap and writes
+`cli_smoke_retry_report.json`.
