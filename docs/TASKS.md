@@ -57,11 +57,11 @@ the current task without losing canonical project or todo state.
   below V03 outcome, and the CLI smoke completes with a real compaction within
   the authorized 30-request cap.
 
-## Active Extra Improvement: Version-Selecting Launcher
+## Completed Extra Improvement: Version-Selecting Launcher
 
-Classification: unnumbered cross-version tooling, not Version 04. The user
-explicitly delegated implementation on 2026-08-02. The latest core version
-remains Version 03.
+Classification: unnumbered cross-version tooling, not a core version. The user
+explicitly delegated implementation on 2026-08-02. Version 04 extends the
+launcher registry while preserving the original improvement's design.
 
 Completion status: verified. No version archive or tag is created for this
 unnumbered improvement.
@@ -74,9 +74,9 @@ start the latest version.
 
 ### Included Scope
 
-- `coding-kid` and `python -m coding_kid` default to the latest completed core
-  runtime, currently Version 03.
-- `coding-kid v1`, `v2`, and `v3` select the corresponding teaching runtime;
+- `coding-kid` and `python -m coding_kid` default to the living core runtime,
+  currently Version 04.
+- `coding-kid v1`, `v2`, `v3`, and `v4` select the corresponding teaching runtime;
   numeric aliases such as `1` and `01` are accepted.
 - Historical runtime source is bundled without tests, evaluation artifacts,
   lock files, caches, or separate dependency environments.
@@ -104,7 +104,7 @@ start the latest version.
 ### Completion Criteria
 
 - One editable or wheel installation exposes a working `coding-kid` command.
-- Omitting a version starts Version 03; explicit `v1` through `v3` select the
+- Omitting a version starts Version 04; explicit `v1` through `v4` select the
   requested runtime.
 - A selected historical runtime starts with the caller's arbitrary project as
   its cwd and does not import modules from another teaching version.
@@ -310,8 +310,9 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Let the user install and try the completed launcher improvement. Wait for the
-  user to define Version 04 separately.
+- Finish Version 04 deterministic, distribution, and authorized live
+  verification. Record the results, then hand the living implementation to the
+  user for acceptance before any archive or tag is created.
 
 ## Version 02 Verification
 
@@ -331,9 +332,9 @@ results back to the model, and returns a final response to the user.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
 - Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
-- Do not define Version 04 until the user separately chooses its core scope.
-- Stay inside the unnumbered version-launcher improvement.
-- Research only as needed to answer a concrete launcher question.
+- Do not define Version 05 while Version 04 is active.
+- Stay inside the agreed Version 04 context-management scope.
+- Research only as needed to answer a concrete Version 04 question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.

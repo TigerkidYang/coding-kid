@@ -11,8 +11,8 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v3"
-AVAILABLE_VERSIONS = ("v1", "v2", LATEST_VERSION)
+LATEST_VERSION = "v4"
+AVAILABLE_VERSIONS = ("v1", "v2", "v3", LATEST_VERSION)
 BUNDLED_RUNTIME_DIRS = {
     "v1": "v01",
     "v2": "v02",

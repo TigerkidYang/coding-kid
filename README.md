@@ -1,8 +1,8 @@
 # Coding Kid
 
 Coding Kid is a small Python coding agent built for learning. The current
-version shows the complete loop, a session todo checklist, and automatic
-project-instruction loading:
+version shows the complete loop, a session todo checklist, automatic project
+instructions, and bounded conversation context:
 
 ```text
 session context + project instructions + user input
@@ -59,10 +59,11 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest completed core version (currently v3)
+coding-kid       # latest living core version (currently v4)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
+coding-kid v4    # bounded context management
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -72,9 +73,10 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Version 03
-therefore discovers that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior.
+The command preserves the directory from which it was invoked. Versions 03 and
+04 therefore discover that project's Git root and layered `AGENTS.md` files;
+Versions 01 and 02 retain their original historical behavior. Version 04 is
+the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
 argument:
@@ -86,6 +88,8 @@ uv run python -m coding_kid v1
 
 Enter a coding task at the `You>` prompt. Enter `/exit` or `/quit` to stop.
 Press `Ctrl+C` during an active task to interrupt it and return to the prompt.
+Enter `/context` to inspect the current window status or `/compact` to create a
+manual context checkpoint.
 
 Tool actions are printed before the final answer. Normal tool results stay in
 the model context instead of filling the terminal; tool errors are still shown.
@@ -135,7 +139,7 @@ model to continue. Repeated empty responses become a visible error instead of a
 blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
 history before the next prompt.
 
-Each user turn executes at most 12 file/shell tool calls. Todo checklist updates
+Each user turn executes at most 64 file/shell tool calls. Todo checklist updates
 do not count toward that budget. Calls beyond the budget are skipped internally
 and the model is instructed to answer from evidence already collected.
 Repository-overview requests are guided toward selective inspection instead of
@@ -145,11 +149,30 @@ Before returning a final answer, Coding Kid gives the model one chance to
 reconcile any todo still marked `in_progress`. A second unreconciled final
 answer becomes an explicit error rather than committing misleading progress.
 
+## Context Management
+
+Version 04 keeps two in-memory views of the conversation. The canonical
+transcript records what happened in the current process, while the bounded
+active view is sent to the model. Stable runtime and project context, todos,
+and recovery instructions remain canonical request layers and are regenerated
+after compaction.
+
+`CODING_KID_CONTEXT_WINDOW` may explicitly set the model window to an integer
+of at least 16384 tokens. Without an override, Coding Kid looks up the selected
+OpenRouter model once when the chat starts. If metadata is unavailable, chat
+continues in passive mode: `/compact` and context-limit recovery remain
+available, but proactive compaction is disabled.
+
+Near the safe threshold, Coding Kid summarizes older history, preserves the
+latest real user request and recent complete model/tool rounds, and continues
+the same turn. A failed summary never replaces active context. Failed or
+interrupted turns restore conversation and todo state to the start of the turn.
+
 ## Current Limits
 
 This teaching version intentionally has no TUI, persistent history, streaming,
-automatic context compaction, token-window monitoring, long-term memory,
-sandbox, approval flow, path restriction, or provider abstraction. It supports
+long-term memory, multi-tier compression, sandbox, approval flow, path
+restriction, or provider abstraction. It supports
 only project `AGENTS.md` files: no global instructions, override files,
 fallback names, includes, rules, skills, plugins, or MCP. Tools run with the
 permissions of the current user. Use it only in a local test project you
@@ -157,10 +180,11 @@ control.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
-## Completed Versions
+## Teaching Versions
 
-Independently runnable checkpoints are preserved under `versions/` and by
-matching annotated tags. Version 01 is the minimal agent, Version 02 adds task
-decomposition, and Version 03 adds context assembly. The installed launcher
-bundles only their runtime source and shares one Python environment and one set
-of third-party dependencies across all versions.
+Completed checkpoints V1–V3 are preserved under `versions/` and by matching
+annotated tags. Version 01 is the minimal agent, Version 02 adds task
+decomposition, Version 03 adds context assembly, and the active living Version
+04 adds bounded context management. The installed launcher bundles only
+historical runtime source and shares one Python environment and one set of
+third-party dependencies across all versions.

@@ -80,16 +80,18 @@ without explicit permission.
   official SWE-bench Verified × 10 regression check at 7/10.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete: one installation
-  selects Versions 01–03 with a command argument and defaults to Version 03.
-  It passed 91 deterministic tests plus fresh-wheel launches from an unrelated
-  project directory. It is explicitly not Version 04 and has no version archive
-  or tag.
+- An unnumbered cross-version launcher improvement is complete. Version 04 now
+  extends its registry so one installation selects Versions 01–04 and defaults
+  to the living Version 04 runtime. The original V1–V3 launcher increment passed
+  91 deterministic tests plus fresh-wheel launches from an unrelated project
+  directory; the launcher itself has no version archive or tag.
 - The user explicitly delegated this launcher improvement to the assistant.
 - Version 04 is active: single-session bounded context management. It separates
   the complete in-memory transcript from the model-visible active context and
   adds window accounting, protected/recent history policy, compaction, and
   recovery without adding persistence or long-term memory.
+- The user explicitly delegated implementation and verification of Version 04
+  to the assistant.
 - The user explicitly delegated implementation of Version 03 to the assistant.
 - The user explicitly delegated implementation of Version 02 to the assistant.
 - Evaluation for Version 03 is under `evals/v03-context-assembly/`: the paired

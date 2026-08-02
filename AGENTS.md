@@ -193,12 +193,14 @@ In particular:
 - Version 03 is complete: bounded, session-stable context assembly with
   hierarchical project `AGENTS.md` loading. It is archived under
   `versions/03-context-assembly/` with tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete: one installation
-  selects Versions 01–03 and defaults to Version 03. This is explicitly not
-  Version 04 and has no version archive or tag. Details are in `docs/TASKS.md`.
+- An unnumbered cross-version launcher improvement is complete. Version 04 now
+  extends it so one installation selects Versions 01–04 and defaults to the
+  living Version 04 runtime. The launcher itself has no version archive or tag.
 - Version 04 is defined and active: single-session bounded context management
   with separate canonical transcript and model-visible active context,
   window accounting, compaction, and recovery.
+- The user explicitly delegated implementation and verification of Version 04
+  to the assistant.
 - The root project contains the living implementation, tests, and usage
   documentation.
 - Existing source-code research is available to support implementation.
