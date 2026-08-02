@@ -18,6 +18,7 @@ BUNDLED_RUNTIME_DIRS = {
     "v2": "v02",
     "v3": "v03",
 }
+RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 
 
 def normalize_version(value: str) -> str:
@@ -61,7 +62,7 @@ def launch_version(version: str) -> int:
     environment["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
 
     completed = subprocess.run(
-        [sys.executable, "-m", "coding_kid"],
+        [sys.executable, "-c", RUNTIME_ENTRYPOINT],
         cwd=Path.cwd(),
         env=environment,
         check=False,

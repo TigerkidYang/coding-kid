@@ -113,7 +113,7 @@ def test_historical_version_runs_isolated_and_preserves_cwd(
 
     assert launcher.launch_version("v2") == 7
     command, cwd, environment = calls[0]
-    assert command == [sys.executable, "-m", "coding_kid"]
+    assert command == [sys.executable, "-c", launcher.RUNTIME_ENTRYPOINT]
     assert cwd == tmp_path
     assert environment["PYTHONPATH"].split(os.pathsep) == [
         str(launcher.bundled_runtime_root("v2")),
