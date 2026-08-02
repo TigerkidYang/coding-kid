@@ -72,6 +72,46 @@ Each archive `README.md` records:
 Archives are read-only historical teaching material. Current development must
 not import from or depend on `versions/`.
 
+## Installed Teaching-Version Registry
+
+The installed `coding-kid` command exposes all completed teaching versions from
+one Python environment. Teaching labels (`v1`, `v2`, ...) are distinct from the
+distribution package version.
+
+- `src/coding_kid/launcher.py` is the authoritative registry and default.
+- The latest completed core runtime executes from the living `coding_kid`
+  package.
+- Older runtime-only snapshots live under
+  `src/coding_kid/_runtimes/vNN/coding_kid/`.
+- Bundled snapshots are derived from completed archives but are independent
+  package files; production code never imports from `versions/`.
+- Do not bundle archive tests, READMEs, lockfiles, evaluations, caches, logs, or
+  separate dependency environments.
+- Historical snapshots run in isolated child processes because every version
+  intentionally retains the same `coding_kid` import name.
+
+When development of a newly chosen core version begins after the previous
+version has been archived:
+
+1. Copy the previous archive's runtime modules into the next `vNN` bundled
+   directory.
+2. For Version 04 and later, exclude launcher-management files
+   (`launcher.py`, `_runtimes/`, and a launcher-only `__main__.py`) so historical
+   bundles never recursively contain older bundles. The launcher invokes the
+   selected snapshot's `cli.main()` directly.
+3. Add the frozen version to `BUNDLED_RUNTIME_DIRS` and advance
+   `LATEST_VERSION` / `AVAILABLE_VERSIONS` to the newly active core version.
+4. Extend source-fidelity and command-selection tests for the new labels.
+5. Build and inspect the wheel, confirming all registered runtimes are present
+   and no tests, evaluations, caches, logs, or duplicated dependencies entered
+   it.
+6. Install that wheel in a temporary environment and launch every registered
+   version from an unrelated project directory without invoking a paid model.
+
+This registry maintenance is part of the normal version transition. It does not
+authorize defining the next core version, modifying an archive, publishing a
+package, or running a benchmark.
+
 ## Naming
 
 Use a two-digit sequence and a short lowercase hyphenated name:

@@ -2,21 +2,46 @@
 
 ## Overview
 
-Version 03 keeps the synchronous Version 02 agent loop and adds one context
-assembly boundary in front of every provider request.
+The latest core remains Version 03. An unnumbered launcher improvement adds a
+version-selection boundary before the unchanged Version 03 agent runtime.
 
 ```text
-cli.py -> context.py -> agent.py -> provider.py
-                         |  |
-                         |  +-> parser.py
-                         +----> tools.py
+launcher.py
+  |-- v1/v2 -> isolated bundled runtime process
+  `-- v3/default -> cli.py -> context.py -> agent.py -> provider.py
+                                           |  |
+                                           |  +-> parser.py
+                                           +----> tools.py
 ```
 
 `cli.py` captures one immutable `SessionContext` when a chat starts. `agent.py`
 reuses that snapshot while it owns the model/tool loop. `context.py` discovers
 project instructions and creates a fresh request copy for every model step.
 
+## Version Launcher
+
+`launcher.py` accepts `v1`, `v2`, or `v3` plus numeric aliases. No argument
+selects `LATEST_VERSION`, currently `v3`. Invalid values fail before provider
+initialization, and `--list-versions` reports the installed teaching runtimes.
+
+The living package executes the latest runtime directly. Historical runtime
+source lives under `coding_kid/_runtimes/vNN/coding_kid/`. The launcher starts
+it in a child Python process with that fixed directory first on `PYTHONPATH`
+and calls the snapshot's `cli.main()` directly. The child inherits cwd,
+environment, standard input/output, and exit status. This preserves the
+caller's arbitrary project directory while preventing the shared `coding_kid`
+package name from resolving to a different teaching version.
+
+Only Python runtime source is duplicated. All teaching versions share the same
+installed interpreter and dependencies; archives, tests, evaluation data,
+lockfiles, caches, and logs are not bundled in the wheel.
+
 ## Modules
+
+### `launcher.py`
+
+Owns teaching-version argument parsing and runtime isolation only. It does not
+assemble prompts, initialize a provider, or alter agent behavior.
 
 ### `cli.py`
 

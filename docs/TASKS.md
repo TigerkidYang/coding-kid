@@ -1,9 +1,13 @@
 # Tasks
 
-## Current Version: 04 — Version-Selecting Launcher
+## Active Extra Improvement: Version-Selecting Launcher
 
-Completion status: active. The user explicitly delegated implementation on
-2026-08-02.
+Classification: unnumbered cross-version tooling, not Version 04. The user
+explicitly delegated implementation on 2026-08-02. The latest core version
+remains Version 03.
+
+Completion status: verified. No version archive or tag is created for this
+unnumbered improvement.
 
 ### Goal
 
@@ -13,10 +17,10 @@ start the latest version.
 
 ### Included Scope
 
-- `coding-kid` and `python -m coding_kid` default to the current Version 04
-  runtime.
-- `coding-kid v1`, `v2`, `v3`, and `v4` select the corresponding teaching
-  runtime; numeric aliases such as `1` and `01` are accepted.
+- `coding-kid` and `python -m coding_kid` default to the latest completed core
+  runtime, currently Version 03.
+- `coding-kid v1`, `v2`, and `v3` select the corresponding teaching runtime;
+  numeric aliases such as `1` and `01` are accepted.
 - Historical runtime source is bundled without tests, evaluation artifacts,
   lock files, caches, or separate dependency environments.
 - Historical versions run in an isolated child Python process so their shared
@@ -43,7 +47,7 @@ start the latest version.
 ### Completion Criteria
 
 - One editable or wheel installation exposes a working `coding-kid` command.
-- Omitting a version starts Version 04; explicit `v1` through `v4` select the
+- Omitting a version starts Version 03; explicit `v1` through `v3` select the
   requested runtime.
 - A selected historical runtime starts with the caller's arbitrary project as
   its cwd and does not import modules from another teaching version.
@@ -57,7 +61,16 @@ start the latest version.
 - Unit tests, integration tests, Ruff lint, and Ruff formatting checks pass
   without calling a paid model.
 
-## Most Recently Completed Version: 03 — Context Assembly
+### Verification
+
+- Deterministic suite: **91 passed**.
+- Ruff lint and formatting checks: passed.
+- Built wheel: 35 files, including 22 V1–V3 bundled runtime Python files.
+- Wheel exclusions: 0 tests, evaluations, caches, logs, or V4 runtime entries.
+- Fresh temporary installation launched V1, V2, V3, and the default from an
+  unrelated project directory; each exited locally without a provider call.
+
+## Current Core Version: 03 — Context Assembly
 
 Completion status: verified. The implementation, deterministic suite, paired
 capability slice, and secondary regression check all passed. Archive and tag:
@@ -240,8 +253,8 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Implement the Version 04 runtime registry and launcher without changing agent
-  behavior or invoking paid evaluation.
+- Let the user install and try the completed launcher improvement. Wait for the
+  user to define Version 04 separately.
 
 ## Version 02 Verification
 
@@ -261,8 +274,9 @@ results back to the model, and returns a final response to the user.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
 - Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
-- Stay inside Version 04 version-launcher scope.
-- Research only as needed to answer a concrete Version 04 question.
+- Do not define Version 04 until the user separately chooses its core scope.
+- Stay inside the unnumbered version-launcher improvement.
+- Research only as needed to answer a concrete launcher question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
   archives.

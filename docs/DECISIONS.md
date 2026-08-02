@@ -44,8 +44,26 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 03 are complete. Agents wait for the user to choose the
-next version before defining or implementing it.
+Versions 01 through 03 are complete. The version-selecting launcher is an
+unnumbered cross-version improvement, not Version 04. Agents wait for the user
+to choose Version 04 before defining or implementing its core scope.
+
+## Install all completed teaching runtimes together
+
+Decision:
+Use one `coding-kid` installation and one dependency environment for every
+completed teaching version. A positional teaching-version argument selects the
+runtime, while no argument selects the latest completed core version. Bundle
+historical runtime source inside the distribution and execute it in an isolated
+child Python process; execute the latest living runtime directly.
+
+Consequence:
+`coding-kid v1`, `v2`, and `v3` work from any project directory without
+installing three conflicting distributions or duplicating dependencies. The
+teaching labels are separate from the distribution's package release number.
+Completed archives remain read-only provenance and are not imported at runtime;
+bundled copies are checked against them. Future version transitions must freeze
+the just-completed runtime into the bundle and advance the launcher registry.
 
 ## Keep Version 02 todos session-scoped and replace-based
 

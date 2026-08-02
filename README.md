@@ -35,14 +35,53 @@ OpenRouter's compatible API.
 
 ## Setup
 
+For development inside this repository:
+
 ```powershell
 uv sync --extra dev
 ```
 
-## Run
+To expose one `coding-kid` command that works from any project directory:
+
+```powershell
+uv tool install --force --editable C:\Users\littletiger\minicode
+```
+
+The editable installation follows later source changes without copying another
+development checkout. `--force` refreshes the command entry point when Coding
+Kid was installed previously.
+
+## Run From Any Project
+
+Change to the project Coding Kid should operate on, then select a completed
+teaching version:
+
+```powershell
+cd D:\Projects\some-project
+
+coding-kid       # latest completed core version (currently v3)
+coding-kid v1    # minimal agent
+coding-kid v2    # task decomposition
+coding-kid v3    # context assembly
+```
+
+Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
+To inspect the installed choices without starting a chat:
+
+```powershell
+coding-kid --list-versions
+```
+
+The command preserves the directory from which it was invoked. Version 03
+therefore discovers that project's Git root and layered `AGENTS.md` files;
+Versions 01 and 02 retain their original historical behavior.
+
+During repository development, the module entry point accepts the same version
+argument:
 
 ```powershell
 uv run python -m coding_kid
+uv run python -m coding_kid v1
 ```
 
 Enter a coding task at the `You>` prompt. Enter `/exit` or `/quit` to stop.
@@ -122,4 +161,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 Independently runnable checkpoints are preserved under `versions/` and by
 matching annotated tags. Version 01 is the minimal agent, Version 02 adds task
-decomposition, and Version 03 adds context assembly.
+decomposition, and Version 03 adds context assembly. The installed launcher
+bundles only their runtime source and shares one Python environment and one set
+of third-party dependencies across all versions.
