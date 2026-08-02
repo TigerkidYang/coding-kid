@@ -364,7 +364,13 @@ class ContextManager:
                     "role": "user",
                     "content": (
                         "This conversation continues from a bounded context "
-                        f"checkpoint.\n\n{summary.strip()}"
+                        "checkpoint. Treat the checkpoint as authoritative "
+                        "history. Actions and evidence recorded as completed "
+                        "are already available: do not repeat them merely "
+                        "because the retained user request below originally "
+                        "asked for them. Repeat an action only when the "
+                        "checkpoint marks it missing, stale, failed, or still "
+                        f"pending.\n\n{summary.strip()}"
                     ),
                 }
             ],

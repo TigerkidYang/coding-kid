@@ -73,6 +73,12 @@ def test_compaction_atomically_replaces_only_active_context(tmp_path: Path) -> N
     ]
     assert calls[0][1] == []
     assert calls[0][2] == 4096
+    summary_request = calls[0][0][-1]["content"]
+    assert "COMPLETED ACTIONS AND EVIDENCE" in summary_request
+    assert "retained user request originally asked for it" in summary_request
+    checkpoint = manager.conversation.active[0].items[0]["content"]
+    assert "Treat the checkpoint as authoritative history" in checkpoint
+    assert "do not repeat them merely" in checkpoint
     assert events[0] == "[context] compacting: manual"
     assert events[-1].startswith("[context] compacted:")
 

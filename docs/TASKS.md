@@ -57,6 +57,26 @@ the current task without losing canonical project or todo state.
   below V03 outcome, and the CLI smoke completes with a real compaction within
   the authorized 30-request cap.
 
+### Verification
+
+- Deterministic suite: **115 passed** after the live-found continuation fix.
+- Ruff lint and formatting checks for `src/`, `tests/`, and the V04 evaluation:
+  passed. Historical evaluation fixtures retain pre-existing whole-repository
+  Ruff findings and were not rewritten.
+- Fresh wheel: 37 files, including 22 V1–V3 bundled runtime Python files and no
+  tests, evaluations, caches, or logs. Default plus explicit V1–V4 launches
+  passed from an unrelated temporary project.
+- Authorized live batch on `openai/gpt-5.6-luna`: exactly **30/30** model
+  requests; no SWE-bench. V03 outcome **3/3**, V04 process **3/3**, V04 outcome
+  **3/3**, and repeated compaction completed twice as intended.
+- The same batch's CLI smoke compacted successfully but failed its final outcome
+  because the model repeatedly re-read evidence already captured by each
+  handoff until the request cap stopped it. The implementation now labels
+  completed tool actions and evidence as authoritative and explicitly forbids
+  repetition caused only by the retained original request. Deterministic tests
+  pass after that correction; a fresh paid live run requires separate explicit
+  authorization and has not been started.
+
 ## Completed Extra Improvement: Version-Selecting Launcher
 
 Classification: unnumbered cross-version tooling, not a core version. The user

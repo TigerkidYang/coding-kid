@@ -56,7 +56,9 @@ a separate bounded active context for model requests. Classify the latest user
 request and complete recent model/tool rounds as retained context, summarize
 older active history at safe protocol boundaries, and regenerate stable
 session/project context and dynamic todo/recovery guidance from their canonical
-sources.
+sources. The handoff must classify actions and evidence as completed or pending,
+and the continuation wrapper treats that classification as authoritative so a
+retained original request does not make the model repeat completed tool work.
 
 Consequence:
 Compaction does not erase the session transcript or turn synthetic request
@@ -89,8 +91,8 @@ historical runtime source inside the distribution and execute it in an isolated
 child Python process; execute the latest living runtime directly.
 
 Consequence:
-`coding-kid v1`, `v2`, and `v3` work from any project directory without
-installing three conflicting distributions or duplicating dependencies. The
+`coding-kid v1` through `v4` work from any project directory without
+installing separate conflicting distributions or duplicating dependencies. The
 teaching labels are separate from the distribution's package release number.
 Completed archives remain read-only provenance and are not imported at runtime;
 bundled copies are checked against them. Future version transitions must freeze

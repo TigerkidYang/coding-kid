@@ -13,11 +13,16 @@ from coding_kid.context_manager import (
 from coding_kid.parser import parse_output
 from coding_kid.provider import is_context_window_error
 
-SUMMARY_PROMPT = """Create a concise handoff summary for a coding agent that will continue this task.
-Preserve the current user intent and corrections, constraints and project rules,
-completed work, files inspected or changed, important findings and decisions,
-commands and test results, errors or unresolved questions, current task state,
-and the next required action. Do not call tools. Return only the summary."""
+SUMMARY_PROMPT = """Create a concise, authoritative handoff for a coding agent that will continue this task.
+Use explicit sections for CURRENT INTENT, COMPLETED ACTIONS AND EVIDENCE,
+CHANGES AND TESTS, and PENDING OR NEXT ACTION. Preserve user corrections,
+constraints, project rules, exact evidence and values returned by tools, files
+inspected or changed, decisions, commands and test results, errors, and open
+questions. Distinguish completed actions from pending actions exactly: never
+rewrite a completed read, edit, command, or verification as future work. The
+continuing agent must be able to use recorded tool evidence without repeating
+the tool call merely because the retained user request originally asked for it.
+Do not call tools. Return only the handoff."""
 
 Provider = Callable[..., Any]
 ContextObserver = Callable[[str], None]
