@@ -2,15 +2,18 @@
 
 Coding Kid is a small Python coding agent built for learning. The current
 version shows the complete loop, a session todo checklist, automatic project
-instructions, and bounded conversation context:
+instructions, bounded conversation context, streamed model output, and a
+full-screen terminal interface:
 
 ```text
 session context + project instructions + user input
-  -> OpenRouter -> tool call -> local tool -> OpenRouter -> final answer
+  -> OpenRouter stream -> typed events -> TUI
+  -> tool call -> local tool -> OpenRouter stream -> final answer
 ```
 
-It runs as a plain terminal conversation and keeps history and todos only while
-the process is running.
+Interactive terminals run a simplified Codex-style Textual interface. Piped or
+redirected sessions fall back to the plain terminal conversation. Both keep
+history and todos only while the process is running.
 
 At startup, Coding Kid finds the nearest Git root and loads each non-empty
 `AGENTS.md` from that root down to the current directory. Deeper files appear
@@ -59,11 +62,12 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v4)
+coding-kid       # latest living core version (currently v5)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
 coding-kid v4    # bounded context management
+coding-kid v5    # streaming full-screen TUI
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -73,9 +77,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03 and
-04 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 04 is
+The command preserves the directory from which it was invoked. Versions 03–05
+therefore discover that project's Git root and layered `AGENTS.md` files;
+Versions 01 and 02 retain their original historical behavior. Version 05 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -86,21 +90,40 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Enter a coding task at the `You>` prompt. Enter `/exit` or `/quit` to stop.
-Press `Ctrl+C` during an active task to interrupt it and return to the prompt.
-Enter `/context` to inspect the current window status or `/compact` to create a
+In the Version 05 TUI, enter a task in the bottom composer. `Enter` submits and
+`Shift+Enter` inserts a newline. `Esc` or `Ctrl+C` requests interruption during
+an active turn; `Ctrl+C` exits while idle. `/exit` and `/quit` also stop the
+session. `/context` shows the current window status, and `/compact` creates a
 manual context checkpoint.
 
-Tool actions are printed before the final answer. Normal tool results stay in
-the model context instead of filling the terminal; tool errors are still shown.
-Tool action lines and tool results are bounded so one accidental command or
-large file cannot flood the terminal or the next model request.
+The transcript streams assistant Markdown and records compact Codex-style
+activity cells. Normal tool results stay in model context instead of filling
+the interface; tool errors are shown. Tool action labels and model-visible
+results remain bounded.
 
 ```text
-You> Create hello.txt containing Hello
-[tool] write: hello.txt
-Coding Kid> Created hello.txt.
+› Create hello.txt containing Hello
+• Edited hello.txt
+• Created `hello.txt`.
 ```
+
+## Streaming TUI
+
+Version 05 keeps the Codex-inspired layout deliberately small: a session card,
+one scrolling transcript, an activity row, a multiline composer, and a footer
+with model, cwd, and context remaining when known. It has no sidebar.
+
+Provider text deltas update one active Markdown cell. The terminal provider
+event still supplies one complete response before Coding Kid parses function
+calls, records usage, or commits a model/tool round. Todo calls render an
+`Updated Plan` snapshot with completed, active, and pending states. Reads and
+searches appear as `Explored`; writes, patches, and deletes as `Edited`; shell
+commands as `Ran`.
+
+The agent runs in a worker thread while Textual owns terminal input and redraws.
+Interruption is cooperative: an active provider stream closes immediately and
+no later tool starts, while an already-running synchronous tool finishes before
+the turn rolls back.
 
 ## Tools
 
@@ -126,8 +149,8 @@ uv run --extra dev ruff check src tests
 uv run --extra dev ruff format --check src tests
 ```
 
-The tests use a fake provider for the complete agent loop, so they do not call
-OpenRouter or spend API credits.
+The tests use fake complete and streaming providers plus Textual's headless
+driver, so they do not call OpenRouter or spend API credits.
 
 Every provider request uses the same session snapshot and cached project
 instructions. These contextual messages are assembled only in the request copy;
@@ -170,21 +193,20 @@ interrupted turns restore conversation and todo state to the start of the turn.
 
 ## Current Limits
 
-This teaching version intentionally has no TUI, persistent history, streaming,
-long-term memory, multi-tier compression, sandbox, approval flow, path
-restriction, or provider abstraction. It supports
-only project `AGENTS.md` files: no global instructions, override files,
-fallback names, includes, rules, skills, plugins, or MCP. Tools run with the
-permissions of the current user. Use it only in a local test project you
-control.
+This teaching version intentionally has no persistent history, long-term
+memory, multi-tier compression, background tasks, multi-agent workflow,
+sandbox, approval flow, path restriction, or provider abstraction. The TUI has
+no queued input, attachments, mentions, reasoning display, mouse workflow,
+themes, or trace files. It supports only project `AGENTS.md` files: no global
+instructions, override files, fallback names, includes, rules, skills,
+plugins, or MCP. Tools run with the permissions of the current user. Use it
+only in a local test project you control.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
 Completed checkpoints V1–V4 are preserved under `versions/` and by matching
-annotated tags. Version 01 is the minimal agent, Version 02 adds task
-decomposition, Version 03 adds context assembly, and Version 04 adds bounded
-context management. The installed launcher bundles only
-historical runtime source and shares one Python environment and one set of
-third-party dependencies across all versions.
+annotated tags. The living Version 05 adds the Streaming TUI. The installed
+launcher bundles V1–V4 runtime source and shares one Python environment and one
+set of third-party dependencies across all versions.

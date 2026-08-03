@@ -2,7 +2,8 @@
 
 ## Current Core Version: 05 — Streaming TUI
 
-Completion status: in implementation.
+Completion status: implementation and deterministic verification complete;
+awaiting the user's completion declaration before archive and tag creation.
 
 ### Goal
 
@@ -49,6 +50,19 @@ context-management lifecycle visible without changing canonical agent state.
   passive context mode behave deterministically.
 - Unit/integration/TUI tests, Ruff, wheel inspection, and fresh-install V1-V5
   launches pass without a paid request.
+
+### Verification
+
+- Deterministic suite: **140 passed**, including provider stream shapes, typed
+  agent events, rollback, Textual Pilot flows, manual compaction, interruption,
+  passive context, and 120×40, 80×24, and 40×10 terminal sizes.
+- Ruff lint and formatting checks for maintained `src/` and `tests/`: passed.
+- Fresh wheel: **48 files / 44 Python files**, including the 9-module frozen V04
+  runtime and living V05 `tui.py`; no tests or cache files.
+- Fresh temporary installation: explicit V1–V5, default V05, and the
+  `coding-kid v5` console entry point all launched from an unrelated directory
+  and exited without a provider request.
+- No SWE-bench, benchmark, or paid model request was run.
 
 ## Current Core Version: 04 — Context Management
 
@@ -151,8 +165,8 @@ start the latest version.
 ### Included Scope
 
 - `coding-kid` and `python -m coding_kid` default to the living core runtime,
-  currently Version 04.
-- `coding-kid v1`, `v2`, `v3`, and `v4` select the corresponding teaching runtime;
+  currently Version 05.
+- `coding-kid v1` through `v5` select the corresponding teaching runtime;
   numeric aliases such as `1` and `01` are accepted.
 - Historical runtime source is bundled without tests, evaluation artifacts,
   lock files, caches, or separate dependency environments.
@@ -180,11 +194,12 @@ start the latest version.
 ### Completion Criteria
 
 - One editable or wheel installation exposes a working `coding-kid` command.
-- Omitting a version starts Version 04; explicit `v1` through `v4` select the
+- Omitting a version starts Version 05; explicit `v1` through `v5` select the
   requested runtime.
 - A selected historical runtime starts with the caller's arbitrary project as
   its cwd and does not import modules from another teaching version.
-- Bundled V1-V3 runtime files match their archived source snapshots.
+- Bundled V1-V4 runtime files match their archived source snapshots, excluding
+  launcher-management files from V04.
 - Distribution inspection confirms all registered runtimes are present without
   tests, logs, caches, or additional copies of dependencies.
 - README and architecture documentation explain installation, selection, and
@@ -196,12 +211,13 @@ start the latest version.
 
 ### Verification
 
-- Deterministic suite: **91 passed**.
+- Current deterministic suite: **140 passed**.
 - Ruff lint and formatting checks: passed.
-- Built wheel: 35 files, including 22 V1–V3 bundled runtime Python files.
-- Wheel exclusions: 0 tests, evaluations, caches, logs, or V4 runtime entries.
-- Fresh temporary installation launched V1, V2, V3, and the default from an
-  unrelated project directory; each exited locally without a provider call.
+- Built V05 wheel: 48 files, including 31 V1–V4 bundled runtime Python files.
+- Wheel exclusions: 0 tests, evaluations, caches, or logs.
+- Fresh temporary installation launched V1–V5, the V05 default, and the console
+  entry point from an unrelated project directory; each exited locally without
+  a provider call.
 
 ## Current Core Version: 03 — Context Assembly
 

@@ -193,9 +193,9 @@ In particular:
 - Version 03 is complete: bounded, session-stable context assembly with
   hierarchical project `AGENTS.md` loading. It is archived under
   `versions/03-context-assembly/` with tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete. Version 04 now
-  extends it so one installation selects Versions 01–04 and defaults to the
-  living Version 04 runtime. The launcher itself has no version archive or tag.
+- An unnumbered cross-version launcher improvement is complete. Version 05 now
+  extends it so one installation selects Versions 01–05 and defaults to the
+  living Version 05 runtime. The launcher itself has no version archive or tag.
 - Version 04 is complete: single-session bounded context management with
   separate canonical transcript and model-visible active context, window
   accounting, compaction, and recovery. It is archived under
@@ -205,7 +205,13 @@ In particular:
   to the assistant.
 - The root project contains the living implementation, tests, and usage
   documentation.
-- Version 05 is in implementation: a simplified Codex-style full-screen
-  Streaming TUI over the existing todo, tool, and context-management state.
+- Version 05 implementation and deterministic verification are complete: a
+  simplified Codex-style full-screen Streaming TUI over the existing todo,
+  tool, and context-management state. It passed 140 tests, Ruff, wheel
+  inspection, and fresh-install V1–V5 launches without a paid request.
+- Version 05 is awaiting the user's completion declaration before archive and
+  annotated tag creation.
+- The user explicitly delegated implementation and verification of Version 05
+  to the assistant.
 - Existing source-code research is available to support implementation.
 - Existing article drafts are preserved, and article work is inactive.

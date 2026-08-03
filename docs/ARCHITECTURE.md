@@ -2,29 +2,31 @@
 
 ## Overview
 
-The latest living core is Version 04. The launcher selects historical Versions
-01–03 in isolated processes and runs Version 04 in process.
+The latest living core is Version 05. The launcher selects historical Versions
+01–04 in isolated processes and runs Version 05 in process.
 
 ```text
 launcher.py
-  |-- v1/v2/v3 -> isolated bundled runtime process
-  `-- v4/default -> cli.py -> context.py + context_manager.py
-                                |              |
-                                `----------> agent.py -> compaction.py
-                                               |  |
-                                               |  +-> parser.py
-                                               +----> tools.py / provider.py
+  |-- v1/v2/v3/v4 -> isolated bundled runtime process
+  `-- v5/default -> cli.py
+                     |-- non-TTY -> plain chat
+                     `-- TTY -> tui.py -> worker -> agent.py -> provider stream
+                                  ^             |       |
+                                  |             |       +-> parser.py / tools.py
+                                  `-- events.py <-+-----> compaction.py
+                                        |
+                              context.py + context_manager.py
 ```
 
-`cli.py` captures one immutable `SessionContext` and one mutable
-`ContextManager` when a chat starts. `context.py` still owns stable context
-assembly. `context_manager.py` owns the canonical transcript, bounded active
-view, window budget, estimates, and compaction transitions.
+`cli.py` selects a full-screen TUI only when stdin and stdout are terminals;
+automation keeps the plain Version 04-compatible chat. Textual owns input and
+rendering while the synchronous agent runs in one exclusive worker. Typed
+events expose activity without making UI history canonical agent state.
 
 ## Version Launcher
 
-`launcher.py` accepts `v1` through `v4` plus numeric aliases. No argument
-selects `LATEST_VERSION`, currently `v4`. Invalid values fail before provider
+`launcher.py` accepts `v1` through `v5` plus numeric aliases. No argument
+selects `LATEST_VERSION`, currently `v5`. Invalid values fail before provider
 initialization, and `--list-versions` reports the installed teaching runtimes.
 
 The living package executes the latest runtime directly. Historical runtime
@@ -48,10 +50,21 @@ assemble prompts, initialize a provider, or alter agent behavior.
 
 ### `cli.py`
 
-Owns the outer conversation loop and creates one `SessionContext` and
-`ContextManager` per terminal chat. It handles `/context`, `/compact`, tool and
-context activity, and final answers. Failed or interrupted turns restore the
-full managed conversation snapshot and todo state.
+Chooses TUI or plain mode. The plain fallback retains the outer Version 04
+conversation loop for non-TTY launches and deterministic compatibility.
+
+### `tui.py`
+
+Owns the simplified Codex-style session card, single transcript, activity row,
+composer, and footer. It runs turns and manual compaction in one exclusive
+worker, batches text deltas every 50 ms, consolidates the final Markdown source,
+and projects tool, todo, context, interruption, and error events into cells.
+
+### `events.py`
+
+Defines immutable lifecycle events plus the thread-safe cooperative
+`CancellationToken`. These events report observable activity only; they never
+replace canonical conversation, todo, or context state.
 
 ### `context.py`
 
@@ -99,10 +112,11 @@ the summary request without mutating the canonical transcript.
 
 ### `provider.py`
 
-Sends one non-streaming OpenRouter request containing `instructions`, `input`,
-tool definitions, and an optional output-token limit, then returns the raw
-response. It also exposes narrow OpenRouter helpers for model context metadata,
-input usage, and explicit context-window error classification.
+Keeps non-streaming requests for compaction and plain compatibility. Regular
+TUI turns use a streaming Responses request, normalize supported text-delta and
+terminal event names, close on cancellation, and return the complete terminal
+response for parsing and usage. Missing, failed, or incomplete terminal events
+are errors.
 
 ### `parser.py`
 
@@ -136,14 +150,16 @@ injection, multi-tier trimming/collapse, or transcript storage.
 
 ## Tool Loop
 
-1. The CLI appends a real user message.
+1. The CLI or TUI appends a real user message.
 2. The context manager estimates the next request and compacts first when the
    proactive threshold is reached.
 3. The agent assembles a request copy from stable context, active history, and
    current dynamic overlays.
-4. The provider returns assistant text and optional tool calls.
-5. The agent executes requested tools and commits one complete model/tool
+4. The provider emits visible text deltas, then returns one complete response.
+5. The UI updates a transient Markdown cell; only the complete response is
+   parsed. The agent executes requested tools and commits one complete model/tool
    segment to both transcript and active history.
-6. Todo updates change the next request immediately.
+6. Typed events render tool and Todo cells; Todo updates change the next request
+   immediately.
 7. The loop repeats until a valid final answer is returned or an existing
    recovery/limit rule ends the turn.

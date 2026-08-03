@@ -80,9 +80,9 @@ without explicit permission.
   official SWE-bench Verified × 10 regression check at 7/10.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete. Version 04 now
-  extends its registry so one installation selects Versions 01–04 and defaults
-  to the living Version 04 runtime. The original V1–V3 launcher increment passed
+- An unnumbered cross-version launcher improvement is complete. Version 05 now
+  extends its registry so one installation selects Versions 01–05 and defaults
+  to the living Version 05 runtime. The original V1–V3 launcher increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.
 - The user explicitly delegated this launcher improvement to the assistant.
@@ -108,8 +108,14 @@ without explicit permission.
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.
 - Article drafts are preserved but inactive.
-- Version 05 is now defined and in implementation as a simplified Codex-style
-  full-screen terminal UI with streamed assistant text, typed lifecycle events,
-  and visualizations for the existing todo, tool, and context-management state.
+- Version 05 implementation and deterministic verification are complete. It is
+  a simplified Codex-style full-screen terminal UI with streamed assistant text,
+  typed lifecycle events, and visualizations for the existing todo, tool, and
+  context-management state. It passed 140 tests, Ruff, wheel inspection, and
+  fresh-install V1–V5 launches without a paid model request.
 - Version 05 remains session-local and does not add background tasks, multi-agent
   work, skills, plugins, MCP, permissions, sandboxing, or persistent traces.
+- Version 05 is not yet archived or tagged; that occurs after the user declares
+  the version complete.
+- The user explicitly delegated implementation and verification of Version 05
+  to the assistant.

@@ -44,9 +44,25 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 04 are complete. The version-selecting launcher is an
-unnumbered cross-version improvement. Do not define Version 05 until the user
-chooses its scope.
+Versions 01 through 04 are complete. Version 05 is the current Streaming TUI
+implementation. Do not define a later version until Version 05 is complete.
+
+## Model Version 05 on the Codex TUI event boundary
+
+Decision:
+Use a simplified Codex-style full-screen layout: session card, single scrolling
+transcript, working status, composer, and footer. Represent assistant deltas,
+complete messages, tools, todos, compaction, completion, interruption, and
+failure as typed events from a synchronous worker. Keep non-TTY plain mode and
+use the complete terminal provider response as the only source for parsing and
+canonical commits.
+
+Consequence:
+Version 05 visualizes existing state without a sidebar or new agent capability.
+Streaming UI history is not model history. Tool calls wait for the complete
+response, failed and interrupted turns retain Version 04 rollback, and
+compaction summaries remain non-streaming and hidden. Future capabilities can
+add event projections without coupling their state to Textual widgets.
 
 ## Manage Version 04 context as canonical state plus an active view
 
@@ -91,7 +107,7 @@ historical runtime source inside the distribution and execute it in an isolated
 child Python process; execute the latest living runtime directly.
 
 Consequence:
-`coding-kid v1` through `v4` work from any project directory without
+`coding-kid v1` through `v5` work from any project directory without
 installing separate conflicting distributions or duplicating dependencies. The
 teaching labels are separate from the distribution's package release number.
 Completed archives remain read-only provenance and are not imported at runtime;
@@ -115,7 +131,7 @@ file/shell tool budget.
 Consequence:
 Task decomposition stays a small, teachable tool addition on top of the Version
 01 loop instead of introducing a planning mode or durable task database.
-Planning updates cannot starve the 12-call budget used for real work, grow
+Planning updates cannot starve the 64-call budget used for real work, grow
 without bound, leak into a new chat, or silently report an active step as
 finished.
 
