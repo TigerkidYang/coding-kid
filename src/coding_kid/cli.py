@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import sys
 from typing import Any
 
 from coding_kid.agent import current_instructions, run_turn
@@ -145,4 +146,12 @@ def chat(
 
 def main() -> None:
     """Start the terminal chat."""
-    chat()
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        from coding_kid.tui import run_tui
+
+        try:
+            run_tui()
+        except RuntimeError as error:
+            print(f"Error: {error}")
+    else:
+        chat()

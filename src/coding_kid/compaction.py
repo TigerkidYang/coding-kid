@@ -11,6 +11,7 @@ from coding_kid.context_manager import (
     ConversationSegment,
 )
 from coding_kid.events import (
+    CancellationToken,
     CompactionCompleted,
     CompactionStarted,
     ContextWarning,
@@ -56,6 +57,7 @@ def compact_context(
     trigger: str,
     on_context: ContextObserver | None = None,
     event_sink: EventSink | None = None,
+    cancellation_token: CancellationToken | None = None,
 ) -> bool:
     """Compact active history, committing only after a valid summary exists."""
     plan = manager.plan_compaction(instructions, tools)
@@ -65,6 +67,8 @@ def compact_context(
     emit(event_sink, CompactionStarted(trigger))
 
     while True:
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
         try:
             response = call_provider(
                 "You summarize coding-agent context for seamless continuation.",
@@ -72,6 +76,8 @@ def compact_context(
                 [],
                 max_output_tokens=SUMMARY_MAX_OUTPUT_TOKENS,
             )
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
             break
         except Exception as error:
             if (
@@ -100,6 +106,8 @@ def compact_context(
     if not summary:
         raise RuntimeError("Compaction model returned an empty summary")
 
+    if cancellation_token is not None:
+        cancellation_token.raise_if_cancelled()
     checkpoint = manager.apply_compaction(
         summary,
         plan,

@@ -339,6 +339,33 @@ def test_format_search_call_displays_an_empty_path_as_current_directory() -> Non
     assert rendered == '[tool] search: "def " in .'
 
 
+def test_main_uses_plain_chat_when_terminal_is_not_interactive(
+    monkeypatch: Any,
+) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+    monkeypatch.setattr(cli, "chat", lambda: calls.append("plain"))
+
+    cli.main()
+
+    assert calls == ["plain"]
+
+
+def test_main_uses_tui_when_terminal_is_interactive(monkeypatch: Any) -> None:
+    import coding_kid.tui as tui
+
+    calls: list[str] = []
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+    monkeypatch.setattr(tui, "run_tui", lambda: calls.append("tui"))
+
+    cli.main()
+
+    assert calls == ["tui"]
+
+
 def test_context_command_reports_status_without_calling_model(
     monkeypatch: Any,
     tmp_path: Any,

@@ -434,3 +434,15 @@ class ContextManager:
                 f"Compactions: {len(self.conversation.checkpoints)}",
             ]
         )
+
+    def context_remaining_percent(self) -> int | None:
+        """Return a small footer-friendly view of remaining model context."""
+        if self.budget.context_length is None:
+            return None
+        used = self.last_actual_input_tokens
+        if used is None:
+            used = self.last_estimated_input_tokens
+        if used is None:
+            return 100
+        remaining = 100 - round(used * 100 / self.budget.context_length)
+        return max(0, min(100, remaining))

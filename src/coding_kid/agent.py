@@ -140,8 +140,9 @@ def run_turn(
                         trigger="auto",
                         on_context=on_context,
                         event_sink=event_sink,
+                        cancellation_token=cancellation_token,
                     )
-                except KeyboardInterrupt:
+                except (KeyboardInterrupt, TurnCancelled):
                     raise
                 except Exception as error:  # noqa: BLE001
                     manager.record_auto_compaction_failure()
@@ -189,6 +190,7 @@ def run_turn(
                         trigger="recovery",
                         on_context=on_context,
                         event_sink=event_sink,
+                        cancellation_token=cancellation_token,
                     )
                     reactive_recovery_attempted = True
                     continue

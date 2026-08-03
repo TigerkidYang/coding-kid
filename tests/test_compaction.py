@@ -7,7 +7,12 @@ import pytest
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
-from coding_kid.events import CompactionCompleted, CompactionStarted
+from coding_kid.events import (
+    CancellationToken,
+    CompactionCompleted,
+    CompactionStarted,
+    TurnCancelled,
+)
 
 
 def text_response(text: str) -> SimpleNamespace:
@@ -102,6 +107,27 @@ def test_compaction_emits_typed_lifecycle_events(tmp_path: Path) -> None:
     assert isinstance(completed, CompactionCompleted)
     assert completed.trigger == "manual"
     assert completed.before_tokens > completed.after_tokens
+
+
+def test_compaction_cancellation_leaves_active_context_unchanged(
+    tmp_path: Path,
+) -> None:
+    manager = make_manager(tmp_path)
+    snapshot = manager.clone()
+    token = CancellationToken()
+    token.cancel()
+
+    with pytest.raises(TurnCancelled):
+        compact_context(
+            manager,
+            lambda *args, **kwargs: pytest.fail("provider should not be called"),
+            instructions="system",
+            tools=[],
+            trigger="manual",
+            cancellation_token=token,
+        )
+
+    assert manager.conversation.active_items() == snapshot.conversation.active_items()
 
 
 def test_empty_summary_does_not_change_state(tmp_path: Path) -> None:

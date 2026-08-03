@@ -190,3 +190,23 @@ def test_context_status_reports_passive_mode(tmp_path: Path) -> None:
     assert "Context mode: passive" in rendered
     assert "Context window: unknown" in rendered
     assert "Compactions: 0" in rendered
+
+
+def test_context_remaining_percent_uses_actual_then_estimated_usage(
+    tmp_path: Path,
+) -> None:
+    manager = ContextManager(
+        make_session_context(tmp_path),
+        ContextBudget(100_000, "test"),
+    )
+
+    assert manager.context_remaining_percent() == 100
+
+    manager.last_estimated_input_tokens = 25_000
+    assert manager.context_remaining_percent() == 75
+
+    manager.last_actual_input_tokens = 40_000
+    assert manager.context_remaining_percent() == 60
+
+    manager.budget = ContextBudget(None, "passive")
+    assert manager.context_remaining_percent() is None
