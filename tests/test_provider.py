@@ -3,6 +3,8 @@ from types import SimpleNamespace
 from typing import Any
 
 import coding_kid.provider as provider
+import pytest
+from coding_kid.events import CancellationToken, TurnCancelled
 
 
 def test_generate_sends_inputs_and_returns_raw_response(
@@ -87,6 +89,143 @@ def test_generate_passes_optional_output_limit(monkeypatch: Any) -> None:
     provider.generate("system", [], [], max_output_tokens=4096)
 
     assert captured["max_output_tokens"] == 4096
+
+
+def test_generate_streaming_forwards_deltas_and_returns_terminal_response(
+    monkeypatch: Any,
+) -> None:
+    captured: dict[str, Any] = {}
+    final_response = SimpleNamespace(output=[], usage=None)
+
+    class FakeStream:
+        closed = False
+
+        def __iter__(self):
+            return iter(
+                [
+                    SimpleNamespace(type="response.output_text.delta", delta="Hel"),
+                    SimpleNamespace(type="response.content_part.delta", delta="lo"),
+                    SimpleNamespace(type="response.completed", response=final_response),
+                ]
+            )
+
+        def close(self) -> None:
+            self.closed = True
+
+    stream = FakeStream()
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> FakeStream:
+            captured.update(kwargs)
+            return stream
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+    deltas: list[str] = []
+
+    result = provider.generate_streaming("system", [], [], on_text_delta=deltas.append)
+
+    assert result is final_response
+    assert deltas == ["Hel", "lo"]
+    assert captured["stream"] is True
+    assert stream.closed
+
+
+def test_generate_streaming_accepts_openrouter_done_event(monkeypatch: Any) -> None:
+    final_response = object()
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> Any:
+            return iter(
+                [SimpleNamespace(type="response.done", response=final_response)]
+            )
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    assert (
+        provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
+        is final_response
+    )
+
+
+def test_generate_streaming_rejects_failure_and_missing_terminal(
+    monkeypatch: Any,
+) -> None:
+    streams = iter(
+        [
+            iter(
+                [
+                    SimpleNamespace(
+                        type="response.failed",
+                        error=SimpleNamespace(message="provider failed"),
+                    )
+                ]
+            ),
+            iter([SimpleNamespace(type="response.output_text.delta", delta="partial")]),
+        ]
+    )
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> Any:
+            return next(streams)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
+    with pytest.raises(RuntimeError, match="without a terminal response"):
+        provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
+
+
+def test_generate_streaming_honors_cancellation(monkeypatch: Any) -> None:
+    token = CancellationToken()
+
+    class FakeStream:
+        closed = False
+
+        def __iter__(self):
+            token.cancel()
+            yield SimpleNamespace(type="response.output_text.delta", delta="ignored")
+
+        def close(self) -> None:
+            self.closed = True
+
+    stream = FakeStream()
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> FakeStream:
+            return stream
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(TurnCancelled):
+        provider.generate_streaming(
+            "system", [], [], on_text_delta=lambda _: None, cancellation_token=token
+        )
+    assert stream.closed
 
 
 def test_discover_context_length_matches_exact_model(monkeypatch: Any) -> None:

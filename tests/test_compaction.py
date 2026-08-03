@@ -7,6 +7,7 @@ import pytest
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.events import CompactionCompleted, CompactionStarted
 
 
 def text_response(text: str) -> SimpleNamespace:
@@ -81,6 +82,26 @@ def test_compaction_atomically_replaces_only_active_context(tmp_path: Path) -> N
     assert "do not repeat them merely" in checkpoint
     assert events[0] == "[context] compacting: manual"
     assert events[-1].startswith("[context] compacted:")
+
+
+def test_compaction_emits_typed_lifecycle_events(tmp_path: Path) -> None:
+    manager = make_manager(tmp_path)
+    typed_events: list[Any] = []
+
+    compact_context(
+        manager,
+        lambda *args, **kwargs: text_response("Authoritative handoff"),
+        instructions="system",
+        tools=[],
+        trigger="manual",
+        event_sink=typed_events.append,
+    )
+
+    assert typed_events[0] == CompactionStarted("manual")
+    completed = typed_events[-1]
+    assert isinstance(completed, CompactionCompleted)
+    assert completed.trigger == "manual"
+    assert completed.before_tokens > completed.after_tokens
 
 
 def test_empty_summary_does_not_change_state(tmp_path: Path) -> None:

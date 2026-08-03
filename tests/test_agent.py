@@ -13,6 +13,18 @@ from coding_kid.agent import (
     run_turn,
 )
 from coding_kid.context import ProjectInstruction, SessionContext
+from coding_kid.events import (
+    AssistantMessageCompleted,
+    AssistantTextDelta,
+    CancellationToken,
+    TodoUpdated,
+    ToolCompleted,
+    ToolStarted,
+    TurnCancelled,
+    TurnCompleted,
+    TurnInterrupted,
+    TurnStarted,
+)
 from coding_kid.tools import get_todos
 
 
@@ -101,6 +113,101 @@ def test_run_turn_executes_multiple_tools_in_order(
     second_request = provider_calls[1][1]
     assert second_request[-2]["call_id"] == "call-1"
     assert second_request[-1]["call_id"] == "call-2"
+
+
+def test_run_turn_streams_text_and_emits_typed_tool_and_todo_events() -> None:
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-1",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect", "status": "completed"},
+                                {"content": "Finish", "status": "in_progress"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "todo-2",
+                        "todo",
+                        {
+                            "todos": [
+                                {"content": "Inspect", "status": "completed"},
+                                {"content": "Finish", "status": "completed"},
+                            ]
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Finished.")]),
+        ]
+    )
+    events: list[Any] = []
+
+    def stream_provider(*args: Any, on_text_delta: Any, **kwargs: Any) -> Any:
+        response = next(responses)
+        if any(item.type == "message" for item in response.output):
+            on_text_delta("Fin")
+            on_text_delta("ished.")
+        return response
+
+    answer = run_turn(
+        [],
+        lambda *args, **kwargs: pytest.fail("non-stream provider called"),
+        stream_provider=stream_provider,
+        event_sink=events.append,
+    )
+
+    assert answer == "Finished."
+    assert isinstance(events[0], TurnStarted)
+    assert [
+        event.delta for event in events if isinstance(event, AssistantTextDelta)
+    ] == [
+        "Fin",
+        "ished.",
+    ]
+    assert len([event for event in events if isinstance(event, ToolStarted)]) == 2
+    assert len([event for event in events if isinstance(event, ToolCompleted)]) == 2
+    todo_events = [event for event in events if isinstance(event, TodoUpdated)]
+    assert [item.status for item in todo_events[0].items] == [
+        "completed",
+        "in_progress",
+    ]
+    assert isinstance(events[-2], AssistantMessageCompleted)
+    assert events[-2].text == "Finished."
+    assert isinstance(events[-1], TurnCompleted)
+
+
+def test_run_turn_stream_cancellation_emits_interrupt_and_keeps_history() -> None:
+    token = CancellationToken()
+    events: list[Any] = []
+    messages: list[Any] = [{"role": "user", "content": "Keep me"}]
+
+    def stream_provider(*args: Any, on_text_delta: Any, **kwargs: Any) -> Any:
+        on_text_delta("partial")
+        token.cancel()
+        token.raise_if_cancelled()
+
+    with pytest.raises(TurnCancelled):
+        run_turn(
+            messages,
+            lambda *args, **kwargs: pytest.fail("non-stream provider called"),
+            stream_provider=stream_provider,
+            event_sink=events.append,
+            cancellation_token=token,
+        )
+
+    assert messages == [{"role": "user", "content": "Keep me"}]
+    assert isinstance(events[0], TurnStarted)
+    assert isinstance(events[1], AssistantTextDelta)
+    assert isinstance(events[-1], TurnInterrupted)
 
 
 def test_run_turn_stops_after_maximum_steps() -> None:

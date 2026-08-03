@@ -10,6 +10,13 @@ from coding_kid.context_manager import (
     ContextManager,
     ConversationSegment,
 )
+from coding_kid.events import (
+    CompactionCompleted,
+    CompactionStarted,
+    ContextWarning,
+    EventSink,
+    emit,
+)
 from coding_kid.parser import parse_output
 from coding_kid.provider import is_context_window_error
 
@@ -48,12 +55,14 @@ def compact_context(
     tools: list[dict[str, Any]],
     trigger: str,
     on_context: ContextObserver | None = None,
+    event_sink: EventSink | None = None,
 ) -> bool:
     """Compact active history, committing only after a valid summary exists."""
     plan = manager.plan_compaction(instructions, tools)
     summary_segments = manager.summary_segments(plan)
     dropped = 0
     on_context and on_context(f"[context] compacting: {trigger}")
+    emit(event_sink, CompactionStarted(trigger))
 
     while True:
         try:
@@ -103,8 +112,17 @@ def compact_context(
         f"[context] compacted: {checkpoint.before_tokens} -> "
         f"{checkpoint.after_tokens} estimated tokens"
     )
+    emit(
+        event_sink,
+        CompactionCompleted(
+            trigger,
+            checkpoint.before_tokens,
+            checkpoint.after_tokens,
+            dropped,
+        ),
+    )
     if dropped:
-        on_context and on_context(
-            f"[context] warning: summary omitted {dropped} oldest segment(s)"
-        )
+        warning = f"Summary omitted {dropped} oldest segment(s)"
+        on_context and on_context(f"[context] warning: {warning.casefold()}")
+        emit(event_sink, ContextWarning(warning))
     return True

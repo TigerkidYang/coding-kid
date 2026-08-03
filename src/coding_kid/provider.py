@@ -6,9 +6,11 @@ import os
 import json
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 from openai import OpenAI
+
+from coding_kid.events import CancellationToken
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -46,6 +48,75 @@ def generate(
     return client.responses.create(
         **request,
     )
+
+
+def generate_streaming(
+    instructions: str,
+    messages: list[Any],
+    tools: list[dict[str, Any]],
+    *,
+    on_text_delta: Callable[[str], None],
+    cancellation_token: CancellationToken | None = None,
+    max_output_tokens: int | None = None,
+) -> Any:
+    """Stream visible text while retaining one complete provider response."""
+    client = OpenAI(
+        api_key=required_environment("OPENROUTER_API_KEY"),
+        base_url=OPENROUTER_BASE_URL,
+        timeout=120.0,
+        max_retries=2,
+    )
+    request: dict[str, Any] = {
+        "model": required_environment("OPENROUTER_MODEL"),
+        "instructions": instructions,
+        "input": messages,
+        "tools": tools,
+        "stream": True,
+    }
+    if max_output_tokens is not None:
+        request["max_output_tokens"] = max_output_tokens
+
+    stream = client.responses.create(**request)
+    final_response: Any | None = None
+    try:
+        for event in stream:
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
+            event_type = getattr(event, "type", "")
+            if event_type in {
+                "response.output_text.delta",
+                "response.content_part.delta",
+            }:
+                delta = getattr(event, "delta", None)
+                if isinstance(delta, str) and delta:
+                    on_text_delta(delta)
+            elif event_type in {"response.completed", "response.done"}:
+                final_response = getattr(event, "response", None)
+            elif event_type in {
+                "response.error",
+                "response.failed",
+                "response.incomplete",
+            }:
+                raise RuntimeError(_stream_error_message(event))
+    finally:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
+
+    if cancellation_token is not None:
+        cancellation_token.raise_if_cancelled()
+    if final_response is None:
+        raise RuntimeError("Streaming response ended without a terminal response")
+    return final_response
+
+
+def _stream_error_message(event: Any) -> str:
+    """Render the useful portion of a terminal streaming failure."""
+    error = getattr(event, "error", None)
+    response = getattr(event, "response", None)
+    details = error or getattr(response, "error", None) or response
+    message = getattr(details, "message", None)
+    return str(message or details or "Streaming response failed")
 
 
 def discover_context_length(model: str) -> int | None:

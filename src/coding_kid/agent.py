@@ -13,6 +13,23 @@ from coding_kid.context_manager import (
     ConversationState,
     estimate_request_tokens,
 )
+from coding_kid.events import (
+    AssistantMessageCompleted,
+    AssistantTextDelta,
+    CancellationToken,
+    ContextWarning,
+    EventSink,
+    TodoItem,
+    TodoUpdated,
+    ToolCompleted,
+    ToolStarted,
+    TurnCancelled,
+    TurnCompleted,
+    TurnFailed,
+    TurnInterrupted,
+    TurnStarted,
+    emit,
+)
 from coding_kid.parser import parse_output
 from coding_kid.provider import generate, is_context_window_error
 from coding_kid.tools import (
@@ -44,6 +61,7 @@ remaining work. Do not give a final answer while any item is pending or
 in_progress."""
 
 Provider = Callable[..., Any]
+StreamingProvider = Callable[..., Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
 ContextObserver = Callable[[str], None]
 MAX_EMPTY_RESPONSES = 2
@@ -87,6 +105,9 @@ def run_turn(
     on_tool: ToolObserver | None = None,
     on_context: ContextObserver | None = None,
     session_context: SessionContext | None = None,
+    stream_provider: StreamingProvider | None = None,
+    event_sink: EventSink | None = None,
+    cancellation_token: CancellationToken | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     tools = tool_definitions()
@@ -101,9 +122,12 @@ def run_turn(
     tool_calls_executed = 0
     instruction_overlays: tuple[str, ...] = ()
     reactive_recovery_attempted = False
+    emit(event_sink, TurnStarted())
 
     try:
         for _ in range(max_steps):
+            if cancellation_token is not None:
+                cancellation_token.raise_if_cancelled()
             instructions = current_instructions(context, instruction_overlays)
 
             if manager.should_auto_compact(instructions, tools):
@@ -115,6 +139,7 @@ def run_turn(
                         tools=tools,
                         trigger="auto",
                         on_context=on_context,
+                        event_sink=event_sink,
                     )
                 except KeyboardInterrupt:
                     raise
@@ -124,6 +149,10 @@ def run_turn(
                         on_context(
                             f"[context] warning: automatic compaction failed: {error}"
                         )
+                    emit(
+                        event_sink,
+                        ContextWarning(f"Automatic compaction failed: {error}"),
+                    )
 
             model_input = manager.model_input()
             local_estimate = estimate_request_tokens(
@@ -132,7 +161,20 @@ def run_turn(
                 tools,
             )
             try:
-                response = call_provider(instructions, model_input, tools)
+                if stream_provider is None:
+                    response = call_provider(instructions, model_input, tools)
+                else:
+                    response = stream_provider(
+                        instructions,
+                        model_input,
+                        tools,
+                        on_text_delta=lambda delta: emit(
+                            event_sink, AssistantTextDelta(delta)
+                        ),
+                        cancellation_token=cancellation_token,
+                    )
+                if cancellation_token is not None:
+                    cancellation_token.raise_if_cancelled()
             except Exception as error:
                 if (
                     is_context_window_error(error)
@@ -146,6 +188,7 @@ def run_turn(
                         tools=tools,
                         trigger="recovery",
                         on_context=on_context,
+                        event_sink=event_sink,
                     )
                     reactive_recovery_attempted = True
                     continue
@@ -153,6 +196,10 @@ def run_turn(
 
             manager.record_regular_response(response, local_estimate)
             parsed = parse_output(response)
+            emit(
+                event_sink,
+                AssistantMessageCompleted(parsed.text, bool(parsed.tool_calls)),
+            )
             round_items = list(response.output)
 
             if not parsed.tool_calls:
@@ -176,6 +223,7 @@ def run_turn(
                         clear_todos()
                     if compatibility_messages is not None:
                         compatibility_messages[:] = manager.conversation.active_items()
+                    emit(event_sink, TurnCompleted(parsed.text))
                     return parsed.text
 
                 empty_responses += 1
@@ -190,6 +238,8 @@ def run_turn(
             tool_budget_reached = tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
 
             for tool_call in parsed.tool_calls:
+                if cancellation_token is not None:
+                    cancellation_token.raise_if_cancelled()
                 if (
                     tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
                     and tool_call.name != "todo"
@@ -200,11 +250,35 @@ def run_turn(
                     )
                     tool_budget_reached = True
                 else:
+                    emit(
+                        event_sink,
+                        ToolStarted(tool_call.name, dict(tool_call.arguments)),
+                    )
                     result = dispatch_tool(tool_call.name, tool_call.arguments)
                     if tool_call.name != "todo":
                         tool_calls_executed += 1
                     if on_tool is not None:
                         on_tool(tool_call.name, tool_call.arguments, result)
+                    emit(
+                        event_sink,
+                        ToolCompleted(
+                            tool_call.name,
+                            dict(tool_call.arguments),
+                            result,
+                        ),
+                    )
+                    if tool_call.name == "todo" and not result.startswith("ERROR:"):
+                        emit(
+                            event_sink,
+                            TodoUpdated(
+                                tuple(
+                                    TodoItem(item["content"], item["status"])
+                                    for item in get_todos()
+                                )
+                            ),
+                        )
+                    if cancellation_token is not None:
+                        cancellation_token.raise_if_cancelled()
                     if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
                         tool_budget_reached = True
                 round_items.append(
@@ -221,6 +295,11 @@ def run_turn(
             )
 
         raise RuntimeError("Agent reached the maximum number of model/tool steps")
-    except BaseException:
+    except TurnCancelled as error:
         manager.restore(turn_snapshot)
+        emit(event_sink, TurnInterrupted(str(error)))
+        raise
+    except BaseException as error:
+        manager.restore(turn_snapshot)
+        emit(event_sink, TurnFailed(str(error)))
         raise
