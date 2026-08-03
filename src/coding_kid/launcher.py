@@ -11,12 +11,13 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v4"
-AVAILABLE_VERSIONS = ("v1", "v2", "v3", LATEST_VERSION)
+LATEST_VERSION = "v5"
+AVAILABLE_VERSIONS = ("v1", "v2", "v3", "v4", LATEST_VERSION)
 BUNDLED_RUNTIME_DIRS = {
     "v1": "v01",
     "v2": "v02",
     "v3": "v03",
+    "v4": "v04",
 }
 RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 
@@ -40,7 +41,7 @@ def bundled_runtime_root(version: str) -> Path:
     """Return the directory placed first on PYTHONPATH for a historical version."""
     directory = BUNDLED_RUNTIME_DIRS[version]
     root = Path(__file__).resolve().parent / "_runtimes" / directory
-    if not (root / "coding_kid" / "__main__.py").is_file():
+    if not (root / "coding_kid" / "cli.py").is_file():
         raise RuntimeError(
             f"Bundled Coding Kid runtime is missing for {version}: {root}"
         )

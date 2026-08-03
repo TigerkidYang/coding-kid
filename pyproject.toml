@@ -9,6 +9,7 @@ description = "A small Python coding agent built for learning."
 requires-python = ">=3.11"
 dependencies = [
     "openai>=2.30.0,<3",
+    "textual>=8,<9",
 ]
 
 [project.optional-dependencies]

@@ -205,6 +205,7 @@ In particular:
   to the assistant.
 - The root project contains the living implementation, tests, and usage
   documentation.
-- No Version 05 is currently defined.
+- Version 05 is in implementation: a simplified Codex-style full-screen
+  Streaming TUI over the existing todo, tool, and context-management state.
 - Existing source-code research is available to support implementation.
 - Existing article drafts are preserved, and article work is inactive.

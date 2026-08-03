@@ -1,5 +1,55 @@
 # Tasks
 
+## Current Core Version: 05 — Streaming TUI
+
+Completion status: in implementation.
+
+### Goal
+
+Build a simplified Codex-style full-screen terminal interface that streams
+assistant text and makes Coding Kid's existing conversation, todo, tool, and
+context-management lifecycle visible without changing canonical agent state.
+
+### Included Scope
+
+- A Textual full-screen interface for interactive terminals with a session
+  header, single-column transcript, composer, working status, and footer.
+- A non-TTY fallback that preserves the Version 04 plain terminal workflow.
+- OpenRouter Responses API text streaming with a complete final response for
+  parser, tool protocol, usage accounting, and transcript commits.
+- Typed turn, assistant, tool, todo, compaction, completion, interruption, and
+  failure events between the agent worker and UI.
+- Codex-style user, assistant, exploration, edit, command, error, and Updated
+  Plan transcript cells.
+- Existing `/context`, `/compact`, `/exit`, and `/quit` behavior plus cooperative
+  Esc/Ctrl+C interruption and Version 04 rollback.
+- Deterministic provider, agent, TUI, launcher, wheel, and fresh-install tests.
+
+### Excluded Scope
+
+- Reasoning display, streamed tool arguments, queued input, attachments,
+  mentions, shell mode, mouse interaction, themes, or a Web UI.
+- Background tasks, multi-agent workflows, skills, plugins, MCP, approvals,
+  sandboxing, session persistence, trace files, or production telemetry.
+- Forced termination of an already-running synchronous tool.
+- SWE-bench, paid benchmarks, or live provider calls without separate explicit
+  authorization.
+
+### Completion Criteria
+
+- Interactive V05 launches a full-screen Codex-style interface; non-TTY V05 and
+  all historical versions remain launchable from arbitrary project directories.
+- Text deltas update one active assistant cell and consolidate exactly once from
+  the complete response before parser/tool processing continues.
+- Todo, tool, context, and compaction activity is readable and reflects real
+  canonical state without exposing successful raw tool output.
+- Stream errors, missing terminal responses, cancellation, failed compaction,
+  and failed turns preserve Version 04 transcript/context/todo rollback.
+- `/context`, `/compact`, `/exit`, `/quit`, Esc, Ctrl+C, narrow terminals, and
+  passive context mode behave deterministically.
+- Unit/integration/TUI tests, Ruff, wheel inspection, and fresh-install V1-V5
+  launches pass without a paid request.
+
 ## Current Core Version: 04 — Context Management
 
 Completion status: complete and archived under
@@ -336,8 +386,7 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Wait for the user to define Version 05. Do not create a future-version roadmap
-  or begin implementation before that discussion.
+- Implement and verify Version 05 only. Do not define a later version.
 
 ## Version 02 Verification
 
@@ -357,7 +406,7 @@ results back to the model, and returns a final response to the user.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
 - Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
-- Do not define Version 05 until the user chooses its scope.
+- Keep Version 05 work within its recorded Streaming TUI scope.
 - Treat `versions/04-context-management/` as a read-only historical checkpoint.
 - Research only as needed to answer a concrete current-version question.
 - Do not work on articles unless the user explicitly resumes article work.

@@ -108,4 +108,8 @@ without explicit permission.
   `docs/VERSIONING.md`.
 - Research notes and reports are available for use during implementation.
 - Article drafts are preserved but inactive.
-- No Version 05 is currently defined.
+- Version 05 is now defined and in implementation as a simplified Codex-style
+  full-screen terminal UI with streamed assistant text, typed lifecycle events,
+  and visualizations for the existing todo, tool, and context-management state.
+- Version 05 remains session-local and does not add background tasks, multi-agent
+  work, skills, plugins, MCP, permissions, sandboxing, or persistent traces.
