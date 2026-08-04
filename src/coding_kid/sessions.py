@@ -179,6 +179,41 @@ class SessionStore:
                 );
                 CREATE INDEX IF NOT EXISTS sessions_updated
                     ON sessions(status, updated_at DESC);
+                CREATE TABLE IF NOT EXISTS memory_candidates (
+                    session_id TEXT PRIMARY KEY,
+                    source_seq INTEGER NOT NULL,
+                    summary TEXT NOT NULL,
+                    candidates_json TEXT NOT NULL,
+                    generated_at TEXT NOT NULL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    FOREIGN KEY(session_id) REFERENCES sessions(session_id)
+                );
+                CREATE TABLE IF NOT EXISTS memories (
+                    memory_id TEXT PRIMARY KEY,
+                    scope TEXT NOT NULL CHECK(scope IN ('project', 'user')),
+                    type TEXT NOT NULL CHECK(type IN ('user', 'feedback', 'project', 'reference')),
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    keywords_json TEXT NOT NULL,
+                    sources_json TEXT NOT NULL,
+                    origin TEXT NOT NULL CHECK(origin IN ('automatic', 'explicit')),
+                    status TEXT NOT NULL CHECK(status IN ('active', 'superseded', 'forgotten')),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    use_count INTEGER NOT NULL DEFAULT 0,
+                    last_used_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS memories_status_updated
+                    ON memories(status, updated_at DESC);
+                CREATE TABLE IF NOT EXISTS memory_pipeline (
+                    singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+                    lease_owner TEXT,
+                    lease_expires_at TEXT,
+                    last_run_at TEXT,
+                    last_error TEXT
+                );
+                INSERT OR IGNORE INTO memory_pipeline(singleton) VALUES (1);
                 """
             )
             row = connection.execute("SELECT version FROM schema_info").fetchone()
