@@ -2,15 +2,16 @@
 
 ## Overview
 
-Version 09 adds process-local child Agents without changing the synchronous
-root model/tool loop. One application-owned `AgentManager` survives user turns;
-each child owns a separate conversation, compaction state, todo state, tool
-budget, cancellation token, and worker thread.
+Version 10 makes the synchronous root model/tool loop controllable without
+turning it into a workflow engine. `TurnController` owns active-step
+cancellation and a bounded FIFO steer queue; `run_turn` owns explicit step,
+recovery, budget, stall, and terminal transitions. Existing application-owned
+Agent, background-task, capability, session, and memory managers remain intact.
 
 ```text
 launcher.py
-  |-- v1-v8 -> isolated bundled runtime process
-  `-- v9/default -> cli.py
+  |-- v1-v9 -> isolated bundled runtime process
+  `-- v10/default -> cli.py
                      |-- SessionStore / MemoryManager
                      |-- AgentManager -> child run_turn workers
                      |-- BackgroundTaskManager -> shell process trees
@@ -23,12 +24,34 @@ launcher.py
                                   `-- events.py <-+       +-> session ToolRegistry
 ```
 
-The UI remains a projection of canonical state. A successful turn is first
-committed by the agent and then appended as one durable session transition.
-Failed and interrupted root turns roll back the root conversation and todos;
-their audit records are not replayed into model context. Already-started child
-Agents and background tasks are intentionally outside that transaction and
-remain discoverable.
+The UI remains a projection of canonical state. Complete model/tool rounds are
+the evidence boundary. Failed, steered, and interrupted turns retain completed
+rounds and todo effects, discard incomplete assistant streams, and write a
+reasoned durable transition. Temporary compaction projections are rolled back
+on failure while newly completed transcript rounds are preserved. Already
+started child Agents and background tasks remain discoverable.
+
+## Controllable Turn Runtime
+
+`turn_control.py` defines the public phases, transition reasons, resource
+limits, pending-input records, and cancellation ownership. The TUI accepts up
+to eight active-turn inputs, cancels the current step with reason `steered`,
+commits its retained evidence, and consumes queued inputs FIFO using a fresh
+token. `Esc` uses the distinct `interrupted` reason and does not continue.
+
+The agent caps one turn at 80 steps, 64 work-tool calls, six recoveries, four
+identical actions, and 30 minutes. Provider transport retries are explicit,
+cancellation-aware, observable, and limited to three attempts. Output-limit
+responses can recover twice. Repeated identical name/arguments/result triples
+emit a stall event on the third occurrence and disable tools on the fourth so
+the model must synthesize from existing evidence.
+
+Only tools carrying explicit `parallel_safe` metadata may overlap. The living
+registry marks built-in `read` and `search`; all file mutations, terminal work,
+task/Agent controls, Skills, MCP tools, and unknown future tools default to
+exclusive. Consecutive safe calls run in batches of at most four workers.
+Exclusive calls form barriers, and function-call outputs are committed in the
+model's original order regardless of completion order.
 
 ## Multi-Agent Control Plane
 
@@ -143,9 +166,9 @@ displaying a command or answer cannot invalidate the Agent protocol round.
 
 ## Version Launcher and Session Selection
 
-`launcher.py` accepts `v1` through `v9`; V09 is the living default. V1–V8 run
+`launcher.py` accepts `v1` through `v10`; V10 is the living default. V1–V9 run
 from frozen runtime packages in isolated child processes. Living-runtime
-session flags select V09 sessions:
+session flags select V10 sessions:
 
 - No flag or `--new` creates a new session.
 - `--continue` resumes the most recently updated project session.
@@ -275,7 +298,7 @@ Storage directories and files receive restrictive permissions where the host
 supports them. Raw logs may contain prompts and tool results, so users must
 treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Version 09 does not add encryption at rest, remote synchronization, vector
-search, persistent or remote jobs, multi-agent workflows, sandboxing,
-approvals, a Plugin marketplace, OAuth, or non-tool MCP primitives. All tools
-still run with the current user's permissions.
+Version 10 does not add encryption at rest, remote synchronization, vector
+search, persistent or remote jobs, nested/remote Agent graphs, sandboxing,
+approvals, a workflow DSL, a Plugin marketplace, OAuth, or non-tool MCP
+primitives. All tools still run with the current user's permissions.

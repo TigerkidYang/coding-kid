@@ -3,8 +3,9 @@
 Coding Kid is a small Python coding agent built for learning. The current
 version shows the complete loop, persistent project sessions, layered
 long-term memory, pluggable Skills and MCP tools, process-local background shell
-tasks, a session todo checklist, bounded conversation context, streamed model
-output, and a full-screen terminal interface:
+tasks and child Agents, a controllable bounded turn loop, a session todo
+checklist, bounded conversation context, streamed model output, and a
+full-screen terminal interface:
 
 ```text
 session context + project instructions + Skill metadata + recalled memory
@@ -65,7 +66,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v8; new session)
+coding-kid       # latest living core version (currently v10; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -75,6 +76,7 @@ coding-kid v6    # persistent sessions and long-term memory
 coding-kid v7    # Skills, Plugins, and MCP tools
 coding-kid v8    # process-local background shell tasks
 coding-kid v9    # process-local multi-Agent workflows
+coding-kid v10   # controllable turn runtime and active-turn steering
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -84,9 +86,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–09
+The command preserves the directory from which it was invoked. Versions 03–10
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 09 is
+Versions 01 and 02 retain their original historical behavior. Version 10 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -97,7 +99,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 09 session selection is explicit:
+Living Version 10 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -110,13 +112,28 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 09 TUI, enter a task in the bottom composer. `Enter` submits and
-`Shift+Enter` inserts a newline. `Esc` or `Ctrl+C` requests interruption during
-an active turn; `Ctrl+C` exits while idle. `/exit` and `/quit` also stop the
-session. `/context` shows the current window status, `/compact` creates a
-manual context checkpoint, and `/session` or `/sessions` inspect persistence.
+In the Version 10 TUI, enter a task in the bottom composer. `Enter` submits and
+`Shift+Enter` inserts a newline. Submitting while work is active queues a steer
+instruction FIFO and stops the current step before continuing with retained
+completed evidence. Up to eight pending inputs are kept; a ninth remains in the
+composer. `Esc` requests a hard interruption instead. `Ctrl+C` exits while
+idle. `/context` shows the current window status, `/compact` creates a manual
+context checkpoint, and `/session` or `/sessions` inspect persistence.
 `/capabilities` reports loaded Skills and Plugins plus MCP server/tool status
 without displaying environment values.
+
+## Turn and Workflow Control
+
+Version 10 makes continuation explicit and bounded: provider retries, output
+limit recovery, empty-response recovery, todo reconciliation, step/tool/time
+budgets, repeated-action stalls, steering, interruption, success, and failure
+emit structured transitions. Completed tool rounds are retained across an
+interrupted or failed turn; partial assistant streams are removed.
+
+Consecutive built-in `read` and `search` calls may overlap in groups of four.
+Their results still enter model history in requested order. Writes, patches,
+deletes, terminal commands, task/Agent controls, Skills, MCP tools, and future
+tools remain exclusive unless their registry metadata explicitly opts in.
 
 ## Multi-Agent Workflows
 
@@ -374,7 +391,8 @@ available, but proactive compaction is disabled.
 Near the safe threshold, Coding Kid summarizes older history, preserves the
 latest real user request and recent complete model/tool rounds, and continues
 the same turn. A failed summary never replaces active context. Failed or
-interrupted turns restore conversation and todo state to the start of the turn.
+interrupted turns retain complete new protocol rounds and todo effects while
+discarding incomplete streaming text and temporary failed-turn projections.
 
 ## Current Limits
 
@@ -382,7 +400,7 @@ This teaching version intentionally has no vector memory, remote memory sync,
 encryption at rest, persistent or remote jobs, nested or remote Agents,
 Agent file isolation, sandbox, approval flow, path restriction, marketplace, Plugin downloader,
 OAuth, MCP Resources/Prompts, or provider abstraction. The TUI has no queued
-input, attachments, mentions, reasoning display, mouse workflow,
+attachments, mentions, reasoning display, mouse workflow,
 themes, or trace files. It supports only project `AGENTS.md` files: no global
 instructions, override files, fallback names, includes, or rules. It has no
 Hooks, Apps, or LSP. Built-in and MCP tools run with the permissions of the
@@ -393,6 +411,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 ## Teaching Versions
 
 Completed checkpoints V1–V9 are preserved under `versions/` and by matching
-annotated tags. Version 09 adds multi-Agent workflows. The installed launcher bundles
-V1–V8 runtime source and shares one Python environment and one set of
-third-party dependencies across all versions.
+annotated tags. Version 10 is the living implementation pending completion
+confirmation. The installed launcher bundles V1–V9 runtime source and shares
+one Python environment and one set of third-party dependencies across all
+versions.

@@ -44,9 +44,39 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 08 are complete. Version 09 is the current multi-Agent
-implementation. Do not define a later version until the user chooses one from
-the research topic list.
+Versions 01 through 09 are complete. Version 10 is the current controllable
+turn-runtime implementation. Do not define a later version until the user
+chooses one from the research topic list.
+
+## Make complete protocol rounds the Version 10 evidence boundary
+
+Decision:
+Keep the root loop synchronous, but represent its steps, recoveries, budgets,
+stalls, steering, interruption, and terminal paths with explicit reasons and
+events. Retain complete tool-call/output rounds and their side effects across
+failure or interruption; discard incomplete assistant streams and roll back
+temporary compaction projections only. Queue active-TUI input FIFO and use
+reasoned cancellation to distinguish steering from hard interruption.
+
+Consequence:
+Users can redirect active work without losing input or completed evidence, and
+persistent resume remains provider-protocol safe. Recovery and continuation are
+bounded and inspectable. This does not provide general rollback, durable
+in-flight execution, a workflow DSL, hooks, or autonomous wakeups.
+
+## Parallelize only explicitly safe Version 10 tools
+
+Decision:
+Allow bounded overlap only for consecutive tool calls whose registry entries
+explicitly declare `parallel_safe`. Mark built-in `read` and `search`; default
+every stateful, external, dynamically supplied, and unknown tool to exclusive.
+Preserve model call order when committing results.
+
+Consequence:
+Independent repository reads can reduce latency without allowing concurrent
+writes or silently trusting third-party capabilities. An exclusive call is a
+barrier between safe batches, at most four safe calls execute concurrently,
+and adding a tool never grants parallel execution by accident.
 
 ## Keep Version 09 child Agents process-local and root-owned
 
@@ -391,12 +421,15 @@ next action.
 
 Decision:
 Retry one isolated empty model response and turn repeated empty responses into
-an explicit error. Commit conversation-history changes only after a turn
-finishes successfully, and roll back failed or interrupted CLI turns.
+an explicit error. In Version 10, commit each complete model/tool protocol round
+as evidence. On failure or interruption, retain those rounds and their todo
+effects while discarding incomplete assistant streaming text and temporary
+compaction projections.
 
 Consequence:
 The terminal never presents a blank `Coding Kid>` response as success, and an
 incomplete provider response cannot corrupt the following conversation turn.
+Completed side effects remain paired with the outputs needed for safe resume.
 
 ## Bound tool calls as well as tool output
 
