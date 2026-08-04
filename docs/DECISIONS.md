@@ -64,6 +64,21 @@ mid-file corruption have explicit recovery or refusal behavior. Session resume
 restores the original cwd, model, project instructions, todos, compaction state,
 and accounting rather than silently adopting a different runtime snapshot.
 
+## Normalize provider protocol items before persistence and replay
+
+Decision:
+Convert SDK response objects to provider-input JSON as they enter conversation
+state, recursively omit optional null fields, and re-normalize restored items
+for compatibility with original V06 logs. Commit compaction only when it reduces
+the request estimate, and reject summaries that contradict deterministic tool
+evidence.
+
+Consequence:
+Function-call and reasoning history can cross JSON and process boundaries
+without relying on SDK object identity or output-only null fields. Existing V06
+logs remain readable. Ineffective or evidently contradictory compaction fails
+atomically and leaves the prior active context available.
+
 ## Separate exact sessions from selective long-term memory
 
 Decision:

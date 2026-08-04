@@ -22,10 +22,16 @@ layered long-term memory to Version 05's streaming coding agent.
 - Exposes session and memory state through both the plain terminal and Textual
   TUI without changing the existing model/tool loop or rollback semantics.
 
-The living repository passed all 171 deterministic tests, Ruff lint and format
-checks, wheel inspection, fresh-install V1–V6 launches, and installed V06
-session listing/resumption. Verification made no live provider request and ran
-no paid benchmark or SWE-bench job.
+The corrected checkpoint passed all 180 deterministic tests, Ruff lint and
+format checks, 10 rounds of concurrency stress, wheel inspection,
+fresh-install V1–V6 launches, and installed-wheel tool-history resumption.
+Verification made no live provider request and ran no paid benchmark or
+SWE-bench job.
+
+The correction makes SDK response history replay-safe after JSON restoration,
+rejects compaction that grows context or denies recorded tool activity, and
+ensures final TUI answers render even when a streaming response has no text
+delta before completion.
 
 ## Setup
 
@@ -85,4 +91,6 @@ archive does not recursively carry the V1–V5 bundled runtimes.
 
 ## Git Checkpoint
 
-Matching annotated tag: `version-06-persistent-memory`.
+Original annotated tag: `version-06-persistent-memory`.
+
+Corrective annotated tag: `version-06-persistent-memory-fix1`.

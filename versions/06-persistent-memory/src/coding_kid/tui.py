@@ -74,14 +74,14 @@ class Composer(TextArea):
 class AssistantCell(Horizontal):
     """One mutable streaming message that becomes source-backed on completion."""
 
-    def __init__(self) -> None:
-        self.markdown = Markdown("", classes="assistant-markdown")
+    def __init__(self, source: str = "") -> None:
+        self.markdown = Markdown(source, classes="assistant-markdown")
         super().__init__(
             Static("[dim]•[/]", classes="assistant-bullet"),
             self.markdown,
             classes="assistant-cell",
         )
-        self.source_text = ""
+        self.source_text = source
 
     def replace_source(self, source: str) -> None:
         self.source_text = source
@@ -408,8 +408,11 @@ class CodingKidApp(App[None]):
         if not self._pending_deltas:
             return
         if self._active_assistant is None:
-            self._active_assistant = AssistantCell()
+            source = "".join(self._pending_deltas)
+            self._pending_deltas.clear()
+            self._active_assistant = AssistantCell(source)
             self._append_cell(self._active_assistant)
+            return
         source = self._active_assistant.source_text + "".join(self._pending_deltas)
         self._pending_deltas.clear()
         self._active_assistant.replace_source(source)
@@ -419,9 +422,9 @@ class CodingKidApp(App[None]):
         if not final_text.strip():
             return
         if self._active_assistant is None:
-            self._active_assistant = AssistantCell()
+            self._active_assistant = AssistantCell(final_text)
             self._append_cell(self._active_assistant)
-        if self._active_assistant.source_text != final_text:
+        elif self._active_assistant.source_text != final_text:
             self._active_assistant.replace_source(final_text)
         self._active_assistant = None
 

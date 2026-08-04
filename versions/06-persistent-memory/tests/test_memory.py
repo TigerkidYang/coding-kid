@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -170,6 +172,37 @@ def test_successful_extraction_cursor_prevents_repeat_processing(
 
     assert first.extracted_sessions == 1
     assert second.extracted_sessions == 0
+
+
+def test_concurrent_memory_sync_allows_only_one_pipeline_owner(
+    tmp_path: Path,
+) -> None:
+    store, context, manager = make_store(tmp_path)
+    make_closed_session(store, context, manager, "Remember ALPHA")
+    first = MemoryManager(store)
+    second = MemoryManager(store)
+    entered = Event()
+    release = Event()
+
+    def slow_provider(*args: Any, **kwargs: Any) -> Any:
+        entered.set()
+        assert release.wait(timeout=5)
+        return response_json({"summary": "none", "memories": []})
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        running = executor.submit(first.sync, slow_provider)
+        assert entered.wait(timeout=5)
+        blocked = second.sync(
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("concurrent provider call")
+            )
+        )
+        release.set()
+        completed = running.result(timeout=5)
+
+    assert blocked.error == "memory maintenance is already running"
+    assert completed.extracted_sessions == 1
+    assert completed.error is None
 
 
 def test_invalid_extraction_does_not_advance_cursor_and_is_retryable(

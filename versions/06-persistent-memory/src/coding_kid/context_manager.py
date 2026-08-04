@@ -20,6 +20,24 @@ MAX_CONSECUTIVE_AUTO_COMPACTION_FAILURES = 3
 SegmentKind = Literal["user", "model", "summary"]
 
 
+def normalize_protocol_value(value: Any) -> Any:
+    """Convert SDK response objects into replay-safe JSON without null optionals."""
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        value = model_dump(mode="json", exclude_none=True)
+    elif hasattr(value, "__dict__"):
+        value = vars(value)
+    if isinstance(value, dict):
+        return {
+            key: normalize_protocol_value(item)
+            for key, item in value.items()
+            if item is not None
+        }
+    if isinstance(value, (list, tuple)):
+        return [normalize_protocol_value(item) for item in value]
+    return value
+
+
 def _json_default(value: Any) -> Any:
     model_dump = getattr(value, "model_dump", None)
     if callable(model_dump):
@@ -114,7 +132,9 @@ class ConversationState:
         self.active.append(segment)
 
     def append_model_round(self, items: list[Any]) -> None:
-        segment = ConversationSegment("model", list(items))
+        segment = ConversationSegment(
+            "model", [normalize_protocol_value(item) for item in items]
+        )
         self.transcript.append(segment.clone())
         self.active.append(segment)
 
@@ -381,6 +401,9 @@ class ContextManager:
         previous_active = self.conversation.active
         self.conversation.active = [summary_segment, *retained]
         after_tokens = self.request_estimate(instructions, tools)
+        if after_tokens >= plan.before_tokens:
+            self.conversation.active = previous_active
+            raise RuntimeError("Compacted context did not reduce the request estimate")
         if (
             self.budget.auto_compact_threshold is not None
             and after_tokens >= self.budget.auto_compact_threshold

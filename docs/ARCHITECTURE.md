@@ -60,6 +60,12 @@ plus the complete bounded active view, compaction checkpoints, todos, and
 context-accounting fields. This avoids duplicating the unbounded transcript
 while making replay deterministic.
 
+Provider response objects are normalized into provider-input JSON before they
+enter conversation state. Optional null fields are omitted recursively, and
+replay applies the same normalization for compatibility with logs written by
+the original V06 checkpoint. This keeps reasoning, messages, function calls,
+and function outputs valid after SDK objects cross a JSON/process boundary.
+
 SQLite provides queryable session metadata, unique paths, memory tables, and
 leases. It is rebuildable from JSONL: startup discovers orphan logs and repairs
 stale indexes after expired leases. A truncated final line is discarded during
@@ -112,7 +118,10 @@ mode preserves recall and explicit commands without automatic model requests.
 4. The agent assembles cached project context, recalled memory, active history,
    todos, and recovery guidance for each provider step.
 5. Compaction may replace only the active view; recalled memory is not included
-   in the compaction source.
+   in the compaction source. A checkpoint is committed only when its estimated
+   request is smaller than the original. The summary prompt includes
+   deterministic tool-count evidence, and a summary that denies recorded tool
+   activity is rejected atomically.
 6. A valid final response is stripped of a valid memory-citation footer,
    committed to canonical conversation state, and emitted to the UI.
 7. Cited memory usage is updated best-effort. The complete session transition
@@ -121,7 +130,9 @@ mode preserves recall and explicit commands without automatic model requests.
 ## Other Modules
 
 - `tui.py` owns the full-screen transcript, composer, activity state, session
-  and memory commands, and visible persistence/memory failures.
+  and memory commands, and visible persistence/memory failures. Assistant
+  Markdown cells are constructed with their initial source so terminal-only
+  responses remain visible even when no text-delta event preceded completion.
 - `events.py` defines typed agent lifecycle events and cooperative cancellation.
 - `context.py` captures runtime facts and layered project `AGENTS.md` files.
 - `context_manager.py` separates canonical transcript from bounded active

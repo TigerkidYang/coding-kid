@@ -4,7 +4,8 @@
 
 Completion status: complete and archived under
 `versions/06-persistent-memory/` with annotated tag
-`version-06-persistent-memory`.
+`version-06-persistent-memory`. The corrective checkpoint is tagged
+`version-06-persistent-memory-fix1`; the original tag remains unchanged.
 
 ### Goal
 
@@ -53,10 +54,14 @@ selectively carry useful knowledge into later sessions.
 
 ### Verification
 
-- Deterministic suite: **171 passed**, covering session replay, hash corruption,
+- Deterministic suite: **180 passed**, covering provider-safe tool-history
+  replay, hash corruption,
   partial writes, orphan-index recovery, leases, persistence retry, memory
   extraction/consolidation, recall isolation, citations, CLI/TUI commands, and
   all earlier behavior.
+- Concurrency stress: **10 rounds / 40 grouped checks** covering simultaneous
+  resume contention, parallel independent-session commits, memory-pipeline
+  exclusion, and interruption/final-render event ordering.
 - Ruff lint and formatting checks for maintained `src/` and `tests/`: passed.
 - Fresh wheel: **61 files / 57 Python files**, including the frozen V05 runtime
   and living V06 `sessions.py` and `memory.py`; no tests, evaluations, caches,
@@ -64,7 +69,9 @@ selectively carry useful knowledge into later sessions.
 - Fresh temporary installation launched explicit V1–V6 and default V06 from an
   unrelated project directory. Installed V06 session listing and `--continue`
   also passed without a provider request.
-- No live provider call, paid benchmark, or SWE-bench run was performed.
+- Installed-wheel tool-history persistence/resume passed with a deterministic
+  fake provider. No live provider call, paid benchmark, or SWE-bench run was
+  performed for the correction.
 
 ## Current Core Version: 05 — Streaming TUI
 

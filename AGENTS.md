@@ -207,9 +207,14 @@ In particular:
 
 - The project is named Coding Kid.
 - Version 06 is complete: persistent multi-session state plus layered long-term
-  memory. It passed 171 deterministic tests, Ruff, wheel inspection, and
-  fresh-install V1–V6 launches without a paid request. It is archived under
-  `versions/06-persistent-memory/` with tag `version-06-persistent-memory`.
+  memory. The corrective checkpoint normalizes replayed provider protocol
+  items, rejects ineffective or tool-contradicting compaction, and fixes
+  terminal-only TUI answers. It passed 180 deterministic tests, Ruff, 10 rounds
+  of concurrency stress, wheel inspection, and fresh-install V1–V6 launches
+  without a paid request. It is archived under
+  `versions/06-persistent-memory/`; the original tag remains
+  `version-06-persistent-memory` and the correction is tagged
+  `version-06-persistent-memory-fix1`.
 - The user explicitly delegated implementation and deterministic verification
   of Version 06 to the assistant.
 - Version 01 is complete as a minimal terminal coding agent and is archived

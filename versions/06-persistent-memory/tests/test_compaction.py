@@ -89,6 +89,80 @@ def test_compaction_atomically_replaces_only_active_context(tmp_path: Path) -> N
     assert events[-1].startswith("[context] compacted:")
 
 
+def test_compaction_rejects_a_summary_that_does_not_reduce_context(
+    tmp_path: Path,
+) -> None:
+    manager = make_manager(tmp_path)
+    manager.conversation.append_user("old")
+    manager.conversation.append_model_round(
+        [{"role": "assistant", "content": "evidence"}]
+    )
+    manager.conversation.append_user("latest")
+    before = manager.clone()
+
+    def provider(*args: Any, **kwargs: Any) -> Any:
+        return text_response("summary " + "x" * 30_000)
+
+    with pytest.raises(RuntimeError, match="did not reduce"):
+        compact_context(
+            manager,
+            provider,
+            instructions="system",
+            tools=[],
+            trigger="manual",
+        )
+
+    assert manager.conversation.active == before.conversation.active
+    assert manager.conversation.checkpoints == []
+
+
+def test_compaction_rejects_summary_that_denies_recorded_tool_evidence(
+    tmp_path: Path,
+) -> None:
+    manager = make_manager(tmp_path)
+    manager.conversation.active[1].items = [
+        {
+            "type": "function_call",
+            "call_id": "call-1",
+            "name": "read",
+            "arguments": '{"path":"AGENTS.md"}',
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call-1",
+            "output": "evidence " + "x" * 30_000,
+        },
+    ]
+    before = manager.clone()
+    captured_prompt = ""
+
+    def provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> SimpleNamespace:
+        nonlocal captured_prompt
+        captured_prompt = messages[-1]["content"]
+        return text_response(
+            "## COMPLETED ACTIONS AND EVIDENCE\n\nNo tools were called."
+        )
+
+    with pytest.raises(RuntimeError, match="contradicts recorded tool evidence"):
+        compact_context(
+            manager,
+            provider,
+            instructions="system",
+            tools=[],
+            trigger="manual",
+        )
+
+    assert "System-verified protocol evidence" in captured_prompt
+    assert "read" in captured_prompt
+    assert manager.conversation.active == before.conversation.active
+    assert manager.conversation.checkpoints == []
+
+
 def test_compaction_emits_typed_lifecycle_events(tmp_path: Path) -> None:
     manager = make_manager(tmp_path)
     typed_events: list[Any] = []

@@ -66,11 +66,13 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 06 is complete and archived under `versions/06-persistent-memory/`
-  with tag `version-06-persistent-memory`. It combines deterministic persistent
-  multi-session state with layered long-term memory and passed 171 deterministic
-  tests plus Ruff, wheel, and fresh-install V1–V6 verification without a paid
-  request.
+- Version 06 is complete and archived under `versions/06-persistent-memory/`.
+  Its corrected checkpoint, tagged `version-06-persistent-memory-fix1`, keeps
+  restored tool history provider-safe, refuses ineffective or contradictory
+  compaction, and renders terminal-only streamed answers reliably. It passed
+  180 deterministic tests, Ruff, 10 rounds of concurrency stress, wheel
+  inspection, and fresh-install V1–V6 verification without a paid request. The
+  original `version-06-persistent-memory` tag remains unchanged.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
 - Version 01 is complete and archived under `versions/01-minimal-agent/` with
