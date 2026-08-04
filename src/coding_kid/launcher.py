@@ -11,7 +11,7 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v9"
+LATEST_VERSION = "v10"
 AVAILABLE_VERSIONS = (
     "v1",
     "v2",
@@ -21,6 +21,7 @@ AVAILABLE_VERSIONS = (
     "v6",
     "v7",
     "v8",
+    "v9",
     LATEST_VERSION,
 )
 BUNDLED_RUNTIME_DIRS = {
@@ -32,6 +33,7 @@ BUNDLED_RUNTIME_DIRS = {
     "v6": "v06",
     "v7": "v07",
     "v8": "v08",
+    "v9": "v09",
 }
 RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 
@@ -98,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sessions = parser.add_mutually_exclusive_group()
     sessions.add_argument(
-        "--new", action="store_true", help="start a new Version 09 session"
+        "--new", action="store_true", help="start a new Version 10 session"
     )
     sessions.add_argument(
         "--continue",
@@ -112,12 +114,12 @@ def build_parser() -> argparse.ArgumentParser:
     sessions.add_argument(
         "--list-sessions",
         action="store_true",
-        help="list Version 09 sessions for the current project",
+        help="list Version 10 sessions for the current project",
     )
     sessions.add_argument(
         "--delete-session",
         metavar="SESSION",
-        help="soft-delete a Version 09 session while retaining evidence",
+        help="soft-delete a Version 10 session while retaining evidence",
     )
     parser.add_argument(
         "--list-versions",
@@ -160,7 +162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
     if selected_version != LATEST_VERSION and uses_session_options:
-        parser.error("session options are available only for Version 09")
+        parser.error("session options are available only for Version 10")
     options = cli.SessionOptions(
         mode=(
             "continue"
