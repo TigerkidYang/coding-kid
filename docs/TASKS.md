@@ -1,5 +1,62 @@
 # Tasks
 
+## Current Core Version: 10 — Controllable Turn Runtime
+
+Completion status: implementation in progress. The user selected the advanced
+research topic "How to better control the whole loop and workflow" and
+explicitly delegated implementation, deterministic verification, and bounded
+real-TUI verification to the assistant.
+
+### Goal
+
+Replace the implicit collection of loop branches with a bounded, observable
+Turn/Step control runtime. Active TUI work can be steered without dropping user
+input or erasing evidence of completed side effects; continuation, recovery,
+interruption, tool scheduling, and termination have explicit reasons.
+
+### Included Scope
+
+- Explicit turn phases, transition reasons, limits, counters, and one terminal
+  outcome over the existing synchronous model/tool core.
+- Complete model/tool rounds as commit boundaries, with protocol-closing
+  aborted or skipped results when work is interrupted.
+- A bounded FIFO active-turn input queue used by the Streaming TUI for steering.
+- Cancellation propagated through provider requests, foreground processes,
+  task/Agent waits, and tool scheduling.
+- Observable provider recovery, repeated-action circuit breaking, completion
+  validation, and structured control events.
+- Bounded parallel execution for explicitly safe read/search calls while every
+  stateful or externally supplied tool remains exclusive.
+- Installed teaching-version selection for V1–V10, with V09 frozen before V10
+  changes.
+- Deterministic, stress, packaging, clean-install, and bounded real-TUI
+  verification.
+
+### Excluded Scope
+
+- Sandbox or approval policy, arbitrary lifecycle hooks, a workflow DSL,
+  durable in-flight steps, distributed queues, or remote workers.
+- Autonomous model wakeups, scheduled work, speculative streaming-tool starts,
+  general side-effect rollback, or dynamic multi-model routing.
+- Nested Agent graphs, worktree merge automation, SWE-bench, or another paid
+  batch evaluation.
+
+### Completion Criteria
+
+- Active TUI submissions are queued and consumed in FIFO order rather than
+  silently discarded; hard interrupt and steering remain distinct.
+- Completed tool effects retain matching protocol evidence across interruption
+  and persistent-session resume, while incomplete streams are discarded.
+- Foreground commands stop their process trees on turn cancellation and retain
+  bounded partial evidence.
+- Every continue, recovery, budget, stall, and terminal path is structured,
+  bounded, visible, and emits exactly one terminal event.
+- Safe tools demonstrate bounded overlap and ordered results; exclusive tools
+  never overlap a safe batch.
+- Pytest, Ruff, race/cleanup stress, wheel inspection, V09 fidelity,
+  clean-install V1–V10 launches, and real TUI steer/interruption/resume trials
+  pass within the standing USD 1.00 task cap.
+
 ## Current Core Version: 09 — Multi-Agent Workflows
 
 Completion status: complete and archived under

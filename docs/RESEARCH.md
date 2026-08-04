@@ -44,6 +44,46 @@ Research notes should support two outcomes:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
 
+## Version 10 Loop-Control Source Reading
+
+Version 10 uses the existing local Claude Code and Codex snapshots to turn the
+living synchronous loop into an explicit, bounded Turn/Step runtime.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/query.ts`
+- `research/repos/claude-code/src/QueryEngine.ts`
+- `research/repos/claude-code/src/query/stopHooks.ts`
+- `research/repos/claude-code/src/query/tokenBudget.ts`
+- `research/repos/claude-code/src/utils/messageQueueManager.ts`
+- `research/repos/claude-code/src/services/tools/toolOrchestration.ts`
+- `research/repos/claude-code/src/services/api/withRetry.ts`
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/core/src/session/turn.rs`
+- `research/repos/codex/codex-rs/core/src/session/session.rs`
+- `research/repos/codex/codex-rs/core/src/session/input_queue.rs`
+- `research/repos/codex/codex-rs/core/src/session/handlers.rs`
+- `research/repos/codex/codex-rs/core/src/tools/parallel.rs`
+- `research/repos/codex/codex-rs/core/src/responses_retry.rs`
+
+Useful invariants:
+
+- Continue and terminal decisions need typed reasons rather than scattered
+  `continue`, `return`, and exception branches.
+- User input that arrives during work is bounded pending turn input. Steering
+  interrupts the current step, closes its protocol items, then resumes with a
+  fresh cancellation boundary.
+- A completed tool side effect and its model-visible evidence must share a
+  commit boundary; conversation rollback cannot undo external state.
+- Cancellation is hierarchical and every started tool receives exactly one
+  completed, failed, aborted, or skipped outcome.
+- Only explicitly safe tools may overlap. Stateful, mutating, and unknown
+  external tools remain serialized behind an exclusive barrier.
+- Provider retries, context/output recovery, budgets, stop checks, and stall
+  detection need independent limits plus observable transition events.
+
 ## Version 09 Multi-Agent Source Reading
 
 Version 09 is based on a focused source pass over both research objects.
