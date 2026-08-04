@@ -66,9 +66,11 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 07 is complete and ready for archive: a user-configured,
-  session-scoped pluggable capability runtime combining on-demand Skills,
-  namespaced local Plugins, and
+- Version 07 is complete and archived under
+  `versions/07-pluggable-capabilities/` with tag
+  `version-07-pluggable-capabilities`: a user-configured, session-scoped
+  pluggable capability runtime combining on-demand Skills, namespaced local
+  Plugins, and
   stdio/Streamable HTTP MCP tools. The user explicitly delegated implementation
   and verification to the assistant. Sandbox, approvals, marketplaces, OAuth,
   non-tool MCP primitives, multi-agent work, and generic background tasks are

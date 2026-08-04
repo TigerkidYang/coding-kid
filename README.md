@@ -342,7 +342,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V6 are preserved under `versions/` and by matching
-annotated tags. The living Version 07 adds pluggable capabilities. The installed
+Completed checkpoints V1–V7 are preserved under `versions/` and by matching
+annotated tags. Version 07 adds pluggable capabilities. The installed
 launcher bundles V1–V6 runtime source and shares one Python environment and one
 set of third-party dependencies across all versions.

@@ -2,8 +2,10 @@
 
 ## Current Core Version: 07 — Pluggable Capabilities
 
-Completion status: complete and ready for archive. The user explicitly
-delegated implementation and verification to the assistant.
+Completion status: complete and archived under
+`versions/07-pluggable-capabilities/` with annotated tag
+`version-07-pluggable-capabilities`. The user explicitly delegated
+implementation and verification to the assistant.
 
 ### Goal
 

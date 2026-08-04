@@ -226,7 +226,8 @@ In particular:
   loop. It passed 213 deterministic tests, Ruff, wheel inspection,
   fresh-install V1–V7 launches, and one minimal real Skill-to-MCP verification.
   The user explicitly delegated implementation and verification to the
-  assistant. Archive and tag are the remaining delivery steps.
+  assistant. It is archived under `versions/07-pluggable-capabilities/` with
+  annotated tag `version-07-pluggable-capabilities`.
 - Version 06 is complete: persistent multi-session state plus layered long-term
   memory. The corrective checkpoint normalizes replayed provider protocol
   items, rejects ineffective or tool-contradicting compaction, and fixes
