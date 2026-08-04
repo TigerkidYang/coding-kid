@@ -924,6 +924,7 @@ def test_system_prompt_describes_the_runtime() -> None:
     assert "run tests" in SYSTEM_PROMPT.lower()
     assert "todo tool" in SYSTEM_PROMPT.lower()
     assert "in_progress" in SYSTEM_PROMPT
+    assert "authoritative evidence" in SYSTEM_PROMPT.lower()
 
 
 def test_run_turn_uses_todo_and_injects_current_list(

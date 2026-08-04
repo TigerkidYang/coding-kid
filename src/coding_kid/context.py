@@ -34,6 +34,9 @@ before making changes. Keep at most one item in_progress. Update the list as you
 finish each step. Skip the todo tool for simple one-step requests.
 After using tools, always answer the user with the useful result. Never finish
 with only internal reasoning or an empty response.
+Treat completed tool calls, their arguments, and matched outputs already present
+in conversation history as authoritative evidence. Do not claim that a value is
+unavailable when it is visible in that retained protocol history.
 Use execute with background=true only when its result is not needed immediately.
 Use the task tool to list, poll, wait for, or stop background work. A started
 process is not proof that a server is ready: inspect its output or run a concrete
