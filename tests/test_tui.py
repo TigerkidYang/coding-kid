@@ -12,6 +12,7 @@ from textual.widgets import Static
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import ToolCompleted
+from coding_kid.memory import MemoryManager
 from coding_kid.sessions import SessionStore
 from coding_kid.tui import AssistantCell, CodingKidApp, Composer
 
@@ -147,6 +148,37 @@ def test_tui_commits_successful_turn_to_persistent_session(tmp_path: Path) -> No
                 resumed.manager.conversation.active_items()[0]["content"]
                 == "Persist me"
             )
+
+    asyncio.run(exercise())
+
+
+def test_tui_exposes_memory_add_search_and_status(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CODING_KID_MEMORY_MODE", "manual")
+    app = make_persistent_app(
+        tmp_path,
+        lambda *args, **kwargs: response(text_message("unused")),
+    )
+    assert app.session_handle is not None
+    app.memory_manager = MemoryManager(app.session_handle.store)
+
+    async def exercise() -> None:
+        async with app.run_test(size=(80, 24)) as pilot:
+            composer = app.query_one(Composer)
+            for command in (
+                "/remember Use ALPHA naming",
+                "/memory search ALPHA",
+                "/memory",
+            ):
+                composer.load_text(command)
+                await pilot.press("enter")
+                await pilot.pause()
+
+            cells = [content(widget) for widget in app.query(".context-cell")]
+            assert any("Remembered" in item for item in cells)
+            assert any("ALPHA naming" in item for item in cells)
+            assert any("mode=manual" in item for item in cells)
 
     asyncio.run(exercise())
 

@@ -11,6 +11,7 @@ from coding_kid.agent import current_instructions, run_turn
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
+from coding_kid.memory import MemoryManager
 from coding_kid.provider import generate
 from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
 from coding_kid.tools import clear_todos, get_todos, set_todos, tool_definitions
@@ -73,6 +74,7 @@ def chat(
     output_function: OutputFunction = print,
     *,
     session_handle: SessionHandle | None = None,
+    memory_manager: MemoryManager | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     if session_handle is None:
@@ -93,6 +95,17 @@ def chat(
             "Type /exit to quit."
         )
     output_function(ready)
+    if (
+        memory_manager is not None
+        and memory_manager.mode == "auto"
+        and session_handle is not None
+    ):
+        output_function("[memory] checking eligible prior sessions")
+        result = memory_manager.sync(
+            generate,
+            current_session_id=session_handle.info.session_id,
+        )
+        output_function(_format_memory_sync(result))
 
     def show_tool(name: str, arguments: dict[str, Any], result: str) -> None:
         output_function(format_tool_call(name, arguments))
@@ -134,6 +147,68 @@ def chat(
             else:
                 output_function(_format_sessions(session_handle.store.list_sessions()))
             continue
+        if user_input == "/memory":
+            output_function(
+                memory_manager.status_text()
+                if memory_manager is not None
+                else "Long-term memory is not active."
+            )
+            continue
+        if user_input.startswith("/memory search "):
+            if memory_manager is None:
+                output_function("Long-term memory is not active.")
+            else:
+                output_function(
+                    _format_memories(
+                        memory_manager.search(
+                            user_input.removeprefix("/memory search ")
+                        )
+                    )
+                )
+            continue
+        if user_input == "/memory sync":
+            if memory_manager is None or session_handle is None:
+                output_function("Long-term memory is not active.")
+            else:
+                output_function("[memory] synchronizing")
+                output_function(
+                    _format_memory_sync(
+                        memory_manager.sync(
+                            generate,
+                            current_session_id=session_handle.info.session_id,
+                            force=True,
+                        )
+                    )
+                )
+            continue
+        if user_input.startswith("/remember "):
+            if memory_manager is None:
+                output_function("Long-term memory is not active.")
+            else:
+                content = user_input.removeprefix("/remember ")
+                global_scope = content.startswith("--global ")
+                if global_scope:
+                    content = content.removeprefix("--global ")
+                try:
+                    entry = memory_manager.add(content, global_scope=global_scope)
+                except SessionError as error:
+                    output_function(f"Error: {error}")
+                else:
+                    output_function(
+                        f"Remembered {entry.memory_id[:8]} ({entry.scope})."
+                    )
+            continue
+        if user_input.startswith("/forget "):
+            if memory_manager is None:
+                output_function("Long-term memory is not active.")
+            else:
+                try:
+                    entry = memory_manager.forget(user_input.removeprefix("/forget "))
+                except SessionError as error:
+                    output_function(f"Error: {error}")
+                else:
+                    output_function(f"Forgot memory {entry.memory_id[:8]}.")
+            continue
         if user_input == "/compact":
             snapshot = manager.clone()
             try:
@@ -163,13 +238,26 @@ def chat(
 
         turn_start = manager.clone()
         todos_start = get_todos()
+        request_context: list[Any] = []
+        recalled_ids: tuple[str, ...] = ()
+        if memory_manager is not None:
+            request_context, recalled_ids = memory_manager.recall_context(user_input)
         manager.conversation.append_user(user_input)
         try:
+            turn_options: dict[str, Any] = {}
+            if memory_manager is not None:
+                turn_options = {
+                    "request_context": request_context,
+                    "on_memory_citations": lambda cited: memory_manager.record_usage(
+                        set(cited) & set(recalled_ids)
+                    ),
+                }
             answer = run_turn(
                 manager,
                 on_tool=show_tool,
                 on_context=show_context,
                 session_context=session_context,
+                **turn_options,
             )
             if not answer.strip():
                 raise RuntimeError("Model returned an empty answer")
@@ -216,6 +304,24 @@ def _format_sessions(items: list[SessionInfo]) -> str:
     return "\n".join(_format_session(item) for item in items)
 
 
+def _format_memories(items: list[Any]) -> str:
+    if not items:
+        return "No matching memories."
+    return "\n".join(
+        f"{item.memory_id[:8]}  {item.scope}/{item.type}  {item.title}"
+        for item in items
+    )
+
+
+def _format_memory_sync(result: Any) -> str:
+    if result.error:
+        return f"[memory] failed: {result.error}"
+    return (
+        f"[memory] extracted {result.extracted_sessions} session(s); "
+        f"consolidated {result.consolidated_memories} memory item(s)"
+    )
+
+
 def _open_session(options: SessionOptions) -> SessionHandle:
     current_context = SessionContext.capture()
     store = SessionStore(current_context.project_root)
@@ -254,12 +360,18 @@ def main(options: SessionOptions | None = None) -> None:
         return
 
     try:
+        memory_manager = MemoryManager(handle.store)
         if sys.stdin.isatty() and sys.stdout.isatty():
             from coding_kid.tui import run_tui
 
-            run_tui(handle.context, handle.manager, session_handle=handle)
+            run_tui(
+                handle.context,
+                handle.manager,
+                session_handle=handle,
+                memory_manager=memory_manager,
+            )
         else:
-            chat(session_handle=handle)
+            chat(session_handle=handle, memory_manager=memory_manager)
     except RuntimeError as error:
         print(f"Error: {error}")
     finally:

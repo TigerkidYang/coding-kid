@@ -5,6 +5,7 @@ import pytest
 import coding_kid.cli as cli
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.memory import MemoryManager
 from coding_kid.sessions import SessionStore
 
 
@@ -347,7 +348,11 @@ def test_main_uses_plain_chat_when_terminal_is_not_interactive(
 
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
-    monkeypatch.setattr(cli, "chat", lambda *, session_handle: calls.append("plain"))
+    monkeypatch.setattr(
+        cli,
+        "chat",
+        lambda *, session_handle, memory_manager: calls.append("plain"),
+    )
 
     cli.main()
 
@@ -363,7 +368,7 @@ def test_main_uses_tui_when_terminal_is_interactive(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         tui,
         "run_tui",
-        lambda context, manager, *, session_handle: calls.append("tui"),
+        lambda context, manager, *, session_handle, memory_manager: calls.append("tui"),
     )
 
     cli.main()
@@ -507,3 +512,43 @@ def test_persistent_chat_audits_failure_without_resuming_failed_state(
 
     resumed = store.resume(session_id)
     assert resumed.manager.conversation.transcript == []
+
+
+def test_plain_chat_exposes_manual_memory_commands(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    monkeypatch.setenv("CODING_KID_MEMORY_MODE", "manual")
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(32_768, "test"))
+    store = SessionStore(tmp_path, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    memories = MemoryManager(store)
+    inputs = iter(
+        [
+            "/remember Use ALPHA naming",
+            "/memory search ALPHA",
+            "/memory",
+            "/exit",
+        ]
+    )
+    outputs: list[str] = []
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=outputs.append,
+        session_handle=handle,
+        memory_manager=memories,
+    )
+
+    rendered = "\n".join(outputs)
+    assert "Remembered" in rendered
+    assert "ALPHA naming" in rendered
+    assert "mode=manual" in rendered

@@ -13,6 +13,7 @@ from coding_kid.agent import (
     run_turn,
 )
 from coding_kid.context import ProjectInstruction, SessionContext
+from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import (
     AssistantMessageCompleted,
     AssistantTextDelta,
@@ -41,6 +42,55 @@ def text_message(text: str) -> SimpleNamespace:
     return SimpleNamespace(
         type="message",
         content=[SimpleNamespace(type="output_text", text=text)],
+    )
+
+
+def test_run_turn_injects_request_only_memory_and_records_valid_citations(
+    tmp_path: Path,
+) -> None:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Test OS",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(32_768, "test"))
+    manager.conversation.append_user("Apply ALPHA")
+    calls: list[list[Any]] = []
+    citations: list[tuple[str, ...]] = []
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        calls.append(messages)
+        return SimpleNamespace(
+            output=[
+                text_message(
+                    "Applied.\n"
+                    '<coding_kid_memory_citations>["memory-1"]'
+                    "</coding_kid_memory_citations>"
+                )
+            ],
+            usage=None,
+        )
+
+    answer = run_turn(
+        manager,
+        provider,
+        request_context=[{"role": "user", "content": "memory-1: Use ALPHA"}],
+        on_memory_citations=citations.append,
+    )
+
+    assert calls[0][0]["content"] == "memory-1: Use ALPHA"
+    assert answer == "Applied."
+    assert citations == [("memory-1",)]
+    assert "coding_kid_memory_citations" not in str(
+        manager.conversation.transcript[-1].items
+    )
+    assert all(
+        "memory-1: Use ALPHA" not in str(segment.items)
+        for segment in manager.conversation.transcript
     )
 
 

@@ -229,10 +229,10 @@ class ContextManager:
         )
         self.proactive_compaction_disabled = snapshot.proactive_compaction_disabled
 
-    def model_input(self) -> list[Any]:
+    def model_input(self, request_context: list[Any] | None = None) -> list[Any]:
         return build_model_input(
             self.session_context,
-            self.conversation.active_items(),
+            [*(request_context or []), *self.conversation.active_items()],
         )
 
     def request_estimate(

@@ -64,6 +64,7 @@ Provider = Callable[..., Any]
 StreamingProvider = Callable[..., Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
 ContextObserver = Callable[[str], None]
+MemoryCitationObserver = Callable[[tuple[str, ...]], None]
 MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 64
 
@@ -108,6 +109,8 @@ def run_turn(
     stream_provider: StreamingProvider | None = None,
     event_sink: EventSink | None = None,
     cancellation_token: CancellationToken | None = None,
+    request_context: list[Any] | None = None,
+    on_memory_citations: MemoryCitationObserver | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     tools = tool_definitions()
@@ -155,7 +158,7 @@ def run_turn(
                         ContextWarning(f"Automatic compaction failed: {error}"),
                     )
 
-            model_input = manager.model_input()
+            model_input = manager.model_input(request_context)
             local_estimate = estimate_request_tokens(
                 instructions,
                 model_input,
@@ -202,7 +205,7 @@ def run_turn(
                 event_sink,
                 AssistantMessageCompleted(parsed.text, bool(parsed.tool_calls)),
             )
-            round_items = list(response.output)
+            round_items = _round_items(response, parsed.text, parsed.memory_citations)
 
             if not parsed.tool_calls:
                 manager.conversation.append_model_round(round_items)
@@ -225,6 +228,8 @@ def run_turn(
                         clear_todos()
                     if compatibility_messages is not None:
                         compatibility_messages[:] = manager.conversation.active_items()
+                    if on_memory_citations is not None:
+                        on_memory_citations(parsed.memory_citations)
                     emit(event_sink, TurnCompleted(parsed.text))
                     return parsed.text
 
@@ -305,3 +310,29 @@ def run_turn(
         manager.restore(turn_snapshot)
         emit(event_sink, TurnFailed(str(error)))
         raise
+
+
+def _round_items(
+    response: Any,
+    visible_text: str,
+    memory_citations: tuple[str, ...],
+) -> list[Any]:
+    """Remove a valid machine-only citation footer from committed history."""
+    items = list(response.output)
+    if not memory_citations:
+        return items
+    normalized: list[Any] = []
+    replaced = False
+    for item in items:
+        if not replaced and getattr(item, "type", None) == "message":
+            normalized.append(
+                {
+                    "type": "message",
+                    "role": getattr(item, "role", "assistant"),
+                    "content": [{"type": "output_text", "text": visible_text}],
+                }
+            )
+            replaced = True
+        else:
+            normalized.append(item)
+    return normalized

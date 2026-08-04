@@ -90,3 +90,28 @@ def test_parse_output_rejects_non_string_tool_arguments() -> None:
         assert "read" in str(error)
     else:
         raise AssertionError("non-string tool arguments should fail")
+
+
+def test_parse_output_strips_valid_memory_citation_footer() -> None:
+    response = SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="message",
+                content=[
+                    SimpleNamespace(
+                        type="output_text",
+                        text=(
+                            "Use ALPHA.\n"
+                            '<coding_kid_memory_citations>["mem-1"]'
+                            "</coding_kid_memory_citations>"
+                        ),
+                    )
+                ],
+            )
+        ]
+    )
+
+    parsed = parse_output(response)
+
+    assert parsed.text == "Use ALPHA."
+    assert parsed.memory_citations == ("mem-1",)

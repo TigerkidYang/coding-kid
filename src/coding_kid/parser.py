@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,13 @@ class ParsedOutput:
 
     text: str
     tool_calls: list[ToolCall]
+    memory_citations: tuple[str, ...] = ()
+
+
+_MEMORY_CITATIONS = re.compile(
+    r"\s*<coding_kid_memory_citations>(.*?)</coding_kid_memory_citations>\s*$",
+    re.DOTALL,
+)
 
 
 def parse_output(response: Any) -> ParsedOutput:
@@ -51,4 +59,17 @@ def parse_output(response: Any) -> ParsedOutput:
         if isinstance(aggregate_text, str):
             text = aggregate_text
 
-    return ParsedOutput(text, tool_calls)
+    citations: tuple[str, ...] = ()
+    match = _MEMORY_CITATIONS.search(text)
+    if match is not None:
+        try:
+            candidate = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            candidate = None
+        if isinstance(candidate, list) and all(
+            isinstance(item, str) for item in candidate
+        ):
+            citations = tuple(dict.fromkeys(candidate))
+            text = text[: match.start()].rstrip()
+
+    return ParsedOutput(text, tool_calls, citations)

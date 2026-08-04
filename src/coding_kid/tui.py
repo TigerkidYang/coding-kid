@@ -35,8 +35,9 @@ from coding_kid.events import (
     TurnFailed,
     TurnInterrupted,
 )
+from coding_kid.memory import MemoryManager, MemorySyncResult
 from coding_kid.provider import generate, generate_streaming
-from coding_kid.sessions import SessionHandle
+from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.tools import get_todos, set_todos, tool_definitions
 
 Provider = Callable[..., Any]
@@ -185,6 +186,7 @@ class CodingKidApp(App[None]):
         provider: Provider = generate,
         streaming_provider: Provider = generate_streaming,
         session_handle: SessionHandle | None = None,
+        memory_manager: MemoryManager | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -192,6 +194,7 @@ class CodingKidApp(App[None]):
         self.provider = provider
         self.streaming_provider = streaming_provider
         self.session_handle = session_handle
+        self.memory_manager = memory_manager
         self.active_turn = False
         self.cancellation_token: CancellationToken | None = None
         self._active_assistant: AssistantCell | None = None
@@ -221,6 +224,8 @@ class CodingKidApp(App[None]):
         self.query_one(Composer).focus()
         self.set_interval(0.05, self._flush_deltas)
         self.set_interval(1.0, self._refresh_status)
+        if self.memory_manager is not None and self.memory_manager.mode == "auto":
+            self.call_after_refresh(self._start_memory_sync, False)
 
     def _mount_session_header(self) -> None:
         model = escape(self.session_context.model)
@@ -261,6 +266,21 @@ class CodingKidApp(App[None]):
         if text == "/sessions":
             self._show_sessions()
             return
+        if text == "/memory":
+            self._show_memory_status()
+            return
+        if text.startswith("/memory search "):
+            self._show_memory_search(text.removeprefix("/memory search "))
+            return
+        if text == "/memory sync":
+            self._start_memory_sync(True)
+            return
+        if text.startswith("/remember "):
+            self._remember(text.removeprefix("/remember "))
+            return
+        if text.startswith("/forget "):
+            self._forget(text.removeprefix("/forget "))
+            return
         if text == "/compact":
             self._start_manual_compaction()
             return
@@ -282,6 +302,12 @@ class CodingKidApp(App[None]):
         turn_start = self.manager.clone()
         todos_start = get_todos()
         token = self.cancellation_token
+        request_context: list[Any] = []
+        recalled_ids: tuple[str, ...] = ()
+        if self.memory_manager is not None:
+            request_context, recalled_ids = self.memory_manager.recall_context(
+                user_text
+            )
         self.manager.conversation.append_user(user_text)
         try:
             run_turn(
@@ -292,6 +318,14 @@ class CodingKidApp(App[None]):
                 stream_provider=self.streaming_provider,
                 event_sink=self._thread_event_sink(),
                 cancellation_token=token,
+                request_context=request_context,
+                on_memory_citations=(
+                    lambda cited: (
+                        self.memory_manager.record_usage(set(cited) & set(recalled_ids))
+                        if self.memory_manager is not None
+                        else None
+                    )
+                ),
             )
         except BaseException as error:
             self.manager.restore(turn_start)
@@ -480,6 +514,111 @@ class CodingKidApp(App[None]):
             )
         )
 
+    def _show_memory_status(self) -> None:
+        rendered = (
+            self.memory_manager.status_text()
+            if self.memory_manager is not None
+            else "Long-term memory is not active."
+        )
+        self._append_cell(
+            Static(f"[b]• Memory[/]\n  {escape(rendered)}", classes="context-cell")
+        )
+
+    def _show_memory_search(self, query: str) -> None:
+        if self.memory_manager is None:
+            rendered = "Long-term memory is not active."
+        else:
+            entries = self.memory_manager.search(query)
+            rendered = (
+                "\n".join(
+                    f"{item.memory_id[:8]}  {item.scope}/{item.type}  {item.title}"
+                    for item in entries
+                )
+                or "No matching memories."
+            )
+        self._append_cell(
+            Static(
+                f"[b]• Memory Search[/]\n  "
+                f"{escape(rendered).replace(chr(10), chr(10) + '  ')}",
+                classes="context-cell",
+            )
+        )
+
+    def _remember(self, content: str) -> None:
+        if self.memory_manager is None:
+            self._show_memory_status()
+            return
+        global_scope = content.startswith("--global ")
+        if global_scope:
+            content = content.removeprefix("--global ")
+        try:
+            entry = self.memory_manager.add(content, global_scope=global_scope)
+        except SessionError as error:
+            self._show_persistence_error(str(error))
+            return
+        self._append_cell(
+            Static(
+                f"[dim]• Remembered {entry.memory_id[:8]} ({entry.scope})[/]",
+                classes="context-cell",
+            )
+        )
+
+    def _forget(self, memory_id: str) -> None:
+        if self.memory_manager is None:
+            self._show_memory_status()
+            return
+        try:
+            entry = self.memory_manager.forget(memory_id)
+        except SessionError as error:
+            self._show_persistence_error(str(error))
+            return
+        self._append_cell(
+            Static(
+                f"[dim]• Forgot memory {entry.memory_id[:8]}[/]",
+                classes="context-cell",
+            )
+        )
+
+    def _start_memory_sync(self, force: bool = True) -> None:
+        if (
+            self.active_turn
+            or self.memory_manager is None
+            or self.session_handle is None
+        ):
+            return
+        self._begin_activity("Updating long-term memory")
+        self.run_worker(
+            lambda: self._run_memory_sync(force),
+            name="memory-sync",
+            group="agent",
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _run_memory_sync(self, force: bool) -> None:
+        assert self.memory_manager is not None
+        assert self.session_handle is not None
+        result = self.memory_manager.sync(
+            self.provider,
+            current_session_id=self.session_handle.info.session_id,
+            force=force,
+        )
+        self.call_from_thread(self._show_memory_sync, result)
+        self.call_from_thread(self._finish_activity)
+
+    def _show_memory_sync(self, result: MemorySyncResult) -> None:
+        if result.error:
+            rendered = f"Memory update failed: {result.error}"
+            classes = "error-cell"
+        else:
+            rendered = (
+                f"Memory updated: {result.extracted_sessions} session(s) extracted, "
+                f"{result.consolidated_memories} item(s) consolidated."
+            )
+            classes = "context-cell"
+        self._append_cell(Static(f"[dim]• {escape(rendered)}[/]", classes=classes))
+
     def _start_manual_compaction(self) -> None:
         if self.active_turn:
             return
@@ -609,6 +748,7 @@ def run_tui(
     manager: ContextManager | None = None,
     *,
     session_handle: SessionHandle | None = None,
+    memory_manager: MemoryManager | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -617,4 +757,5 @@ def run_tui(
         context,
         context_manager,
         session_handle=session_handle,
+        memory_manager=memory_manager,
     ).run()
