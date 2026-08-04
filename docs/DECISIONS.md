@@ -44,8 +44,42 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 04 are complete. Version 05 is the current Streaming TUI
-implementation. Do not define a later version until Version 05 is complete.
+Versions 01 through 05 are complete. Version 06 is the current persistent
+sessions and long-term-memory implementation. Do not define a later version
+until Version 06 is complete.
+
+## Make JSONL canonical and SQLite queryable for Version 06 sessions
+
+Decision:
+Store each session as an append-only, hash-chained JSONL log and use
+project-scoped SQLite for indexes, leases, and memory metadata. Commit transcript
+deltas plus a complete bounded active-state snapshot at successful turn and
+compaction boundaries. Treat JSONL as authoritative and repair rebuildable
+SQLite metadata after crashes.
+
+Consequence:
+Session history remains inspectable and deterministic without quadratic
+transcript snapshots. Partial tails, stale indexes, concurrent writers, and
+mid-file corruption have explicit recovery or refusal behavior. Session resume
+restores the original cwd, model, project instructions, todos, compaction state,
+and accounting rather than silently adopting a different runtime snapshot.
+
+## Separate exact sessions from selective long-term memory
+
+Decision:
+Use four layers: raw session evidence, per-session structured extraction,
+consolidated typed memory, and bounded request-only recall. Run extraction and
+consolidation as validated no-tools model calls with cursors, leases, provenance,
+and atomic promotion. Generate only project memory automatically; require an
+explicit command for cross-project user memory.
+
+Consequence:
+Long-term memory is intentionally lossy while session persistence remains
+lossless. Recall never enters transcript or compaction history, does not require
+a vector database, and treats memory as potentially stale evidence. Hidden
+citations update usage only for memories actually used. Automatic maintenance
+is bounded and configurable without completing the separate generic
+background-task research topic.
 
 ## Model Version 05 on the Codex TUI event boundary
 
@@ -107,7 +141,7 @@ historical runtime source inside the distribution and execute it in an isolated
 child Python process; execute the latest living runtime directly.
 
 Consequence:
-`coding-kid v1` through `v5` work from any project directory without
+`coding-kid v1` through `v6` work from any project directory without
 installing separate conflicting distributions or duplicating dependencies. The
 teaching labels are separate from the distribution's package release number.
 Completed archives remain read-only provenance and are not imported at runtime;
@@ -284,7 +318,7 @@ incomplete provider response cannot corrupt the following conversation turn.
 ## Bound tool calls as well as tool output
 
 Decision:
-Execute at most 12 model-requested file/shell tools in one user turn. Todo
+Execute at most 64 model-requested file/shell tools in one user turn. Todo
 checklist updates are excluded from that budget. Provide a matched skipped
 result for later non-todo calls and explicitly instruct the model to answer from
 evidence already collected. Guide broad repository-overview requests toward a

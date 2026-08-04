@@ -2,7 +2,9 @@
 
 ## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
 
-Completion status: implementation in progress.
+Completion status: complete and archived under
+`versions/06-persistent-memory/` with annotated tag
+`version-06-persistent-memory`.
 
 ### Goal
 
@@ -48,6 +50,21 @@ selectively carry useful knowledge into later sessions.
   automatic cross-project memory prohibited.
 - Existing behavior and V1–V5 launch selection remain covered; pytest, Ruff,
   wheel inspection, and fresh-install V1–V6 launches pass without a paid call.
+
+### Verification
+
+- Deterministic suite: **171 passed**, covering session replay, hash corruption,
+  partial writes, orphan-index recovery, leases, persistence retry, memory
+  extraction/consolidation, recall isolation, citations, CLI/TUI commands, and
+  all earlier behavior.
+- Ruff lint and formatting checks for maintained `src/` and `tests/`: passed.
+- Fresh wheel: **61 files / 57 Python files**, including the frozen V05 runtime
+  and living V06 `sessions.py` and `memory.py`; no tests, evaluations, caches,
+  or bytecode entered the wheel.
+- Fresh temporary installation launched explicit V1–V6 and default V06 from an
+  unrelated project directory. Installed V06 session listing and `--continue`
+  also passed without a provider request.
+- No live provider call, paid benchmark, or SWE-bench run was performed.
 
 ## Current Core Version: 05 — Streaming TUI
 
@@ -218,8 +235,8 @@ start the latest version.
 ### Included Scope
 
 - `coding-kid` and `python -m coding_kid` default to the living core runtime,
-  currently Version 05.
-- `coding-kid v1` through `v5` select the corresponding teaching runtime;
+  currently Version 06.
+- `coding-kid v1` through `v6` select the corresponding teaching runtime;
   numeric aliases such as `1` and `01` are accepted.
 - Historical runtime source is bundled without tests, evaluation artifacts,
   lock files, caches, or separate dependency environments.
@@ -247,12 +264,12 @@ start the latest version.
 ### Completion Criteria
 
 - One editable or wheel installation exposes a working `coding-kid` command.
-- Omitting a version starts Version 05; explicit `v1` through `v5` select the
+- Omitting a version starts Version 06; explicit `v1` through `v6` select the
   requested runtime.
 - A selected historical runtime starts with the caller's arbitrary project as
   its cwd and does not import modules from another teaching version.
-- Bundled V1-V4 runtime files match their archived source snapshots, excluding
-  launcher-management files from V04.
+- Bundled V1-V5 runtime files match their archived source snapshots, excluding
+  launcher-management files from V04 and V05.
 - Distribution inspection confirms all registered runtimes are present without
   tests, logs, caches, or additional copies of dependencies.
 - README and architecture documentation explain installation, selection, and

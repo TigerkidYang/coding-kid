@@ -206,8 +206,10 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
-- Version 06 is in progress. Its approved scope combines persistent
-  multi-session state and layered long-term memory in one teaching version.
+- Version 06 is complete: persistent multi-session state plus layered long-term
+  memory. It passed 171 deterministic tests, Ruff, wheel inspection, and
+  fresh-install V1–V6 launches without a paid request. It is archived under
+  `versions/06-persistent-memory/` with tag `version-06-persistent-memory`.
 - The user explicitly delegated implementation and deterministic verification
   of Version 06 to the assistant.
 - Version 01 is complete as a minimal terminal coding agent and is archived
@@ -219,9 +221,9 @@ In particular:
 - Version 03 is complete: bounded, session-stable context assembly with
   hierarchical project `AGENTS.md` loading. It is archived under
   `versions/03-context-assembly/` with tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete. Version 05 now
-  extends it so one installation selects Versions 01–05 and defaults to the
-  living Version 05 runtime. The launcher itself has no version archive or tag.
+- An unnumbered cross-version launcher improvement is complete. Version 06 now
+  extends it so one installation selects Versions 01–06 and defaults to the
+  living Version 06 runtime. The launcher itself has no version archive or tag.
 - Version 04 is complete: single-session bounded context management with
   separate canonical transcript and model-visible active context, window
   accounting, compaction, and recovery. It is archived under

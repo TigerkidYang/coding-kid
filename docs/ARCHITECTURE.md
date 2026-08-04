@@ -2,164 +2,143 @@
 
 ## Overview
 
-The latest living core is Version 05. The launcher selects historical Versions
-01–04 in isolated processes and runs Version 05 in process.
+Version 06 adds durable project sessions and layered long-term memory without
+changing the synchronous model/tool loop introduced by earlier versions.
 
 ```text
 launcher.py
-  |-- v1/v2/v3/v4 -> isolated bundled runtime process
-  `-- v5/default -> cli.py
+  |-- v1-v5 -> isolated bundled runtime process
+  `-- v6/default -> cli.py
+                     |-- SessionStore -> JSONL logs + project SQLite
+                     |-- MemoryManager -> extraction/consolidation + user SQLite
                      |-- non-TTY -> plain chat
-                     `-- TTY -> tui.py -> worker -> agent.py -> provider stream
+                     `-- TTY -> tui.py -> worker -> agent.py -> provider
                                   ^             |       |
-                                  |             |       +-> parser.py / tools.py
-                                  `-- events.py <-+-----> compaction.py
-                                        |
-                              context.py + context_manager.py
+                                  `-- events.py <-+       +-> parser.py / tools.py
+                                             context_manager.py / compaction.py
 ```
 
-`cli.py` selects a full-screen TUI only when stdin and stdout are terminals;
-automation keeps the plain Version 04-compatible chat. Textual owns input and
-rendering while the synchronous agent runs in one exclusive worker. Typed
-events expose activity without making UI history canonical agent state.
+The UI remains a projection of canonical state. A successful turn is first
+committed by the agent and then appended as one durable session transition.
+Failed and interrupted turns roll back the conversation and todos; their audit
+records are not replayed into model context.
 
-## Version Launcher
+## Version Launcher and Session Selection
 
-`launcher.py` accepts `v1` through `v5` plus numeric aliases. No argument
-selects `LATEST_VERSION`, currently `v5`. Invalid values fail before provider
-initialization, and `--list-versions` reports the installed teaching runtimes.
+`launcher.py` accepts `v1` through `v6`; V06 is the living default. V1–V5 run
+from frozen runtime packages in isolated child processes. Session flags apply
+only to V06:
 
-The living package executes the latest runtime directly. Historical runtime
-source lives under `coding_kid/_runtimes/vNN/coding_kid/`. The launcher starts
-it in a child Python process with that fixed directory first on `PYTHONPATH`
-and calls the snapshot's `cli.main()` directly. The child inherits cwd,
-environment, standard input/output, and exit status. This preserves the
-caller's arbitrary project directory while preventing the shared `coding_kid`
-package name from resolving to a different teaching version.
+- No flag or `--new` creates a new session.
+- `--continue` resumes the most recently updated project session.
+- `--resume ID` accepts a complete ID or unique prefix.
+- `--list-sessions` lists project sessions without starting the provider.
+- `--delete-session ID` soft-deletes the index entry while retaining evidence.
 
-Only Python runtime source is duplicated. All teaching versions share the same
-installed interpreter and dependencies; archives, tests, evaluation data,
-lockfiles, caches, and logs are not bundled in the wheel.
+Session selection is scoped by the canonical Git common directory, allowing
+worktrees of one repository to share identity. A resolved project root is the
+fallback outside Git.
 
-## Modules
+## Durable Session Storage
 
-### `launcher.py`
+`sessions.py` owns session identity, persistence, replay, and writer leases.
+`CODING_KID_HOME` overrides the default `~/.coding-kid` root.
 
-Owns teaching-version argument parsing and runtime isolation only. It does not
-assemble prompts, initialize a provider, or alter agent behavior.
+```text
+~/.coding-kid/
+  user-memory.sqlite3
+  projects/<name>-<identity-hash>/
+    state.sqlite3
+    sessions/<session-uuid>.jsonl
+```
 
-### `cli.py`
+The append-only JSONL log is authoritative for conversation recovery. Each
+record contains a sequence number, previous hash, UTC timestamp, payload, and
+SHA-256 hash. The creation record captures the immutable `SessionContext` and
+context budget. Successful state records contain only new transcript segments
+plus the complete bounded active view, compaction checkpoints, todos, and
+context-accounting fields. This avoids duplicating the unbounded transcript
+while making replay deterministic.
 
-Chooses TUI or plain mode. The plain fallback retains the outer Version 04
-conversation loop for non-TTY launches and deterministic compatibility.
+SQLite provides queryable session metadata, unique paths, memory tables, and
+leases. It is rebuildable from JSONL: startup discovers orphan logs and repairs
+stale indexes after expired leases. A truncated final line is discarded during
+explicit retry; corruption inside the hash chain marks the session damaged.
+One renewable lease prevents concurrent writers. A completed turn whose append
+fails remains in memory, marks the handle dirty, and blocks further work until
+`/session save` succeeds or the process exits.
 
-### `tui.py`
+Resumption restores the original model, cwd, cached project instructions,
+transcript, active view, checkpoints, todos, and accounting. The caller must
+launch from the original cwd with the original `OPENROUTER_MODEL`.
 
-Owns the simplified Codex-style session card, single transcript, activity row,
-composer, and footer. It runs turns and manual compaction in one exclusive
-worker, batches text deltas every 50 ms, consolidates the final Markdown source,
-and projects tool, todo, context, interruption, and error events into cells.
+## Layered Long-Term Memory
 
-### `events.py`
+`memory.py` implements four explicit layers:
 
-Defines immutable lifecycle events plus the thread-safe cooperative
-`CancellationToken`. These events report observable activity only; they never
-replace canonical conversation, todo, or context state.
+1. Canonical raw evidence in committed session JSONL.
+2. Per-session extraction rows with a source sequence cursor and summary.
+3. Consolidated typed memories with provenance, status, and usage metadata.
+4. A bounded request-only recall projection selected for the current prompt.
 
-### `context.py`
+Eligible non-current sessions are closed or idle for at least six hours. One
+maintenance pass processes at most two sessions. Stage one uses a no-tools model
+request to produce validated candidates; stage two consolidates at most 256
+candidates and atomically promotes a validated memory set. Cursors advance only
+after valid extraction. A project-wide lease prevents duplicate maintenance.
+Failures preserve the previous durable memory set and remain retryable.
 
-Owns context discovery, capture, and rendering.
+Automatic extraction writes only project-scoped memories. `/remember --global`
+is the sole path to the shared user-memory database. Entries use the Claude
+Code-inspired `user`, `feedback`, `project`, and `reference` types. Obvious
+credentials are redacted before extraction; raw session logs remain lossless.
 
-- `SessionContext.capture(cwd)` resolves the absolute cwd, local ISO date,
-  operating system, `cmd.exe` shell, configured model, nearest Git root, and
-  project instructions.
-- A `.git` directory or worktree file marks the nearest project root. Without a
-  marker, only the current directory is considered.
-- Non-empty `AGENTS.md` files are read from root to cwd with UTF-8 replacement
-  decoding. Their contents share a 32 KiB root-first budget and carry absolute
-  source labels and visible truncation markers.
-- The captured value is frozen. File changes affect only a new chat.
-- Request rendering combines the stable base/runtime instructions, cached
-  project context, a request-only copy of conversation history, and current
-  todo/recovery overlays.
+Recall uses deterministic lexical ranking rather than embeddings. At most five
+active memories and 25 KiB/200 lines enter the request before active history.
+They are labeled as untrusted, potentially stale evidence and never enter the
+transcript or compaction input. A valid machine-only citation footer is removed
+from visible and committed assistant text; only cited, retrieved IDs receive a
+usage update.
 
-### `agent.py`
+`CODING_KID_MEMORY_MODE` accepts `auto`, `manual`, or `off`. Automatic mode is
+the default and runs one visible, bounded startup maintenance worker. Manual
+mode preserves recall and explicit commands without automatic model requests.
 
-Owns the inner agent loop. It builds each request through the context manager,
-performs proactive or reactive compaction when required, parses model output,
-and executes tools sequentially. Empty-response recovery, the 64-call tool
-budget, todo reconciliation, rollback behavior, and the 80-step loop bound
-remain here.
-Todo and recovery overlays are re-rendered for every provider request, so state
-changes are visible immediately and no overlay is duplicated.
+## Request and Commit Flow
 
-### `context_manager.py`
+1. The CLI or TUI selects and acquires one durable session.
+2. The current user text retrieves a bounded, request-only memory attachment.
+3. The real user message enters the in-memory transcript and active context.
+4. The agent assembles cached project context, recalled memory, active history,
+   todos, and recovery guidance for each provider step.
+5. Compaction may replace only the active view; recalled memory is not included
+   in the compaction source.
+6. A valid final response is stripped of a valid memory-citation footer,
+   committed to canonical conversation state, and emitted to the UI.
+7. Cited memory usage is updated best-effort. The complete session transition
+   is then hash-chained and flushed before SQLite metadata advances.
 
-Owns the mutable Version 04 context lifecycle. `ConversationState` separates a
-full process-local transcript from the active model view. Complete user and
-model/tool segments provide safe retention boundaries. `ContextBudget` uses an
-explicit window or one OpenRouter metadata lookup; provider input usage
-calibrates a conservative request estimate. Missing metadata selects passive
-mode rather than a guessed limit.
+## Other Modules
 
-### `compaction.py`
+- `tui.py` owns the full-screen transcript, composer, activity state, session
+  and memory commands, and visible persistence/memory failures.
+- `events.py` defines typed agent lifecycle events and cooperative cancellation.
+- `context.py` captures runtime facts and layered project `AGENTS.md` files.
+- `context_manager.py` separates canonical transcript from bounded active
+  context and accounts for the model window.
+- `compaction.py` creates atomic structured handoffs for older active history.
+- `agent.py` owns the bounded model/tool loop and request-only context injection.
+- `provider.py` implements complete and streaming OpenRouter Responses calls.
+- `parser.py` extracts text, tool calls, and valid memory citations.
+- `tools.py` contains file, command, search, patch, delete, and todo tools.
 
-Builds a structured handoff summary with no tools, retains the latest real user
-request and recent complete model/tool segments, and atomically installs one
-new active checkpoint. Summary errors leave state unchanged. An emergency
-context-limit path can omit up to three oldest complete non-user segments from
-the summary request without mutating the canonical transcript.
+## Security and Scope Boundaries
 
-### `provider.py`
+Storage directories and files receive restrictive permissions where the host
+supports them. Raw logs may contain prompts and tool results, so users must
+treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Keeps non-streaming requests for compaction and plain compatibility. Regular
-TUI turns use a streaming Responses request, normalize supported text-delta and
-terminal event names, close on cancellation, and return the complete terminal
-response for parsing and usage. Missing, failed, or incomplete terminal events
-are errors.
-
-### `parser.py`
-
-Extracts assistant text and function calls from one provider response.
-
-### `tools.py`
-
-Contains command, file, search, patch, delete, and todo functions plus their
-schemas. Tool results are bounded before entering model context. The
-process-local todo checklist is replace-based, bounded, and rolls back with a
-failed turn.
-
-## Request Assembly
-
-Every provider request has this order:
-
-1. Stable Coding Kid base instructions.
-2. The immutable session environment snapshot.
-3. Cached, source-labeled project instructions as a synthetic contextual user
-   message.
-4. The current bounded active conversation: one summary plus retained recent
-   user and model/tool segments when compaction has occurred.
-5. Current todo state and at most one recovery overlay.
-
-Project context and overlays exist only in the provider request. They never
-enter the mutable conversation list, so repeated model/tool steps do not grow
-history with duplicate synthetic messages.
-
-There is no persistent session, long-term memory, arbitrary project-file
-injection, multi-tier trimming/collapse, or transcript storage.
-
-## Tool Loop
-
-1. The CLI or TUI appends a real user message.
-2. The context manager estimates the next request and compacts first when the
-   proactive threshold is reached.
-3. The agent assembles a request copy from stable context, active history, and
-   current dynamic overlays.
-4. The provider emits visible text deltas, then returns one complete response.
-5. The UI updates a transient Markdown cell; only the complete response is
-   parsed. The agent executes requested tools and commits one complete model/tool
-   segment to both transcript and active history.
-6. Typed events render tool and Todo cells; Todo updates change the next request
-   immediately.
-7. The loop repeats until a valid final answer is returned or an existing
-   recovery/limit rule ends the turn.
+Version 06 does not add encryption at rest, remote synchronization, vector
+search, a generic background-task framework, multi-agent workflows, skills,
+plugins, MCP, sandboxing, or approvals. Tools still run with the current user's
+permissions.

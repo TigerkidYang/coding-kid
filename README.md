@@ -1,19 +1,20 @@
 # Coding Kid
 
 Coding Kid is a small Python coding agent built for learning. The current
-version shows the complete loop, a session todo checklist, automatic project
-instructions, bounded conversation context, streamed model output, and a
-full-screen terminal interface:
+version shows the complete loop, persistent project sessions, layered
+long-term memory, a session todo checklist, bounded conversation context,
+streamed model output, and a full-screen terminal interface:
 
 ```text
-session context + project instructions + user input
+session context + project instructions + recalled memory + user input
   -> OpenRouter stream -> typed events -> TUI
   -> tool call -> local tool -> OpenRouter stream -> final answer
 ```
 
 Interactive terminals run a simplified Codex-style Textual interface. Piped or
-redirected sessions fall back to the plain terminal conversation. Both keep
-history and todos only while the process is running.
+redirected sessions fall back to the plain terminal conversation. Version 06
+stores independent project sessions and resumes their transcript, bounded
+context, todos, and compaction state after a process restart.
 
 At startup, Coding Kid finds the nearest Git root and loads each non-empty
 `AGENTS.md` from that root down to the current directory. Deeper files appear
@@ -62,12 +63,13 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v5)
+coding-kid       # latest living core version (currently v6; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
 coding-kid v4    # bounded context management
 coding-kid v5    # streaming full-screen TUI
+coding-kid v6    # persistent sessions and long-term memory
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -77,9 +79,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–05
+The command preserves the directory from which it was invoked. Versions 03–06
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 05 is
+Versions 01 and 02 retain their original historical behavior. Version 06 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -90,11 +92,24 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-In the Version 05 TUI, enter a task in the bottom composer. `Enter` submits and
+Version 06 session selection is explicit:
+
+```powershell
+coding-kid --continue
+coding-kid --resume 8f01c2ab
+coding-kid --list-sessions
+coding-kid --delete-session 8f01c2ab
+```
+
+The default creates a new session. IDs may be complete or unique prefixes.
+Resume from the original directory with the original `OPENROUTER_MODEL`.
+Deletion is soft: it hides the session but retains its JSONL evidence.
+
+In the Version 06 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. `Esc` or `Ctrl+C` requests interruption during
 an active turn; `Ctrl+C` exits while idle. `/exit` and `/quit` also stop the
-session. `/context` shows the current window status, and `/compact` creates a
-manual context checkpoint.
+session. `/context` shows the current window status, `/compact` creates a
+manual context checkpoint, and `/session` or `/sessions` inspect persistence.
 
 The transcript streams assistant Markdown and records compact Codex-style
 activity cells. Normal tool results stay in model context instead of filling
@@ -107,9 +122,63 @@ results remain bounded.
 • Created `hello.txt`.
 ```
 
+## Persistent Sessions
+
+`CODING_KID_HOME` overrides the default `~/.coding-kid` storage directory.
+Each project has append-only, hash-chained JSONL session logs plus a SQLite
+index. A successful turn is flushed before the index advances. Startup can
+rebuild missing or stale index entries, ignore a partial crash tail during
+recovery, refuse a broken middle hash chain, and prevent concurrent writers.
+
+Session logs preserve the provider-shaped transcript, active context,
+compaction checkpoints, todos, and accounting state. Failed and interrupted
+turns are audited but not replayed into model context. If a completed turn
+cannot be saved, new turns are blocked until `/session save` succeeds.
+
+Raw logs may contain prompts, tool results, code, or other sensitive material.
+Protect the Coding Kid home directory and do not place credentials in prompts.
+Obvious credential patterns are redacted before long-term-memory extraction,
+but raw resumable logs remain lossless.
+
+## Long-Term Memory
+
+Version 06 separates exact history from selective memory:
+
+```text
+session JSONL -> per-session extraction -> consolidated typed memories
+              -> bounded relevant recall for a later request
+```
+
+Automatic maintenance considers only closed or sufficiently idle, non-current
+sessions; processes at most two per startup; and uses no tools. Invalid output
+or provider failure leaves the prior memory set unchanged. Automatic extraction
+creates only project memory. Cross-project user memory requires an explicit
+`/remember --global ...` command.
+
+Useful commands are:
+
+```text
+/memory
+/memory search <query>
+/memory sync
+/remember <project fact or preference>
+/remember --global <user preference>
+/forget <memory-id>
+```
+
+`CODING_KID_MEMORY_MODE=auto|manual|off` controls maintenance and recall; the
+default is `auto`. Automatic mode can make additional OpenRouter requests when
+eligible prior sessions exist. `manual` keeps recall and explicit memory while
+disabling automatic requests. `off` disables generation and recall.
+
+Recall uses bounded lexical ranking rather than a vector database. At most five
+memories enter only the current request and never become transcript or
+compaction history. Memories are labeled as potentially stale; hidden citations
+update usage metadata only when the model actually relies on them.
+
 ## Streaming TUI
 
-Version 05 keeps the Codex-inspired layout deliberately small: a session card,
+Version 06 keeps the Codex-inspired layout deliberately small: a session card,
 one scrolling transcript, an activity row, a multiline composer, and a footer
 with model, cwd, and context remaining when known. It has no sidebar.
 
@@ -193,8 +262,8 @@ interrupted turns restore conversation and todo state to the start of the turn.
 
 ## Current Limits
 
-This teaching version intentionally has no persistent history, long-term
-memory, multi-tier compression, background tasks, multi-agent workflow,
+This teaching version intentionally has no vector memory, remote memory sync,
+encryption at rest, generic background-task framework, multi-agent workflow,
 sandbox, approval flow, path restriction, or provider abstraction. The TUI has
 no queued input, attachments, mentions, reasoning display, mouse workflow,
 themes, or trace files. It supports only project `AGENTS.md` files: no global
@@ -206,7 +275,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V4 are preserved under `versions/` and by matching
-annotated tags. The living Version 05 adds the Streaming TUI. The installed
-launcher bundles V1–V4 runtime source and shares one Python environment and one
-set of third-party dependencies across all versions.
+Completed checkpoints V1–V6 are preserved under `versions/` and by matching
+annotated tags. The living Version 06 adds persistent sessions and long-term
+memory. The installed launcher bundles V1–V5 runtime source and shares one
+Python environment and one set of third-party dependencies across all versions.

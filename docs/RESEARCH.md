@@ -31,7 +31,7 @@ Research notes should support two outcomes:
 
 ### Advanced Agent Capabilities
 
-- How to implement long-term memory.
+- How to implement long-term memory. (Implemented in Version 06.)
 - How to implement multi-agent workflows.
 - How to manage background tasks.
 - How to implement skills and plugins as pluggable context.
@@ -42,6 +42,50 @@ Research notes should support two outcomes:
 - How to initially implement visualization and observability:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
+
+## Version 06 Persistent-Memory Source Reading
+
+Version 06 was designed from a fresh source pass over both research objects,
+not only the earlier reports.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/services/SessionMemory/`
+- `research/repos/claude-code/src/services/extractMemories/extractMemories.ts`
+- `research/repos/claude-code/src/services/autoDream/autoDream.ts`
+- `research/repos/claude-code/src/memdir/`
+
+Useful invariants:
+
+- Current-session summaries, turn-level durable extraction, and cross-session
+  consolidation are separate mechanisms.
+- Durable memory is selective and typed; derivable repository facts and
+  current-task ephemera should not be stored.
+- A bounded index can route to detailed memory without a vector database.
+- Extraction cursors advance only on success and consolidation uses an
+  exclusive lock with failure rollback.
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/memories/README.md`
+- `research/repos/codex/codex-rs/memories/write/src/phase1.rs`
+- `research/repos/codex/codex-rs/memories/write/src/phase2.rs`
+- `research/repos/codex/codex-rs/state/memory_migrations/0001_memories.sql`
+- `research/repos/codex/codex-rs/ext/memories/templates/memories/read_path.md`
+
+Useful invariants:
+
+- Raw session/rollout evidence and long-term memory serve different purposes.
+- Two-stage extraction and consolidation need source timestamps, leases,
+  retries, bounded candidate selection, and success-only promotion.
+- Memory provenance and actual-use tracking support retention and verification.
+- Memory generation must exclude the current session and prevent recursive
+  memory or tool behavior.
+
+Coding Kid applies these ideas with hash-chained JSONL session logs, SQLite
+metadata, project-only automatic memory, explicit global user memory, bounded
+lexical recall, and machine-readable usage citations. Generic background tasks,
+multi-agent infrastructure, and vector retrieval remain separate topics.
 
 ## Suggested Note Format
 

@@ -66,9 +66,11 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 06 is the current implementation target. It combines deterministic
-  persistent multi-session state with layered long-term memory, following the
-  approved `06-persistent-memory` plan.
+- Version 06 is complete and archived under `versions/06-persistent-memory/`
+  with tag `version-06-persistent-memory`. It combines deterministic persistent
+  multi-session state with layered long-term memory and passed 171 deterministic
+  tests plus Ruff, wheel, and fresh-install V1–V6 verification without a paid
+  request.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
 - Version 01 is complete and archived under `versions/01-minimal-agent/` with
@@ -83,9 +85,9 @@ without explicit permission.
   official SWE-bench Verified × 10 regression check at 7/10.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete. Version 05 now
-  extends its registry so one installation selects Versions 01–05 and defaults
-  to the living Version 05 runtime. The original V1–V3 launcher increment passed
+- An unnumbered cross-version launcher improvement is complete. Version 06 now
+  extends its registry so one installation selects Versions 01–06 and defaults
+  to the living Version 06 runtime. The original V1–V3 launcher increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.
 - The user explicitly delegated this launcher improvement to the assistant.
