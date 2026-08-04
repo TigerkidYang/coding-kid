@@ -2,7 +2,8 @@
 
 ## Current Core Version: 09 — Multi-Agent Workflows
 
-Completion status: implementation in progress.
+Completion status: implementation and verification complete. Archive/tag/push
+await user confirmation.
 
 ### Goal
 
@@ -51,6 +52,25 @@ and synthesize returned evidence.
 - Pytest, Ruff, 10-round concurrency/cleanup stress, wheel inspection,
   fresh-install V1–V9 launches, and bounded real parallel/follow-up/stop trials
   pass within the standing USD 1.00 task cap.
+
+### Verification Result
+
+- 273 deterministic tests pass; Ruff check and format check pass over maintained
+  `src/` and `tests/` sources.
+- The 10-round, four-worker stress test reaches exactly four-way overlap with
+  no excess concurrency, duplicate terminal event, todo leak, deadlock, or
+  surviving worker thread. A real cancelled foreground command retains partial
+  evidence and leaves no delayed sentinel.
+- The final wheel contains 121 files and frozen V01–V08 plus living V09, with no
+  tests, evals, research, `showcase/`, logs, or caches. Frozen V08 matches its
+  archive across 20 runtime files. A clean Python 3.13 installation launches
+  explicit V1–V9 and default V09 from an unrelated cwd without a model call.
+- Three clean-wheel `openai/gpt-5.6-luna` scenarios pass: overlapping research,
+  same-Agent implementation/followup with independently confirmed 10-test
+  result, and foreground stop/partial evidence/process cleanup/session resume.
+  All 51 paid requests, including one retained non-passing cancellation attempt,
+  used 117,376 input and 5,411 output tokens for USD 0.011379095. See
+  `docs/reports/v09-live-verification.md`.
 
 ## Current Core Version: 08 — Background Tasks
 

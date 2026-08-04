@@ -74,6 +74,7 @@ coding-kid v5    # streaming full-screen TUI
 coding-kid v6    # persistent sessions and long-term memory
 coding-kid v7    # Skills, Plugins, and MCP tools
 coding-kid v8    # process-local background shell tasks
+coding-kid v9    # process-local multi-Agent workflows
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -83,9 +84,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–08
+The command preserves the directory from which it was invoked. Versions 03–09
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 08 is
+Versions 01 and 02 retain their original historical behavior. Version 09 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -96,7 +97,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 08 session selection is explicit:
+Living Version 09 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -109,13 +110,34 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 08 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 09 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. `Esc` or `Ctrl+C` requests interruption during
 an active turn; `Ctrl+C` exits while idle. `/exit` and `/quit` also stop the
 session. `/context` shows the current window status, `/compact` creates a
 manual context checkpoint, and `/session` or `/sessions` inspect persistence.
 `/capabilities` reports loaded Skills and Plugins plus MCP server/tool status
 without displaying environment values.
+
+## Multi-Agent Workflows
+
+Version 09 lets the root model start independent child Agents with
+`spawn_agent`, then use `agent` to list, poll, wait, follow up, or stop them.
+Children can genuinely overlap and keep their own conversation, compaction,
+todo state, cancellation, and tool budget. They share the cwd and current user
+permissions, so parallel delegation must use non-overlapping files or ranges.
+
+A child receives a self-contained task prompt, project `AGENTS.md`, foreground
+file/terminal tools, Skills, and MCP. It does not receive the parent transcript,
+long-term memory, nested-Agent tools, or background shell tasks. Up to four
+children run at once; 16 records remain available and waits are capped at 30
+seconds. Results are bounded and enter the parent transcript only when the
+parent explicitly polls or waits. Completion updates UI state but never causes
+an automatic model call.
+
+Use `/agents` to inspect the process-local records and `/agent stop <id>` to
+request cancellation without a model call. A resumed persistent session starts
+with an empty Agent manager, so IDs from an earlier process are explicitly
+unknown/expired.
 
 ## Background Tasks
 
@@ -357,8 +379,8 @@ interrupted turns restore conversation and todo state to the start of the turn.
 ## Current Limits
 
 This teaching version intentionally has no vector memory, remote memory sync,
-encryption at rest, persistent or remote jobs, multi-agent workflow,
-sandbox, approval flow, path restriction, marketplace, Plugin downloader,
+encryption at rest, persistent or remote jobs, nested or remote Agents,
+Agent file isolation, sandbox, approval flow, path restriction, marketplace, Plugin downloader,
 OAuth, MCP Resources/Prompts, or provider abstraction. The TUI has no queued
 input, attachments, mentions, reasoning display, mouse workflow,
 themes, or trace files. It supports only project `AGENTS.md` files: no global
@@ -371,6 +393,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 ## Teaching Versions
 
 Completed checkpoints V1–V8 are preserved under `versions/` and by matching
-annotated tags. Version 08 adds background tasks. The installed launcher bundles
-V1–V7 runtime source and shares one Python environment and one set of
+annotated tags. Living Version 09 adds multi-Agent workflows. The installed launcher bundles
+V1–V8 runtime source and shares one Python environment and one set of
 third-party dependencies across all versions.

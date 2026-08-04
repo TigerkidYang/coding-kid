@@ -66,6 +66,18 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
+- Version 09 multi-Agent workflows are implemented and verified. One root-owned
+  `AgentManager` runs up to four isolated child
+  Agent loops concurrently, retains 16 process-local records, and exposes
+  strict spawn/list/poll/wait/followup/stop operations. Children share cwd,
+  Skills, and MCP but not root history, memory, todos, compaction state,
+  background tasks, or nested-Agent tools. CLI/TUI controls and notifications
+  do not wake the model. V08 is frozen in the installed runtime and the launcher
+  selects V1–V9 with V09 as the default. Archiving and tagging await the user's
+  stage-complete confirmation. It passes 273 tests, Ruff, 10-round four-worker
+  stress, final wheel inspection, V08 source fidelity, clean-install V1–V9
+  launches, and three real parallel/followup/stop scenarios. The complete live
+  run used USD 0.011379095.
 - Version 08 is complete and archived under `versions/08-background-tasks/`
   with annotated tag `version-08-background-tasks`. Explicit process-local
   background shell tasks survive Agent turns through one bounded
@@ -123,8 +135,8 @@ without explicit permission.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
 - An unnumbered cross-version launcher improvement is complete. Each version
-  transition extends its registry; Version 08 selects Versions 01–08 and
-  defaults to the living Version 08 runtime. The original V1–V3 increment passed
+  transition extends its registry; Version 09 selects Versions 01–09 and
+  defaults to the living Version 09 runtime. The original V1–V3 increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.
 - The user explicitly delegated this launcher improvement to the assistant.

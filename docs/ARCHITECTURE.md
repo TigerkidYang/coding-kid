@@ -2,16 +2,17 @@
 
 ## Overview
 
-Version 08 adds process-local background shell tasks without changing the
-synchronous model/tool loop. One application-owned task manager survives user
-turns, while each model step receives a fresh bounded task summary and a tool
-registry bound to the same manager.
+Version 09 adds process-local child Agents without changing the synchronous
+root model/tool loop. One application-owned `AgentManager` survives user turns;
+each child owns a separate conversation, compaction state, todo state, tool
+budget, cancellation token, and worker thread.
 
 ```text
 launcher.py
-  |-- v1-v7 -> isolated bundled runtime process
-  `-- v8/default -> cli.py
+  |-- v1-v8 -> isolated bundled runtime process
+  `-- v9/default -> cli.py
                      |-- SessionStore / MemoryManager
+                     |-- AgentManager -> child run_turn workers
                      |-- BackgroundTaskManager -> shell process trees
                      |-- CapabilityRuntime
                      |     |-- Skill + Plugin metadata snapshot
@@ -24,9 +25,40 @@ launcher.py
 
 The UI remains a projection of canonical state. A successful turn is first
 committed by the agent and then appended as one durable session transition.
-Failed and interrupted turns roll back the conversation and todos; their audit
-records are not replayed into model context. Already-started background tasks
-are intentionally outside that transaction and remain discoverable.
+Failed and interrupted root turns roll back the root conversation and todos;
+their audit records are not replayed into model context. Already-started child
+Agents and background tasks are intentionally outside that transaction and
+remain discoverable.
+
+## Multi-Agent Control Plane
+
+`agents.py` owns random `agent_<12 hex>` identities, records, worker threads,
+events, cancellation, retention, and shutdown. At most four records can be in
+`starting`, `running`, or `stopping`; at most 16 remain addressable, and only
+the oldest terminal record is evicted. A child task is capped at 12,000 prompt
+characters, 32 model/tool steps, 32 work-tool calls, and a 50,000-character
+final result. `wait` is cancellation-aware and capped at 30 seconds.
+
+`spawn_agent` reserves a slot atomically and returns immediately. The unified
+`agent` tool lists, polls, waits, follows up, or requests stop. Stop is
+cooperative: it first exposes `stopping` and reports `stopped` only after the
+worker exits. `followup` retains the selected child's canonical context but can
+only start from a terminal state. Terminal events are emitted once; they update
+CLI/TUI state but never initiate a provider request.
+
+Each child begins with only its self-contained delegated prompt. It shares the
+immutable `SessionContext`, cwd, model, project instructions, Skills catalog,
+and application-owned MCP runtime, but it does not receive the root transcript
+or long-term memory. Its registry contains foreground terminal/file tools, its
+own todo tool, Skills, and MCP. It excludes `spawn_agent`, `agent`, `task`, and
+the background form of `execute`. Foreground cancellation terminates the shell
+process tree and retains partial command evidence in the child transcript.
+
+`TodoState` is explicit on all formal paths. The root instance is persisted and
+rolled back with root turns; every child owns another instance. Compatibility
+wrappers retain a default state for historical direct callers only. MCP event
+collection is locked because multiple child threads may load Skills or invoke
+MCP concurrently; the MCP clients remain owned by their one asyncio thread.
 
 ## Background Task Runtime
 
@@ -111,9 +143,9 @@ displaying a command or answer cannot invalidate the Agent protocol round.
 
 ## Version Launcher and Session Selection
 
-`launcher.py` accepts `v1` through `v8`; V08 is the living default. V1–V7 run
+`launcher.py` accepts `v1` through `v9`; V09 is the living default. V1–V8 run
 from frozen runtime packages in isolated child processes. Living-runtime
-session flags select V08 sessions:
+session flags select V09 sessions:
 
 - No flag or `--new` creates a new session.
 - `--continue` resumes the most recently updated project session.
@@ -243,7 +275,7 @@ Storage directories and files receive restrictive permissions where the host
 supports them. Raw logs may contain prompts and tool results, so users must
 treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Version 08 does not add encryption at rest, remote synchronization, vector
+Version 09 does not add encryption at rest, remote synchronization, vector
 search, persistent or remote jobs, multi-agent workflows, sandboxing,
 approvals, a Plugin marketplace, OAuth, or non-tool MCP primitives. All tools
 still run with the current user's permissions.

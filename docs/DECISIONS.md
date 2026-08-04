@@ -44,9 +44,26 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 07 are complete. Version 08 is the current background-task
+Versions 01 through 08 are complete. Version 09 is the current multi-Agent
 implementation. Do not define a later version until the user chooses one from
 the research topic list.
+
+## Keep Version 09 child Agents process-local and root-owned
+
+Decision:
+Create one `AgentManager` per Coding Kid application process and keep the root
+Agent loop synchronous. Child Agents run independent `run_turn` calls on
+bounded worker threads, share cwd and application capabilities, and expose
+results only through explicit poll/wait/followup operations. Completion emits
+state and UI events but never wakes the model.
+
+Consequence:
+Four children may run concurrently and 16 records remain addressable. Child
+conversation, compaction, todos, and tool budgets are isolated; root history
+and long-term memory are not copied. Children cannot nest Agents or launch
+background shell work. Their IDs and transcripts do not survive a process
+restart, and Version 09 provides no file isolation or overlapping-write merge,
+so delegation prompts must partition write ownership.
 
 ## Treat terminal execution as a byte and process-lifecycle boundary
 
