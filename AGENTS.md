@@ -133,15 +133,25 @@ Do not run SWE-bench, including inference, prediction generation, smoke runs,
 subsets, reruns, or the official evaluation harness, unless the user explicitly
 authorizes that specific run.
 
-Do not start any benchmark, batch evaluation, or model-inference job that can
-consume paid API credits unless the user explicitly authorizes that specific
-run and its spending scope.
+For ordinary implementation, bug-fix, and post-fix verification tasks that the
+user has explicitly requested, live model-inference verification is standing
+authorized up to **USD 1.00 per user-requested task**, with no request-count
+limit. Track the task's cumulative spend, stop before exceeding USD 1.00, and
+use the smallest useful live run after deterministic checks pass. This standing
+authorization includes real CLI/TUI smoke tests, tool-use continuation,
+persistent-session resume, compaction, interruption recovery, and long-term
+memory verification when they are in scope of the requested task.
 
-An approved plan, version completion criterion, earlier benchmark request, prior
-authorization, available credentials, or an existing evaluation script is not
-authorization for a new run. Before every such run, obtain fresh explicit user
-approval. Reading existing reports and running ordinary local unit, lint, or
-format checks that do not invoke a paid model remain allowed.
+Do not start any benchmark or batch evaluation that can consume paid API
+credits unless the user explicitly authorizes that specific run and its
+spending scope. Do not exceed the standing USD 1.00 verification allowance for
+an ordinary task without a new explicit authorization.
+
+An approved plan, version completion criterion, earlier benchmark request,
+available credentials, or an existing evaluation script is not authorization
+for a benchmark or batch run. Reading existing reports and running ordinary
+local unit, lint, or format checks that do not invoke a paid model remain
+allowed.
 
 ## Research
 
