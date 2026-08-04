@@ -88,4 +88,6 @@ archive does not recursively carry the V1–V6 bundled runtimes.
 
 Original annotated tag: `version-07-pluggable-capabilities`.
 
-Corrective annotated tag: `version-07-pluggable-capabilities-fix1`.
+Initial corrective tag: `version-07-pluggable-capabilities-fix1`.
+
+Final cleanup-hardened tag: `version-07-pluggable-capabilities-fix2`.

@@ -196,38 +196,40 @@ def _finish_readers(
     deadline = time.monotonic() + IO_DRAIN_TIMEOUT_SECONDS
     for reader in readers:
         reader.join(max(0.0, deadline - time.monotonic()))
-    if any(reader.is_alive() for reader in readers):
-        if process.stdout is not None:
-            process.stdout.close()
-        if process.stderr is not None:
-            process.stderr.close()
-        for reader in readers:
-            reader.join(0.1)
+    # A descendant may have inherited a pipe even though the direct process
+    # exited. The daemon readers retain only bounded buffers; returning is safer
+    # than closing a buffered stream from another thread, which can itself block.
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is not None:
         return
     if os.name == "nt":
-        subprocess.run(
-            ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=5,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
+        try:
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
     else:
         try:
             os.killpg(process.pid, 15)
-        except ProcessLookupError:
+        except OSError:
             pass
     try:
         process.wait(timeout=1)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=1)
+        try:
+            process.kill()
+            process.wait(timeout=1)
+        except (OSError, subprocess.SubprocessError):
+            pass
 
 
 def _decode_process_output(data: bytes) -> str:

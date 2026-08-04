@@ -79,8 +79,9 @@ without explicit permission.
   A corrective checkpoint hardens the Windows foreground terminal boundary
   after a real Skill A/B run exposed a GBK display crash. It passes 223 root
   tests, 187 standalone-archive tests, Ruff, fresh-wheel V07 launch, and an
-  installed-wheel Unicode round trip, and is tagged
-  `version-07-pluggable-capabilities-fix1` without moving the original tag.
+  installed-wheel Unicode round trip. The final checkpoint is tagged
+  `version-07-pluggable-capabilities-fix2`; neither the original tag nor the
+  intermediate `fix1` tag is moved.
 - Version 06 is complete and archived under `versions/06-persistent-memory/`.
   Its corrected checkpoint, tagged `version-06-persistent-memory-fix1`, keeps
   restored tool history provider-safe, refuses ineffective or contradictory

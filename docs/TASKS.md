@@ -84,8 +84,9 @@ Plugins package namespaced Skills and MCP configuration.
   standalone V07 archive passes **187 tests** and Ruff checks.
 - The fresh wheel contains `coding_kid/terminal.py`; a fresh unrelated-directory
   V07 launch and installed-wheel `✳` round trip pass without a provider request.
-- The original tag remains unchanged; the correction is tagged
-  `version-07-pluggable-capabilities-fix1`.
+- The original and intermediate `fix1` tags remain unchanged; the final
+  cleanup-hardened correction is tagged
+  `version-07-pluggable-capabilities-fix2`.
 
 ## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
 

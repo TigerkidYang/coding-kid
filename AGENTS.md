@@ -231,8 +231,9 @@ In particular:
   The corrective terminal-boundary checkpoint uses Unicode-safe PowerShell,
   bounded byte capture, decode fallback, process-tree cleanup, partial timeout
   results, and codec-safe CLI rendering. It passes 223 root tests, 187 archive
-  tests, Ruff, and fresh-wheel verification, and is tagged
-  `version-07-pluggable-capabilities-fix1`; the original tag remains unchanged.
+  tests, Ruff, and fresh-wheel verification. The final checkpoint is tagged
+  `version-07-pluggable-capabilities-fix2`; the original and intermediate
+  `fix1` tags remain unchanged.
 - Version 06 is complete: persistent multi-session state plus layered long-term
   memory. The corrective checkpoint normalizes replayed provider protocol
   items, rejects ineffective or tool-contradicting compaction, and fixes
