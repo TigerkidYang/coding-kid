@@ -37,6 +37,36 @@ ContextObserver = Callable[[str], None]
 MAX_SUMMARY_CONTEXT_RETRIES = 3
 
 
+def _item_value(item: Any, name: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(name, default)
+    return getattr(item, name, default)
+
+
+def _protocol_evidence(segments: list[ConversationSegment]) -> tuple[str, set[str]]:
+    tools: set[str] = set()
+    outputs = 0
+    for segment in segments:
+        for item in segment.items:
+            item_type = _item_value(item, "type")
+            if item_type == "function_call":
+                name = _item_value(item, "name")
+                if isinstance(name, str) and name:
+                    tools.add(name)
+            elif item_type == "function_call_output":
+                outputs += 1
+    if not tools and not outputs:
+        return "", tools
+    names = ", ".join(sorted(tools)) or "unknown"
+    marker = (
+        "\n\nSystem-verified protocol evidence: "
+        f"{len(tools)} distinct function tool(s) were called ({names}); "
+        f"{outputs} function result(s) are present. The handoff must not claim "
+        "that no tools were called or that no tool evidence exists."
+    )
+    return marker, tools
+
+
 def _summary_input(segments: list[ConversationSegment], dropped: int) -> list[Any]:
     items = [item for segment in segments for item in segment.items]
     marker = ""
@@ -45,7 +75,32 @@ def _summary_input(segments: list[ConversationSegment], dropped: int) -> list[An
             f"\n\nEmergency note: {dropped} oldest context segment(s) were "
             "unavailable because the summary request exceeded the model window."
         )
-    return [*items, {"role": "user", "content": SUMMARY_PROMPT + marker}]
+    evidence, _ = _protocol_evidence(segments)
+    return [
+        *items,
+        {"role": "user", "content": SUMMARY_PROMPT + marker + evidence},
+    ]
+
+
+def _validate_summary_evidence(
+    summary: str, segments: list[ConversationSegment]
+) -> None:
+    _, tools = _protocol_evidence(segments)
+    if not tools:
+        return
+    normalized = " ".join(summary.casefold().split())
+    contradictions = (
+        "no tools were called",
+        "no tool calls were made",
+        "no tools were used",
+        "no tool-returned evidence",
+        "there is no tool evidence",
+        "没有调用工具",
+        "未调用工具",
+        "没有工具证据",
+    )
+    if any(phrase in normalized for phrase in contradictions):
+        raise RuntimeError("Compaction summary contradicts recorded tool evidence")
 
 
 def compact_context(
@@ -105,6 +160,7 @@ def compact_context(
     summary = parsed.text.strip()
     if not summary:
         raise RuntimeError("Compaction model returned an empty summary")
+    _validate_summary_evidence(summary, summary_segments)
 
     if cancellation_token is not None:
         cancellation_token.raise_if_cancelled()

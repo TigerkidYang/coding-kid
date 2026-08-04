@@ -20,6 +20,7 @@ from coding_kid.context_manager import (
     ContextBudget,
     ContextManager,
     ConversationSegment,
+    normalize_protocol_value,
 )
 
 SCHEMA_VERSION = 1
@@ -639,7 +640,7 @@ def _restrict(path: Path, mode: int) -> None:
 def _json_value(value: Any) -> Any:
     model_dump = getattr(value, "model_dump", None)
     if callable(model_dump):
-        return model_dump(mode="json")
+        return model_dump(mode="json", exclude_none=True)
     if isinstance(value, Path):
         return str(value)
     if hasattr(value, "__dict__"):
@@ -775,12 +776,17 @@ def _session_context_from_json(value: dict[str, Any]) -> SessionContext:
 def _segment_to_json(segment: ConversationSegment) -> dict[str, Any]:
     return {
         "kind": segment.kind,
-        "items": json.loads(json.dumps(segment.items, default=_json_value)),
+        "items": normalize_protocol_value(
+            json.loads(json.dumps(segment.items, default=_json_value))
+        ),
     }
 
 
 def _segment_from_json(value: dict[str, Any]) -> ConversationSegment:
-    return ConversationSegment(value["kind"], list(value["items"]))
+    return ConversationSegment(
+        value["kind"],
+        [normalize_protocol_value(item) for item in value["items"]],
+    )
 
 
 def _context_state_to_json(manager: ContextManager) -> dict[str, Any]:

@@ -127,6 +127,64 @@ def test_tui_submits_and_consolidates_streaming_answer_once(tmp_path: Path) -> N
     asyncio.run(exercise())
 
 
+def test_tui_mounts_terminal_only_answer_with_its_final_source(tmp_path: Path) -> None:
+    def stream_provider(*args: Any, **kwargs: Any) -> Any:
+        return response(text_message("TERMINAL_ONLY_ANSWER"))
+
+    async def exercise() -> None:
+        app = make_app(tmp_path, streaming_provider=stream_provider)
+        async with app.run_test(size=(80, 24)) as pilot:
+            app.query_one(Composer).load_text("Answer without a delta")
+            await pilot.press("enter")
+            await pilot.pause(0.25)
+
+            cells = list(app.query(AssistantCell))
+            assert len(cells) == 1
+            assert cells[0].source_text == "TERMINAL_ONLY_ANSWER"
+            assert "TERMINAL_ONLY_ANSWER" in str(cells[0].markdown._markdown)
+
+    asyncio.run(exercise())
+
+
+def test_tui_terminal_only_answer_renders_after_interrupt(tmp_path: Path) -> None:
+    calls = 0
+
+    def stream_provider(
+        *args: Any,
+        on_text_delta: Any,
+        cancellation_token: Any,
+        **kwargs: Any,
+    ) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            on_text_delta("partial")
+            while not cancellation_token.cancelled:
+                time.sleep(0.005)
+            cancellation_token.raise_if_cancelled()
+        return response(text_message("RECOVERED_AFTER_INTERRUPT"))
+
+    async def exercise() -> None:
+        app = make_app(tmp_path, streaming_provider=stream_provider)
+        async with app.run_test(size=(80, 24)) as pilot:
+            composer = app.query_one(Composer)
+            composer.load_text("Wait")
+            await pilot.press("enter")
+            await pilot.pause(0.1)
+            await pilot.press("escape")
+            await pilot.pause(0.2)
+            composer.load_text("Recover")
+            await pilot.press("enter")
+            await pilot.pause(0.25)
+
+            cells = list(app.query(AssistantCell))
+            assert len(cells) == 1
+            assert cells[0].source_text == "RECOVERED_AFTER_INTERRUPT"
+            assert "RECOVERED_AFTER_INTERRUPT" in str(cells[0].markdown._markdown)
+
+    asyncio.run(exercise())
+
+
 def test_tui_commits_successful_turn_to_persistent_session(tmp_path: Path) -> None:
     def stream_provider(*args: Any, on_text_delta: Any, **kwargs: Any) -> Any:
         on_text_delta("Durable")
@@ -275,7 +333,7 @@ def test_tui_manual_compaction_uses_existing_context_manager(tmp_path: Path) -> 
     )
     app.manager.conversation.append_user("Remember ALPHA")
     app.manager.conversation.append_model_round(
-        [{"role": "assistant", "content": "old " + "x" * 30_000}]
+        [{"role": "assistant", "content": "old " + "x" * 160_000}]
     )
     app.manager.conversation.append_user("Continue with ALPHA")
 

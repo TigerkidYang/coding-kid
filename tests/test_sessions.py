@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Barrier
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from coding_kid.agent import run_turn
 from coding_kid.context import ProjectInstruction, SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.sessions import (
     SessionBusyError,
     SessionCorruptError,
+    SessionHandle,
     SessionStore,
     _append_line,
     _iso,
@@ -65,6 +70,160 @@ def test_session_round_trip_restores_all_canonical_state(tmp_path: Path) -> None
     assert resumed.info.title == "Implement ALPHA"
 
 
+def test_session_round_trip_normalizes_provider_items_for_replay(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    manager.conversation.append_user("Read AGENTS.md")
+    manager.conversation.append_model_round(
+        [
+            SimpleNamespace(
+                type="reasoning",
+                id="reasoning-1",
+                encrypted_content="opaque",
+                summary=[],
+                content=None,
+                status="completed",
+            ),
+            SimpleNamespace(
+                type="function_call",
+                id="call-item-1",
+                call_id="call-1",
+                name="read",
+                arguments='{"path":"AGENTS.md"}',
+                caller=None,
+                namespace=None,
+                status="completed",
+            ),
+            {
+                "type": "function_call_output",
+                "call_id": "call-1",
+                "output": "# Heading",
+            },
+        ]
+    )
+    handle.commit_state()
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id)
+    restored = resumed.manager.conversation.active_items()
+
+    assert restored[1] == {
+        "type": "reasoning",
+        "id": "reasoning-1",
+        "encrypted_content": "opaque",
+        "summary": [],
+        "status": "completed",
+    }
+    assert restored[2] == {
+        "type": "function_call",
+        "id": "call-item-1",
+        "call_id": "call-1",
+        "name": "read",
+        "arguments": '{"path":"AGENTS.md"}',
+        "status": "completed",
+    }
+    assert all(value is not None for item in restored for value in item.values())
+
+
+def test_resumed_tool_history_can_drive_another_agent_turn(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    probe = project / "AGENTS.md"
+    probe.write_text("# TOOL-PROBE-HEADING\n", encoding="utf-8")
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    first_responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    SimpleNamespace(
+                        type="function_call",
+                        id="call-item-1",
+                        call_id="call-1",
+                        name="read",
+                        arguments=json.dumps({"path": str(probe)}),
+                        caller=None,
+                        namespace=None,
+                        status="completed",
+                    )
+                ],
+                usage=None,
+            ),
+            SimpleNamespace(
+                output=[
+                    SimpleNamespace(
+                        type="message",
+                        id="message-1",
+                        role="assistant",
+                        status="completed",
+                        phase="final_answer",
+                        content=[
+                            SimpleNamespace(
+                                type="output_text",
+                                text="TOOL-PROBE-HEADING",
+                                annotations=[],
+                                logprobs=[],
+                            )
+                        ],
+                    )
+                ],
+                usage=None,
+            ),
+        ]
+    )
+    manager.conversation.append_user("Read the heading")
+    assert run_turn(manager, lambda *args, **kwargs: next(first_responses)) == (
+        "TOOL-PROBE-HEADING"
+    )
+    handle.commit_state()
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id)
+    resumed.manager.conversation.append_user("Repeat the heading")
+
+    def continuation(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+    ) -> Any:
+        function_call = next(
+            item for item in messages if item.get("type") == "function_call"
+        )
+        assert "caller" not in function_call
+        assert "namespace" not in function_call
+        return SimpleNamespace(
+            output=[
+                SimpleNamespace(
+                    type="message",
+                    id="message-2",
+                    role="assistant",
+                    status="completed",
+                    phase="final_answer",
+                    content=[
+                        SimpleNamespace(
+                            type="output_text",
+                            text="TOOL-PROBE-HEADING",
+                            annotations=[],
+                            logprobs=[],
+                        )
+                    ],
+                )
+            ],
+            usage=None,
+        )
+
+    assert run_turn(resumed.manager, continuation) == "TOOL-PROBE-HEADING"
+    resumed.close()
+
+
 def test_sessions_are_independent_and_continue_uses_latest(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -93,6 +252,66 @@ def test_live_lease_prevents_concurrent_resume(tmp_path: Path) -> None:
 
     with pytest.raises(SessionBusyError):
         store.resume(handle.info.session_id)
+
+
+def test_concurrent_resume_grants_exactly_one_writer(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    home = tmp_path / "home"
+    handle = SessionStore(project, home=home).create(context, manager, [])
+    session_id = handle.info.session_id
+    handle.close()
+    workers = 12
+    barrier = Barrier(workers)
+
+    def attempt() -> SessionHandle | None:
+        store = SessionStore(project, home=home)
+        barrier.wait()
+        try:
+            return store.resume(session_id)
+        except SessionBusyError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(lambda _: attempt(), range(workers)))
+
+    winners = [result for result in results if result is not None]
+    assert len(winners) == 1
+    winners[0].close()
+
+
+def test_parallel_sessions_commit_without_cross_talk(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    home = tmp_path / "home"
+    handles = []
+    for _ in range(8):
+        context, manager = make_runtime(project)
+        handles.append(SessionStore(project, home=home).create(context, manager, []))
+    barrier = Barrier(len(handles))
+
+    def write(handle: SessionHandle) -> str:
+        barrier.wait()
+        for index in range(5):
+            handle.manager.conversation.append_user(f"{handle.info.session_id}:{index}")
+            handle.commit_state()
+        handle.close()
+        return handle.info.session_id
+
+    with ThreadPoolExecutor(max_workers=len(handles)) as executor:
+        session_ids = list(executor.map(write, handles))
+
+    store = SessionStore(project, home=home)
+    for session_id in session_ids:
+        resumed = store.resume(session_id)
+        contents = [
+            item["content"]
+            for item in resumed.manager.conversation.active_items()
+            if item.get("role") == "user"
+        ]
+        assert contents == [f"{session_id}:{index}" for index in range(5)]
+        resumed.close()
 
 
 def test_expired_lease_can_be_reclaimed(tmp_path: Path) -> None:
