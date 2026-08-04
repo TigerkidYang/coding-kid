@@ -35,13 +35,14 @@ def execute(
     background: bool = False,
     *,
     task_manager: BackgroundTaskManager | None = None,
+    cancellation_token: CancellationToken | None = None,
 ) -> str:
     """Run one foreground command or explicitly start a background task."""
     if background:
         if task_manager is None:
             raise RuntimeError("Background task runtime is not active")
         return task_manager.start(command).model_text()
-    return run_command(command).model_text()
+    return run_command(command, cancellation_token=cancellation_token).model_text()
 
 
 def task(
@@ -587,6 +588,7 @@ def build_tool_registry(
             command,
             background,
             task_manager=task_manager,
+            cancellation_token=cancellation_token,
         )
         entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: (
             task(

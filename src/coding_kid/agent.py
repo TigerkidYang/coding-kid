@@ -22,8 +22,10 @@ from coding_kid.events import (
     EventSink,
     TodoItem,
     TodoUpdated,
+    StepStarted,
     ToolCompleted,
     ToolStarted,
+    TransitionSelected,
     TurnCancelled,
     TurnCompleted,
     TurnFailed,
@@ -42,6 +44,7 @@ from coding_kid.tools import (
     get_todos,
     tool_definitions,
 )
+from coding_kid.turn_control import TransitionReason
 
 if TYPE_CHECKING:
     from coding_kid.agents import AgentManager
@@ -125,7 +128,7 @@ def run_turn(
     todo_state: TodoState | None = None,
     max_tool_calls: int = MAX_TOOL_CALLS_PER_TURN,
     agent_manager: AgentManager | None = None,
-    rollback_on_cancel: bool = True,
+    rollback_on_cancel: bool = False,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     registry = tool_registry or DEFAULT_TOOL_REGISTRY
@@ -145,7 +148,8 @@ def run_turn(
     emit(event_sink, TurnStarted())
 
     try:
-        for _ in range(max_steps):
+        for step_number in range(1, max_steps + 1):
+            emit(event_sink, StepStarted(step_number))
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()
             task_summary = (
@@ -273,6 +277,10 @@ def run_turn(
                                     f"Memory usage tracking failed: {error}"
                                 ),
                             )
+                    emit(
+                        event_sink,
+                        TransitionSelected(TransitionReason.COMPLETED.value),
+                    )
                     emit(event_sink, TurnCompleted(parsed.text))
                     return parsed.text
 
@@ -280,6 +288,10 @@ def run_turn(
                 if empty_responses >= MAX_EMPTY_RESPONSES:
                     raise RuntimeError("Model returned repeated empty responses")
                 recovery_overlays = (EMPTY_RESPONSE_RECOVERY,)
+                emit(
+                    event_sink,
+                    TransitionSelected(TransitionReason.EMPTY_RESPONSE_RECOVERY.value),
+                )
                 if tool_calls_executed >= max_tool_calls:
                     recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                 continue
@@ -353,16 +365,35 @@ def run_turn(
                     cancellation_token.raise_if_cancelled()
 
             manager.conversation.append_model_round(round_items)
+            emit(
+                event_sink,
+                TransitionSelected(TransitionReason.TOOL_FOLLOWUP.value),
+            )
             recovery_overlays = (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
 
+        emit(
+            event_sink,
+            TransitionSelected(TransitionReason.BUDGET_EXHAUSTED.value),
+        )
         raise RuntimeError("Agent reached the maximum number of model/tool steps")
     except TurnCancelled as error:
         if rollback_on_cancel:
             manager.restore(turn_snapshot)
+        emit(
+            event_sink,
+            TransitionSelected(
+                TransitionReason.USER_STEER.value
+                if error.reason == "steered"
+                else TransitionReason.INTERRUPTED.value
+            ),
+        )
         emit(event_sink, TurnInterrupted(str(error)))
         raise
     except BaseException as error:
-        manager.restore(turn_snapshot)
+        emit(
+            event_sink,
+            TransitionSelected(TransitionReason.FATAL_ERROR.value),
+        )
         emit(event_sink, TurnFailed(str(error)))
         raise
 

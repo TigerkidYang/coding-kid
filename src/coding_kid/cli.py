@@ -380,8 +380,6 @@ def chat(
                         continue
             continue
 
-        turn_start = manager.clone()
-        todos_start = todo_state.items
         request_context: list[Any] = []
         recalled_ids: tuple[str, ...] = ()
         if memory_manager is not None:
@@ -443,21 +441,22 @@ def chat(
             if not answer.strip():
                 raise RuntimeError("Model returned an empty answer")
         except KeyboardInterrupt:
-            manager.restore(turn_start)
-            todo_state.replace(todos_start)
             if session_handle is not None:
+                session_handle.todos = todo_state.items
                 try:
-                    session_handle.record_aborted(user_input, "interrupted")
+                    session_handle.commit_state(kind="turn_interrupted")
                 except Exception as error:
                     output_function(f"Persistence warning: {error}")
-            output_function("\nTask interrupted. You can enter another request.")
+            output_function(
+                "\nTask interrupted. Completed work was retained; you can enter "
+                "another request."
+            )
             continue
         except Exception as error:
-            manager.restore(turn_start)
-            todo_state.replace(todos_start)
             if session_handle is not None:
+                session_handle.todos = todo_state.items
                 try:
-                    session_handle.record_aborted(user_input, str(error))
+                    session_handle.commit_state(kind="turn_failed")
                 except Exception as persistence_error:
                     output_function(f"Persistence warning: {persistence_error}")
             output_function(f"Error: {error}")

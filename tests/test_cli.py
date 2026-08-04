@@ -173,7 +173,7 @@ def test_chat_handles_task_interruption_without_a_traceback(monkeypatch: Any) ->
     assert outputs[-1] == "Goodbye."
 
 
-def test_chat_rolls_back_a_failed_turn_before_continuing(monkeypatch: Any) -> None:
+def test_chat_retains_committed_failed_turn_evidence(monkeypatch: Any) -> None:
     inputs = iter(["first task", "second task", "/exit"])
     received_messages: list[list[Any]] = []
 
@@ -198,7 +198,11 @@ def test_chat_rolls_back_a_failed_turn_before_continuing(monkeypatch: Any) -> No
         output_function=lambda text: None,
     )
 
-    assert received_messages[1] == [{"role": "user", "content": "second task"}]
+    assert received_messages[1] == [
+        {"role": "user", "content": "first task"},
+        {"type": "partial-provider-output"},
+        {"role": "user", "content": "second task"},
+    ]
 
 
 def test_chat_preserves_successful_turns(monkeypatch: Any) -> None:
@@ -324,7 +328,7 @@ def test_format_tool_call_keeps_each_action_compact() -> None:
         assert cli.format_tool_call(name, arguments) == expected
 
 
-def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
+def test_chat_retains_todos_from_a_failed_turn(monkeypatch: Any) -> None:
     from coding_kid.tools import TodoState
 
     inputs = iter(["first task", "second task", "/exit"])
@@ -355,7 +359,7 @@ def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
         todo_state=state,
     )
 
-    assert state.items == [{"content": "Keep me", "status": "pending"}]
+    assert state.items == [{"content": "Temporary", "status": "in_progress"}]
     assert received_messages[1] == [
         {"role": "user", "content": "first task"},
         {"role": "user", "content": "second task"},

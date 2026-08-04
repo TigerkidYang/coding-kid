@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from threading import Event
+from threading import Event, Lock
 from typing import Any, TypeAlias
 
 
 class TurnCancelled(RuntimeError):
     """Raised when the current turn stops at a cooperative boundary."""
+
+    def __init__(
+        self, message: str = "Turn interrupted", *, reason: str = "interrupted"
+    ):
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass
@@ -17,9 +23,15 @@ class CancellationToken:
     """A thread-safe cooperative cancellation signal."""
 
     _event: Event = field(default_factory=Event)
+    _lock: Lock = field(default_factory=Lock)
+    _reason: str = "interrupted"
 
-    def cancel(self) -> None:
-        self._event.set()
+    def cancel(self, reason: str = "interrupted") -> None:
+        with self._lock:
+            if self._event.is_set():
+                return
+            self._reason = reason
+            self._event.set()
 
     @property
     def cancelled(self) -> bool:
@@ -27,12 +39,61 @@ class CancellationToken:
 
     def raise_if_cancelled(self) -> None:
         if self.cancelled:
-            raise TurnCancelled("Turn interrupted")
+            message = "Turn steered" if self.reason == "steered" else "Turn interrupted"
+            raise TurnCancelled(message, reason=self.reason)
+
+    @property
+    def reason(self) -> str:
+        with self._lock:
+            return self._reason
 
 
 @dataclass(frozen=True)
 class TurnStarted:
     pass
+
+
+@dataclass(frozen=True)
+class StepStarted:
+    number: int
+
+
+@dataclass(frozen=True)
+class TransitionSelected:
+    reason: str
+
+
+@dataclass(frozen=True)
+class InputQueued:
+    text: str
+    position: int
+
+
+@dataclass(frozen=True)
+class InputConsumed:
+    text: str
+
+
+@dataclass(frozen=True)
+class InputRejected:
+    message: str
+
+
+@dataclass(frozen=True)
+class RetryScheduled:
+    category: str
+    attempt: int
+    delay_seconds: float
+
+
+@dataclass(frozen=True)
+class BudgetWarning:
+    message: str
+
+
+@dataclass(frozen=True)
+class StallDetected:
+    message: str
 
 
 @dataclass(frozen=True)
@@ -127,6 +188,14 @@ class TurnFailed:
 
 TurnEvent: TypeAlias = (
     TurnStarted
+    | StepStarted
+    | TransitionSelected
+    | InputQueued
+    | InputConsumed
+    | InputRejected
+    | RetryScheduled
+    | BudgetWarning
+    | StallDetected
     | AssistantTextDelta
     | AssistantMessageCompleted
     | ToolStarted

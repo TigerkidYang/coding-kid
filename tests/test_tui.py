@@ -459,7 +459,61 @@ def test_tui_escape_cancels_stream_and_removes_partial_tail(tmp_path: Path) -> N
             assert not app.active_turn
             assert not list(app.query(AssistantCell))
             notices = [content(widget) for widget in app.query(".notice-cell")]
-            assert any("state restored" in notice for notice in notices)
+            assert any("completed work was retained" in notice for notice in notices)
+
+    asyncio.run(exercise())
+
+
+def test_tui_submit_while_active_steers_and_continues_fifo(tmp_path: Path) -> None:
+    calls = 0
+
+    def stream_provider(
+        instructions: str,
+        messages: list[Any],
+        tools: list[dict[str, Any]],
+        *,
+        on_text_delta: Any,
+        cancellation_token: Any,
+    ) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            on_text_delta("obsolete")
+            while not cancellation_token.cancelled:
+                time.sleep(0.005)
+            cancellation_token.raise_if_cancelled()
+        on_text_delta("Steered answer")
+        return response(text_message("Steered answer"))
+
+    async def exercise() -> None:
+        app = make_app(tmp_path, streaming_provider=stream_provider)
+        async with app.run_test(size=(80, 24)) as pilot:
+            composer = app.query_one(Composer)
+            composer.load_text("Original")
+            await pilot.press("enter")
+            await pilot.pause(0.05)
+            composer.load_text("New direction")
+            await pilot.press("enter")
+            await pilot.pause(0.3)
+
+            assert not app.active_turn
+            assert calls == 2
+            assert app.manager.conversation.active_items()[0] == {
+                "role": "user",
+                "content": "Original",
+            }
+            assert app.manager.conversation.active_items()[1] == {
+                "role": "user",
+                "content": "New direction",
+            }
+            assert any(
+                "applying queued input" in content(widget)
+                for widget in app.query(".notice-cell")
+            )
+            assert any(
+                cell.source_text == "Steered answer"
+                for cell in app.query(AssistantCell)
+            )
 
     asyncio.run(exercise())
 
@@ -480,7 +534,9 @@ def test_tui_stream_failure_removes_partial_tail_and_reports_rollback(
 
             assert not list(app.query(AssistantCell))
             assert "stream broke" in content(app.query_one(".error-cell", Static))
-            assert app.manager.conversation.transcript == []
+            assert app.manager.conversation.active_items() == [
+                {"role": "user", "content": "Fail"}
+            ]
 
     asyncio.run(exercise())
 

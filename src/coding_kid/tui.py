@@ -45,6 +45,7 @@ from coding_kid.provider import generate, generate_streaming
 from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import TodoState, build_tool_registry
+from coding_kid.turn_control import TurnController
 
 Provider = Callable[..., Any]
 
@@ -223,6 +224,7 @@ class CodingKidApp(App[None]):
         self._pending_deltas: list[str] = []
         self._status_label = "Working"
         self._status_started = 0.0
+        self.turn_controller = TurnController()
 
     def compose(self) -> ComposeResult:
         yield VerticalScroll(id="transcript")
@@ -339,6 +341,21 @@ class CodingKidApp(App[None]):
             self._start_manual_compaction()
             return
         if self.active_turn:
+            if self.turn_controller.steer(text):
+                self._append_cell(
+                    Static(f"[b cyan]↪[/] {escape(text)}", classes="user-cell")
+                )
+                self._set_status(
+                    f"Steering ({self.turn_controller.pending_count} queued)"
+                )
+            else:
+                self.query_one(Composer).load_text(text)
+                self._append_cell(
+                    Static(
+                        "[yellow]▲ Steer queue is full; input was kept in the composer.[/]",
+                        classes="notice-cell",
+                    )
+                )
             return
 
         self._append_cell(Static(f"[b dim]›[/] {escape(text)}", classes="user-cell"))
@@ -353,9 +370,43 @@ class CodingKidApp(App[None]):
         )
 
     def _run_turn(self, user_text: str) -> None:
-        turn_start = self.manager.clone()
-        todos_start = self.todo_state.items
-        token = self.cancellation_token
+        pending_texts = [user_text]
+        persistence_kind = "state_committed"
+        while pending_texts:
+            token = self.cancellation_token
+            combined_text = "\n".join(pending_texts)
+            for pending_text in pending_texts:
+                self.manager.conversation.append_user(pending_text)
+            pending_texts = []
+            persistence_kind = "state_committed"
+            should_continue = False
+            step_outcome = self._run_controlled_step(combined_text, token)
+            if step_outcome == "failed":
+                persistence_kind = "turn_failed"
+            if token is not None and token.cancelled:
+                persistence_kind = (
+                    "turn_steered" if token.reason == "steered" else "turn_interrupted"
+                )
+                if token.reason == "steered":
+                    queued = self.turn_controller.take_pending()
+                    if queued:
+                        pending_texts = [item.text for item in queued]
+                        self.cancellation_token = self.turn_controller.next_step_token()
+                        should_continue = True
+            if self.session_handle is not None:
+                self.session_handle.todos = self.todo_state.items
+                try:
+                    self.session_handle.commit_state(kind=persistence_kind)
+                except BaseException as error:
+                    self.call_from_thread(self._show_persistence_error, str(error))
+                    should_continue = False
+            if not should_continue:
+                break
+        self.call_from_thread(self._finish_activity)
+
+    def _run_controlled_step(
+        self, user_text: str, token: CancellationToken | None
+    ) -> str:
         request_context: list[Any] = []
         recalled_ids: tuple[str, ...] = ()
         if self.memory_manager is not None:
@@ -390,7 +441,6 @@ class CodingKidApp(App[None]):
             )
             metadata = self.capability_runtime.skill_metadata()
             overlays = (metadata,) if metadata else ()
-        self.manager.conversation.append_user(user_text)
         try:
             turn_options = {
                 "on_context": None,
@@ -418,26 +468,11 @@ class CodingKidApp(App[None]):
                 self.provider,
                 **turn_options,
             )
-        except BaseException as error:
-            self.manager.restore(turn_start)
-            self.todo_state.replace(todos_start)
-            if self.session_handle is not None:
-                try:
-                    self.session_handle.record_aborted(user_text, str(error))
-                except BaseException as persistence_error:
-                    self.call_from_thread(
-                        self._show_persistence_error,
-                        str(persistence_error),
-                    )
-        else:
-            if self.session_handle is not None:
-                self.session_handle.todos = self.todo_state.items
-                try:
-                    self.session_handle.commit_state()
-                except BaseException as error:
-                    self.call_from_thread(self._show_persistence_error, str(error))
-        finally:
-            self.call_from_thread(self._finish_activity)
+        except TurnCancelled:
+            return "interrupted"
+        except BaseException:
+            return "failed"
+        return "completed"
 
     def _thread_event_sink(self) -> EventSink:
         return lambda event: self.call_from_thread(self.handle_turn_event, event)
@@ -470,10 +505,14 @@ class CodingKidApp(App[None]):
             self._refresh_footer()
         elif isinstance(event, TurnInterrupted):
             self._discard_active_assistant()
+            steered = "steered" in event.message.casefold()
             self._append_cell(
                 Static(
-                    "[yellow]■ Turn interrupted; conversation, context, and todo "
-                    "state restored.[/]",
+                    (
+                        "[cyan]↪ Current step stopped; applying queued input.[/]"
+                        if steered
+                        else "[yellow]■ Turn interrupted; completed work was retained.[/]"
+                    ),
                     classes="notice-cell",
                 )
             )
@@ -482,7 +521,7 @@ class CodingKidApp(App[None]):
             self._append_cell(
                 Static(
                     f"■ {escape(event.message)}\n[dim]  Conversation, context, and "
-                    "todo state restored.[/]",
+                    "completed work retained.[/]",
                     classes="error-cell",
                 )
             )
@@ -830,15 +869,16 @@ class CodingKidApp(App[None]):
 
     def _begin_activity(self, label: str) -> None:
         self.active_turn = True
-        self.cancellation_token = CancellationToken()
+        self.cancellation_token = self.turn_controller.begin()
         composer = self.query_one(Composer)
-        composer.read_only = True
+        composer.read_only = False
         self._status_started = time.monotonic()
         self._set_status(label)
 
     def _finish_activity(self) -> None:
         self.active_turn = False
         self.cancellation_token = None
+        self.turn_controller.finish()
         composer = self.query_one(Composer)
         composer.read_only = False
         composer.focus()
@@ -876,7 +916,7 @@ class CodingKidApp(App[None]):
     def action_interrupt(self) -> None:
         if not self.active_turn or self.cancellation_token is None:
             return
-        self.cancellation_token.cancel()
+        self.turn_controller.interrupt()
         self._set_status("Interrupt requested")
 
     def action_cancel_or_quit(self) -> None:

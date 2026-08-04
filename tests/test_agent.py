@@ -386,8 +386,10 @@ def test_run_turn_streams_text_and_emits_typed_tool_and_todo_events() -> None:
         "completed",
         "in_progress",
     ]
-    assert isinstance(events[-2], AssistantMessageCompleted)
-    assert events[-2].text == "Finished."
+    completed_messages = [
+        event for event in events if isinstance(event, AssistantMessageCompleted)
+    ]
+    assert completed_messages[-1].text == "Finished."
     assert isinstance(events[-1], TurnCompleted)
 
 
@@ -412,7 +414,7 @@ def test_run_turn_stream_cancellation_emits_interrupt_and_keeps_history() -> Non
 
     assert messages == [{"role": "user", "content": "Keep me"}]
     assert isinstance(events[0], TurnStarted)
-    assert isinstance(events[1], AssistantTextDelta)
+    assert any(isinstance(event, AssistantTextDelta) for event in events)
     assert isinstance(events[-1], TurnInterrupted)
 
 

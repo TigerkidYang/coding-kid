@@ -161,7 +161,7 @@ def test_execute_timeout_returns_partial_model_readable_output(
 ) -> None:
     monkeypatch.setattr(
         "coding_kid.tools.run_command",
-        lambda command: CommandResult(124, "partial", "", True, 120.0),
+        lambda command, **kwargs: CommandResult(124, "partial", "", True, 120.0),
     )
 
     result = dispatch_tool("execute", {"command": "slow command"})
