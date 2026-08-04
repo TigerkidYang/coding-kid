@@ -33,7 +33,7 @@ Research notes should support two outcomes:
 
 - How to implement long-term memory. (Implemented in Version 06.)
 - How to implement multi-agent workflows.
-- How to manage background tasks.
+- How to manage background tasks. (Implemented in Version 08.)
 - How to implement skills and plugins as pluggable context. (Implemented in
   Version 07.)
 - How to implement context auto-compression.
@@ -81,6 +81,11 @@ Useful invariants:
   not autonomously create a paid model request.
 - Coding Kid applies a process-local subset: no PTY input, automatic
   backgrounding, task persistence, remote jobs, or multi-agent work.
+- Real Windows verification exposed two boundary details not visible in the
+  high-level task API: strict provider schemas must require every declared
+  field, and assigning a running shell to a Job Object leaves a descendant race.
+  V08 therefore creates the shell suspended, assigns the kill-on-close Job,
+  resumes it, and retains `taskkill /T` as a second termination fence.
 
 ## Version 07 Skills, Plugins, and MCP Source Reading
 

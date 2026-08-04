@@ -2,7 +2,8 @@
 
 ## Current Core Version: 08 — Background Tasks
 
-Completion status: implementation authorized and in progress.
+Completion status: implementation and verification complete; awaiting user
+acceptance before archive, tag, and push.
 
 ### Goal
 
@@ -52,6 +53,33 @@ can list, poll, wait for, or stop a task through one bounded task runtime.
   launch selection, and packaging remain covered by deterministic tests.
 - Pytest, Ruff, wheel inspection, fresh-install V1–V8 launches, concurrency
   stress, and one independently checked real background-task session pass.
+
+### Verification
+
+- Deterministic suite: **254 passed**, including process state/output bounds,
+  wait cancellation, terminal eviction, provider-strict schemas, Agent rollback,
+  Skill/MCP composition, CLI/TUI controls, lifecycle events, session behavior,
+  and historical launcher fidelity.
+- Concurrency and cleanup: **10/10** mixed start/wait/poll/stop/close stress
+  rounds passed without state regression, duplicate terminal events, deadlock,
+  lingering task threads, or running processes. A separate parent/child stop
+  probe passed 10/10 rounds; the 60-second child sentinel remained absent.
+- Ruff lint and formatting checks for maintained `src/` and `tests/`: passed.
+- Final wheel: **100 files / 96 Python files**, including frozen V01–V07 and
+  living V08. It contains no tests, evaluations, research trees, `showcase/`,
+  caches, bytecode, or logs.
+- A clean temporary installation launched explicit V1–V8 and default V08 from
+  an unrelated directory without a provider request.
+- A real `openai/gpt-5.6-luna` run explicitly backgrounded a Unicode worker,
+  read independent evidence before waiting, captured separate stdout/stderr,
+  then started and stopped a parent/child process tree. CLI notifications,
+  `/tasks`, tool order, and persisted protocol evidence matched the run. After
+  shutdown, related process count was zero immediately and after 15 seconds;
+  the delayed sentinel did not appear.
+- The instrumented final live run used **8 model steps, 11,820 input tokens,
+  547 output tokens, and USD 0.00116478**. Earlier fixture/schema attempts kept
+  the task-wide live spend conservatively below USD 0.01, far below the USD 1
+  cap. No SWE-bench or paid batch evaluation was run.
 
 ## Current Core Version: 07 — Pluggable Capabilities
 

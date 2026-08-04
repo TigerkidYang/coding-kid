@@ -44,12 +44,13 @@ omission marker. UI events, command summaries, and the dynamic model projection
 are separately bounded.
 
 Two byte-reader threads and one watcher drain every process without blocking
-the Agent loop. On Windows, background processes also enter a kill-on-close Job
-Object, closing the narrow race in which a descendant starts while `taskkill`
-is enumerating the tree. `stop` is idempotent, `wait` is cancellable and capped
-at 30 seconds, and concurrent `stop`/`close` operations share a termination lock
-and close-completion barrier. Application shutdown stops all running trees and
-joins task threads before closing MCP and persistent session resources.
+the Agent loop. On Windows, the shell starts suspended, enters a kill-on-close
+Job Object, and only then resumes; termination combines `taskkill /T` with the
+Job boundary. This closes both descendant-creation races. `stop` is idempotent,
+`wait` is cancellable and capped at 30 seconds, and concurrent `stop`/`close`
+operations share a termination lock and close-completion barrier. Application
+shutdown stops all running trees and joins task threads before closing MCP and
+persistent session resources.
 
 The manager is created afresh on each Coding Kid process start. Task IDs and OS
 processes never enter session logs, compaction, or memory. Successful tool-call
