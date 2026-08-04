@@ -44,6 +44,47 @@ Research notes should support two outcomes:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
 
+## Version 09 Multi-Agent Source Reading
+
+Version 09 is based on a focused source pass over both research objects.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/tools/AgentTool/AgentTool.tsx`
+- `research/repos/claude-code/src/tools/AgentTool/runAgent.ts`
+- `research/repos/claude-code/src/tools/AgentTool/forkSubagent.ts`
+- `research/repos/claude-code/src/tools/AgentTool/resumeAgent.ts`
+- `research/repos/claude-code/src/tasks/LocalAgentTask/LocalAgentTask.tsx`
+- `research/repos/claude-code/src/coordinator/coordinatorMode.ts`
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/core/src/agent/control.rs`
+- `research/repos/codex/codex-rs/core/src/agent/registry.rs`
+- `research/repos/codex/codex-rs/core/src/agent/control/spawn.rs`
+- `research/repos/codex/codex-rs/core/src/tools/handlers/multi_agents/`
+- `research/repos/codex/codex-rs/core/src/tools/handlers/multi_agents_v2/`
+- `research/repos/codex/codex-rs/core/src/context/multi_agent_mode_instructions.rs`
+
+Useful invariants:
+
+- The root session owns one control plane, while every child owns isolated
+  conversation, cancellation, progress, and tool state.
+- Spawn must return immediately so multiple child runs can overlap; completion
+  changes state and emits a bounded notification but does not itself call a
+  model.
+- Concurrency, retention, prompt/result size, depth, waiting, and shutdown all
+  need explicit bounds and race-safe terminal transitions.
+- Fresh task prompts avoid copying large or protocol-sensitive parent history;
+  a continuation can reuse one child's own context after the parent synthesizes
+  its earlier result.
+- Tool pools are capability boundaries. Coding Kid children retain ordinary
+  file/terminal, Skill, and MCP tools but cannot spawn children or create
+  background shell tasks.
+- Coding Kid applies a process-local, single-level star topology. Durable child
+  threads, worktrees, sandboxes, remote Agents, model overrides, and peer
+  messaging remain separate work.
+
 ## Version 08 Background-Task Source Reading
 
 Version 08 uses the existing Claude Code and Codex snapshots to add bounded

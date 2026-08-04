@@ -1,5 +1,57 @@
 # Tasks
 
+## Current Core Version: 09 — Multi-Agent Workflows
+
+Completion status: implementation in progress.
+
+### Goal
+
+Add a bounded process-local multi-agent control plane without replacing the
+synchronous root Agent loop. The root Agent can start independent child Agents
+in parallel, inspect or wait for them, continue an existing child, stop work,
+and synthesize returned evidence.
+
+### Included Scope
+
+- One application-owned `AgentManager` with bounded concurrency, retained
+  records, results, progress, events, cancellation, and shutdown.
+- Strict `spawn_agent` plus unified `agent` list/poll/wait/followup/stop tools.
+- Fresh child contexts with isolated conversation, compaction, todo state, and
+  budgets; shared project context, cwd, Skills, MCP, and user permissions.
+- Root CLI/TUI status commands and notifications without autonomous model
+  wakeups.
+- Installed teaching-version selection for V1–V9, with V08 frozen before V09
+  changes.
+- Deterministic, concurrency, packaging, clean-install, and bounded real-model
+  verification.
+
+### Excluded Scope
+
+- Nested or peer-to-peer Agents, arbitrary Agent graphs, roles, model
+  overrides, and parent-history forks.
+- Durable child transcripts, cross-process Agent resume, long-term-memory
+  extraction from child runs, or remote Agents.
+- Worktrees, containers, sandboxing, approvals, overlapping-write merging, and
+  background shell tasks inside child Agents.
+- Autonomous model wakeups, proactive delegation modes, SWE-bench, or another
+  paid batch evaluation.
+
+### Completion Criteria
+
+- The root Agent can launch at least two actually overlapping child runs, wait
+  for their results, and synthesize them in its normal tool loop.
+- Follow-up work reuses the selected child's context; wait timeout, failure,
+  cancellation, stop, retention, and application shutdown remain bounded and
+  truthful.
+- Root and child conversation, compaction, todos, tool budgets, and rollback
+  are isolated; child registries contain Skills/MCP but no Agent or background
+  task tools.
+- CLI/TUI expose current state and terminal notifications without completion
+  initiating a provider request.
+- Pytest, Ruff, 10-round concurrency/cleanup stress, wheel inspection,
+  fresh-install V1–V9 launches, and bounded real parallel/follow-up/stop trials
+  pass within the standing USD 1.00 task cap.
+
 ## Current Core Version: 08 — Background Tasks
 
 Completion status: complete and archived under `versions/08-background-tasks/`
