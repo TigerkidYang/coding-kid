@@ -17,6 +17,7 @@ from textual.message import Message
 from textual.widgets import Markdown, Static, TextArea
 
 from coding_kid.agent import current_instructions, run_turn
+from coding_kid.agents import AgentEvent, AgentManager
 from coding_kid.background_tasks import BackgroundTaskManager, TaskEvent
 from coding_kid.capabilities import CapabilityRuntime
 from coding_kid.compaction import compact_context
@@ -195,6 +196,7 @@ class CodingKidApp(App[None]):
         capability_runtime: CapabilityRuntime | None = None,
         background_tasks: BackgroundTaskManager | None = None,
         todo_state: TodoState | None = None,
+        agent_manager: AgentManager | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -208,6 +210,12 @@ class CodingKidApp(App[None]):
         self.todo_state = todo_state or TodoState(
             session_handle.todos if session_handle is not None else None
         )
+        self.agent_manager = agent_manager or AgentManager(
+            session_context,
+            manager.budget,
+            capability_runtime=capability_runtime,
+        )
+        self._owns_agent_manager = agent_manager is None
         self._owns_background_tasks = background_tasks is None
         self.active_turn = False
         self.cancellation_token: CancellationToken | None = None
@@ -239,6 +247,7 @@ class CodingKidApp(App[None]):
         self.set_interval(0.05, self._flush_deltas)
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(0.1, self._drain_task_events)
+        self.set_interval(0.1, self._drain_agent_events)
         if self.memory_manager is not None and self.memory_manager.mode == "auto":
             self.call_after_refresh(self._start_memory_sync, False)
 
@@ -247,7 +256,7 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v08)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v09)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}",
@@ -256,7 +265,7 @@ class CodingKidApp(App[None]):
         )
         self._append_cell(
             Static(
-                "[dim]  Describe a task, or use /tasks, /session, /sessions, "
+                "[dim]  Describe a task, or use /agents, /tasks, /session, /sessions, "
                 "/context, /compact, or /exit.[/]",
                 classes="help-cell",
             )
@@ -284,6 +293,12 @@ class CodingKidApp(App[None]):
             return
         if text == "/tasks":
             self._show_background_tasks()
+            return
+        if text == "/agents":
+            self._show_agents()
+            return
+        if text.startswith("/agent stop "):
+            self._start_agent_stop(text.removeprefix("/agent stop ").strip())
             return
         if text.startswith("/task stop "):
             self._start_task_stop(text.removeprefix("/task stop ").strip())
@@ -348,7 +363,12 @@ class CodingKidApp(App[None]):
                 user_text
             )
         skill_state: SkillTurnState | None = None
-        registry = build_tool_registry(self.background_tasks, token, self.todo_state)
+        registry = build_tool_registry(
+            self.background_tasks,
+            token,
+            self.todo_state,
+            self.agent_manager,
+        )
         overlays: tuple[str, ...] = ()
         if self.capability_runtime is not None:
             skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
@@ -389,6 +409,7 @@ class CodingKidApp(App[None]):
                 "tool_registry": registry,
                 "instruction_overlays": overlays,
                 "todo_state": self.todo_state,
+                "agent_manager": self.agent_manager,
             }
             if "background_tasks" in inspect.signature(run_turn).parameters:
                 turn_options["background_tasks"] = self.background_tasks
@@ -542,7 +563,9 @@ class CodingKidApp(App[None]):
 
     def _show_context(self) -> None:
         base_registry = build_tool_registry(
-            self.background_tasks, todo_state=self.todo_state
+            self.background_tasks,
+            todo_state=self.todo_state,
+            agent_manager=self.agent_manager,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
@@ -758,6 +781,7 @@ class CodingKidApp(App[None]):
             self.background_tasks,
             self.cancellation_token,
             self.todo_state,
+            self.agent_manager,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
@@ -840,6 +864,9 @@ class CodingKidApp(App[None]):
         right_parts = []
         if self.background_tasks.running_count:
             right_parts.append(f"{self.background_tasks.running_count} background")
+        if self.agent_manager.running_count:
+            count = self.agent_manager.running_count
+            right_parts.append(f"{count} {'Agent' if count == 1 else 'Agents'}")
         if remaining is not None:
             right_parts.append(f"{remaining}% context left")
         right = " · ".join(right_parts)
@@ -859,6 +886,8 @@ class CodingKidApp(App[None]):
             self.exit()
 
     def on_unmount(self) -> None:
+        if self._owns_agent_manager:
+            self.agent_manager.close()
         if self._owns_background_tasks:
             self.background_tasks.close()
 
@@ -868,6 +897,61 @@ class CodingKidApp(App[None]):
                 Text(self.background_tasks.status_text()),
                 classes="context-cell",
                 markup=False,
+            )
+        )
+
+    def _show_agents(self) -> None:
+        self._append_cell(
+            Static(
+                Text(self.agent_manager.status_text()),
+                classes="context-cell",
+                markup=False,
+            )
+        )
+
+    def _start_agent_stop(self, agent_id: str) -> None:
+        if not agent_id:
+            self._append_cell(Static("■ Usage: /agent stop <id>", classes="error-cell"))
+            return
+        if self.active_turn:
+            return
+        self._begin_activity(f"Stopping {agent_id}")
+        self.run_worker(
+            lambda: self._run_agent_stop(agent_id),
+            name="agent-stop",
+            group="agent",
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _run_agent_stop(self, agent_id: str) -> None:
+        try:
+            self.agent_manager.stop(agent_id)
+        except BaseException as error:
+            self.call_from_thread(self._show_task_stop_error, str(error))
+        finally:
+            self.call_from_thread(self._finish_activity)
+
+    def _drain_agent_events(self) -> None:
+        events = self.agent_manager.drain_events()
+        if not events:
+            return
+        try:
+            for event in events:
+                self._show_agent_event(event)
+            self._refresh_footer()
+        except NoMatches:
+            return
+
+    def _show_agent_event(self, event: AgentEvent) -> None:
+        style = "error-cell" if event.status == "failed" else "notice-cell"
+        status = "started" if event.status == "starting" else event.status
+        self._append_cell(
+            Static(
+                f"• Child Agent {escape(status)}\n"
+                f"  {escape(event.agent_id)} · {escape(_bounded(event.description))}",
+                classes=style,
             )
         )
 
@@ -933,6 +1017,10 @@ def _tool_status(name: str, arguments: dict[str, Any]) -> str:
         return f"Running {_bounded(arguments.get('command', '?'))}"
     if name == "todo":
         return "Updating plan"
+    if name == "spawn_agent":
+        return f"Starting Agent {_bounded(arguments.get('description', '?'))}"
+    if name == "agent":
+        return f"Managing Agent {arguments.get('action', '?')}"
     return _tool_description(name, arguments).removeprefix("• ")
 
 
@@ -951,6 +1039,13 @@ def _tool_description(name: str, arguments: dict[str, Any]) -> str:
         return f"• Explored\n  └ Read {_bounded(arguments.get('path', '?'))}"
     if name in {"write", "patch", "delete"}:
         return f"• Edited {_bounded(arguments.get('path', '?'))}"
+    if name == "spawn_agent":
+        return f"• Started Agent\n  └ {_bounded(arguments.get('description', '?'))}"
+    if name == "agent":
+        agent_id = arguments.get("agent_id") or "all"
+        return (
+            f"• Managed Agent\n  └ {arguments.get('action', '?')} {_bounded(agent_id)}"
+        )
     return f"• {name}"
 
 
@@ -968,6 +1063,7 @@ def run_tui(
     capability_runtime: CapabilityRuntime | None = None,
     background_tasks: BackgroundTaskManager | None = None,
     todo_state: TodoState | None = None,
+    agent_manager: AgentManager | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -980,4 +1076,5 @@ def run_tui(
         capability_runtime=capability_runtime,
         background_tasks=background_tasks,
         todo_state=todo_state,
+        agent_manager=agent_manager,
     ).run()

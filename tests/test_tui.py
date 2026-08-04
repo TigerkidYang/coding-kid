@@ -10,10 +10,11 @@ from typing import Any
 
 from textual.widgets import Static
 
+from coding_kid.agents import AgentManager
 from coding_kid.context import SessionContext
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.context_manager import ContextBudget, ContextManager
-from coding_kid.events import ToolCompleted
+from coding_kid.events import CancellationToken, EventSink, ToolCompleted
 from coding_kid.memory import MemoryManager
 from coding_kid.sessions import SessionStore
 from coding_kid.tui import AssistantCell, CodingKidApp, Composer
@@ -45,6 +46,7 @@ def make_app(
     provider: Any | None = None,
     streaming_provider: Any | None = None,
     background_tasks: BackgroundTaskManager | None = None,
+    agent_manager: AgentManager | None = None,
 ) -> CodingKidApp:
     context = SessionContext(
         cwd=tmp_path,
@@ -63,6 +65,7 @@ def make_app(
         streaming_provider=streaming_provider
         or (lambda *args, **kwargs: response(text_message("ok"))),
         background_tasks=background_tasks,
+        agent_manager=agent_manager,
     )
 
 
@@ -136,6 +139,51 @@ def test_tui_shows_background_events_tasks_and_running_count(tmp_path: Path) -> 
         asyncio.run(exercise())
     finally:
         tasks.close()
+
+
+def test_tui_shows_agent_events_list_stop_and_running_count(tmp_path: Path) -> None:
+    def runner(
+        manager: Any,
+        todos: Any,
+        message: str,
+        token: CancellationToken,
+        event_sink: EventSink,
+    ) -> str:
+        while not token.cancelled:
+            time.sleep(0.005)
+        token.raise_if_cancelled()
+        return "unreachable"
+
+    current_context = SessionContext.capture(tmp_path)
+    agents = AgentManager(
+        current_context, ContextBudget(None, "test"), child_runner=runner
+    )
+    agent_id = agents.start("slow child", "wait").agent_id
+
+    async def exercise() -> None:
+        app = make_app(tmp_path, agent_manager=agents)
+        async with app.run_test(size=(72, 20)) as pilot:
+            await pilot.pause(0.2)
+            assert "1 Agent" in content(app.query_one("#footer-right", Static))
+            notices = [content(widget) for widget in app.query(".notice-cell")]
+            assert any(agent_id in notice and "started" in notice for notice in notices)
+
+            app.query_one(Composer).load_text("/agents")
+            await pilot.press("enter")
+            await pilot.pause()
+            contexts = [content(widget) for widget in app.query(".context-cell")]
+            assert any(agent_id in item and "running" in item for item in contexts)
+
+            app.query_one(Composer).load_text(f"/agent stop {agent_id}")
+            await pilot.press("enter")
+            await pilot.pause(0.3)
+            assert agents.poll(agent_id).status == "stopped"
+            assert "Agent" not in content(app.query_one("#footer-right", Static))
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        agents.close()
 
 
 def test_tui_submits_and_consolidates_streaming_answer_once(tmp_path: Path) -> None:

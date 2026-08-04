@@ -9,6 +9,7 @@ import sys
 from typing import Any
 
 from coding_kid.agent import current_instructions, run_turn
+from coding_kid.agents import AgentEvent, AgentManager
 from coding_kid.background_tasks import BackgroundTaskManager, TaskEvent
 from coding_kid.capabilities import CapabilityRuntime
 from coding_kid.compaction import compact_context
@@ -92,6 +93,13 @@ def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
         task_id = arguments.get("task_id")
         suffix = f" {task_id}" if task_id else ""
         rendered = f"[tool] task {action}{suffix}"
+    elif name == "spawn_agent":
+        rendered = f"[tool] spawn Agent: {arguments.get('description', '?')}"
+    elif name == "agent":
+        action = arguments.get("action", "?")
+        agent_id = arguments.get("agent_id")
+        suffix = f" {agent_id}" if agent_id else ""
+        rendered = f"[tool] Agent {action}{suffix}"
     else:
         rendered = f"[tool] {name}"
 
@@ -110,11 +118,13 @@ def chat(
     capability_runtime: CapabilityRuntime | None = None,
     background_tasks: BackgroundTaskManager | None = None,
     todo_state: TodoState | None = None,
+    agent_manager: AgentManager | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     output_function = _safe_output_function(output_function)
     owns_background_tasks = background_tasks is None
     background_tasks = background_tasks or BackgroundTaskManager()
+    owns_agent_manager = agent_manager is None
     if session_handle is None:
         try:
             session_context = SessionContext.capture()
@@ -132,6 +142,11 @@ def chat(
             f"Coding Kid is ready. Session {session_handle.info.session_id[:8]}. "
             "Type /exit to quit."
         )
+    agent_manager = agent_manager or AgentManager(
+        session_context,
+        manager.budget,
+        capability_runtime=capability_runtime,
+    )
     output_function(ready)
     if capability_runtime is not None:
         output_function(capability_runtime.summary())
@@ -158,6 +173,8 @@ def chat(
         output_function(message)
 
     while True:
+        for event in agent_manager.drain_events():
+            output_function(_format_agent_event(event))
         for event in background_tasks.drain_events():
             if event.status != "running":
                 output_function(_format_task_event(event))
@@ -175,6 +192,19 @@ def chat(
         if user_input == "/tasks":
             output_function(background_tasks.status_text())
             continue
+        if user_input == "/agents":
+            output_function(agent_manager.status_text())
+            continue
+        if user_input.startswith("/agent stop "):
+            agent_id = user_input.removeprefix("/agent stop ").strip()
+            try:
+                result = agent_manager.stop(agent_id)
+            except Exception as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function(f"Agent {result.agent_id}: {result.status}.")
+                agent_manager.drain_events()
+            continue
         if user_input.startswith("/task stop "):
             task_id = user_input.removeprefix("/task stop ").strip()
             try:
@@ -189,7 +219,11 @@ def chat(
                 background_tasks.drain_events()
             continue
         if user_input == "/context":
-            base_registry = build_tool_registry(background_tasks, todo_state=todo_state)
+            base_registry = build_tool_registry(
+                background_tasks,
+                todo_state=todo_state,
+                agent_manager=agent_manager,
+            )
             definitions = base_registry.definitions()
             context_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
@@ -305,7 +339,11 @@ def chat(
             continue
         if user_input == "/compact":
             snapshot = manager.clone()
-            base_registry = build_tool_registry(background_tasks, todo_state=todo_state)
+            base_registry = build_tool_registry(
+                background_tasks,
+                todo_state=todo_state,
+                agent_manager=agent_manager,
+            )
             definitions = base_registry.definitions()
             compact_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
@@ -349,7 +387,11 @@ def chat(
         if memory_manager is not None:
             request_context, recalled_ids = memory_manager.recall_context(user_input)
         skill_state: SkillTurnState | None = None
-        registry = build_tool_registry(background_tasks, todo_state=todo_state)
+        registry = build_tool_registry(
+            background_tasks,
+            todo_state=todo_state,
+            agent_manager=agent_manager,
+        )
         overlays: tuple[str, ...] = ()
         if capability_runtime is not None:
             skill_state = SkillTurnState(capability_runtime.snapshot.skills)
@@ -387,6 +429,8 @@ def chat(
                 turn_options["background_tasks"] = background_tasks
             if "todo_state" in parameters:
                 turn_options["todo_state"] = todo_state
+            if "agent_manager" in parameters:
+                turn_options["agent_manager"] = agent_manager
             if capability_runtime is not None and "instruction_overlays" in parameters:
                 turn_options["instruction_overlays"] = overlays
             answer = run_turn(
@@ -433,6 +477,8 @@ def chat(
 
         output_function(f"Coding Kid> {answer}")
 
+    if owns_agent_manager:
+        agent_manager.close()
     if owns_background_tasks:
         background_tasks.close()
 
@@ -448,6 +494,14 @@ def _format_session(info: SessionInfo) -> str:
 def _format_task_event(event: TaskEvent) -> str:
     suffix = f", exit {event.exit_code}" if event.exit_code is not None else ""
     return f"[task] {event.task_id} {event.status}{suffix}: {event.command}"
+
+
+def _format_agent_event(event: AgentEvent) -> str:
+    status = "started" if event.status == "starting" else event.status
+    return (
+        f"[agent] {event.agent_id} {status} "
+        f"(turn {event.turn_count}): {event.description}"
+    )
 
 
 def _format_sessions(items: list[SessionInfo]) -> str:
@@ -528,6 +582,11 @@ def main(options: SessionOptions | None = None) -> None:
             handle.context,
             context_window=handle.manager.budget.context_length,
         )
+        agent_manager = AgentManager(
+            handle.context,
+            handle.manager.budget,
+            capability_runtime=capability_runtime,
+        )
         if sys.stdin.isatty() and sys.stdout.isatty():
             from coding_kid.tui import run_tui
 
@@ -539,6 +598,8 @@ def main(options: SessionOptions | None = None) -> None:
                 tui_options["background_tasks"] = background_tasks
             if "capability_runtime" in inspect.signature(run_tui).parameters:
                 tui_options["capability_runtime"] = capability_runtime
+            if "agent_manager" in inspect.signature(run_tui).parameters:
+                tui_options["agent_manager"] = agent_manager
             run_tui(handle.context, handle.manager, **tui_options)
         else:
             chat_options: dict[str, Any] = {
@@ -549,10 +610,14 @@ def main(options: SessionOptions | None = None) -> None:
                 chat_options["background_tasks"] = background_tasks
             if "capability_runtime" in inspect.signature(chat).parameters:
                 chat_options["capability_runtime"] = capability_runtime
+            if "agent_manager" in inspect.signature(chat).parameters:
+                chat_options["agent_manager"] = agent_manager
             chat(**chat_options)
     except RuntimeError as error:
         print(f"Error: {error}")
     finally:
+        if "agent_manager" in locals():
+            agent_manager.close()
         if "background_tasks" in locals():
             background_tasks.close()
         if "capability_runtime" in locals():

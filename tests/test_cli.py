@@ -1,13 +1,17 @@
 from typing import Any
 from pathlib import Path
 import sys
+import threading
+import time
 
 import pytest
 
 import coding_kid.cli as cli
+from coding_kid.agents import AgentManager
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.events import CancellationToken, EventSink
 from coding_kid.memory import MemoryManager
 from coding_kid.sessions import SessionStore
 
@@ -83,6 +87,45 @@ def test_chat_reports_completed_task_at_prompt_boundary(tmp_path: Path) -> None:
         tasks.close()
 
     assert any(f"[task] {task_id} completed" in line for line in outputs)
+
+
+def test_chat_lists_stops_and_notifies_about_child_agents(tmp_path: Path) -> None:
+    entered = threading.Event()
+
+    def runner(
+        manager: Any,
+        todos: Any,
+        message: str,
+        token: CancellationToken,
+        event_sink: EventSink,
+    ) -> str:
+        entered.set()
+        while not token.cancelled:
+            time.sleep(0.005)
+        token.raise_if_cancelled()
+        return "unreachable"
+
+    current_context = SessionContext.capture(tmp_path)
+    agents = AgentManager(
+        current_context, ContextBudget(None, "test"), child_runner=runner
+    )
+    agent_id = agents.start("slow child", "wait").agent_id
+    assert entered.wait(1)
+    inputs = iter(["/agents", f"/agent stop {agent_id}", "/exit"])
+    outputs: list[str] = []
+    try:
+        cli.chat(
+            input_function=lambda prompt: next(inputs),
+            output_function=outputs.append,
+            agent_manager=agents,
+        )
+    finally:
+        agents.close()
+
+    rendered = "\n".join(outputs)
+    assert f"[agent] {agent_id} started" in rendered
+    assert agent_id in rendered and "running" in rendered
+    assert f"Agent {agent_id}: stopped." in rendered
 
 
 def test_chat_reports_an_error_and_keeps_running(monkeypatch: Any) -> None:
