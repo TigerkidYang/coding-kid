@@ -491,6 +491,8 @@ def _normalize_powershell_stderr(stderr: str) -> str:
     try:
         root = ElementTree.fromstring(xml_text)
     except ElementTree.ParseError:
+        if 'S="Error"' not in xml_text and "S='Error'" not in xml_text:
+            return plain.rstrip()
         return stderr
 
     errors: list[str] = []

@@ -155,6 +155,7 @@ def test_powershell_clixml_normalization_discards_progress_and_keeps_errors() ->
     )
 
     assert _normalize_powershell_stderr(progress) == "failure"
+    assert _normalize_powershell_stderr("#< CLIXML") == ""
     assert _normalize_powershell_stderr("plain error") == "plain error"
 
 
