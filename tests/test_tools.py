@@ -8,6 +8,7 @@ from coding_kid.tools import (
     MAX_TODO_ITEMS,
     MAX_TOOL_OUTPUT_CHARS,
     TOOLS,
+    ToolRegistry,
     build_tool_registry,
     dispatch_tool,
     get_todos,
@@ -202,6 +203,16 @@ def test_every_tool_has_model_visible_metadata() -> None:
         todo_items["items"]["properties"]["content"]["maxLength"]
         == MAX_TODO_CONTENT_CHARS
     )
+
+
+def test_every_strict_tool_requires_each_declared_property() -> None:
+    for definition in ToolRegistry().definitions():
+        if not definition["strict"]:
+            continue
+        parameters = definition["parameters"]
+        assert set(parameters["required"]) == set(parameters["properties"]), definition[
+            "name"
+        ]
 
 
 def test_background_execute_and_task_actions(tmp_path: Path) -> None:
