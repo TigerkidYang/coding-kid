@@ -2,10 +2,11 @@
 
 ## Current Core Version: 10 — Controllable Turn Runtime
 
-Completion status: implementation in progress. The user selected the advanced
-research topic "How to better control the whole loop and workflow" and
-explicitly delegated implementation, deterministic verification, and bounded
-real-TUI verification to the assistant.
+Completion status: implementation and verification complete; awaiting the
+user's stage-completion confirmation before archive, tag, and push. The user
+selected the advanced research topic "How to better control the whole loop and
+workflow" and explicitly delegated implementation, deterministic verification,
+and bounded real-TUI verification to the assistant.
 
 ### Goal
 
@@ -56,6 +57,30 @@ interruption, tool scheduling, and termination have explicit reasons.
 - Pytest, Ruff, race/cleanup stress, wheel inspection, V09 fidelity,
   clean-install V1–V10 launches, and real TUI steer/interruption/resume trials
   pass within the standing USD 1.00 task cap.
+
+### Verification Result
+
+- The maintained suite passes **289 tests** in 97.55 seconds; Ruff lint and
+  formatting checks pass over all maintained `src/` and `tests/` sources.
+- Ten rounds of five concurrency and cleanup probes pass: safe-call overlap,
+  exclusive barriers, FIFO TUI steering, hard interruption, and foreground
+  process-tree cancellation. No delayed sentinel or surviving worker remains.
+- The final wheel contains **143 files / 139 Python files**, frozen V01–V09
+  runtimes, and living V10, with no tests, evaluations, `showcase/`, logs,
+  caches, or bytecode. A clean Python 3.13 installation launches explicit
+  V1–V10 and default V10 from an unrelated directory without a provider call.
+- A real installed-wheel `openai/gpt-5.6-luna` TUI session passes soft steering
+  of a foreground process, FIFO steering across continuations, hard interrupt,
+  completed-write evidence retention, process cleanup, persistent resume, and
+  no-tool recall of the retained write value. The first recall exposed an
+  insufficient grounding instruction; the prompt was corrected, covered by a
+  regression test, and the installed-wheel retry returned the exact retained
+  value.
+- The live trials used **8 paid responses**. Persisted snapshots recorded 17,070
+  last-step input tokens in aggregate; because the provider cost is not stored,
+  task-wide spend is conservatively estimated below **USD 0.02**, far below the
+  USD 1.00 allowance. No SWE-bench or paid batch evaluation was run. See
+  `docs/reports/v10-live-verification.md`.
 
 ## Current Core Version: 09 — Multi-Agent Workflows
 

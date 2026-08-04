@@ -66,12 +66,16 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 10 controllable-turn-runtime implementation and deterministic
-  verification are complete; packaging, stress, and bounded real-TUI
-  verification are in progress. It makes
+- Version 10 controllable-turn-runtime implementation and verification are
+  complete and await the user's stage-completion confirmation before archive,
+  tag, and push. It makes
   Turn/Step transitions explicit, adds bounded active-turn steering, preserves
   protocol evidence for completed side effects across interruption, propagates
   cancellation into foreground work, and adds controlled safe-tool scheduling.
+  It passes 289 tests, Ruff, ten rounds of concurrency/process cleanup stress,
+  final wheel inspection, clean-install V1–V10 launches, and real TUI steering,
+  hard-interrupt, evidence-resume, and FIFO trials. Eight paid responses kept
+  task-wide live spend conservatively below USD 0.02; no benchmark was run.
   The user selected the research topic and delegated implementation plus
   deterministic and bounded real-TUI verification to the assistant. Version 09
   remains the completed frozen teaching checkpoint.
