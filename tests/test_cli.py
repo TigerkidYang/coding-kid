@@ -552,3 +552,39 @@ def test_plain_chat_exposes_manual_memory_commands(
     assert "Remembered" in rendered
     assert "ALPHA naming" in rendered
     assert "mode=manual" in rendered
+
+
+def test_resume_rejects_a_different_model(tmp_path: Any) -> None:
+    original = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="original/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    store = SessionStore(tmp_path, home=tmp_path / "home")
+    handle = store.create(
+        original,
+        ContextManager(original, ContextBudget(32_768, "test")),
+        [],
+    )
+    session_id = handle.info.session_id
+    handle.close()
+    current = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="different/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+
+    with pytest.raises(cli.SessionError, match="original/model"):
+        cli._open_session(
+            cli.SessionOptions(mode="resume", session_id=session_id),
+            current,
+            store,
+        )

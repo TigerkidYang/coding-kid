@@ -13,6 +13,9 @@ from coding_kid.sessions import (
     SessionBusyError,
     SessionCorruptError,
     SessionStore,
+    _append_line,
+    _iso,
+    _make_record,
 )
 
 
@@ -167,3 +170,86 @@ def test_soft_deleted_session_is_hidden_but_evidence_remains(tmp_path: Path) -> 
     assert deleted.status == "deleted"
     assert store.list_sessions() == []
     assert (store.sessions_dir / f"{handle.info.session_id}.jsonl").is_file()
+
+
+def test_retry_save_recovers_record_flushed_before_index_update(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    manager.conversation.append_user("durable after retry")
+    original_append = store._append
+
+    def fail_after_log(current: Any, payload: dict[str, Any]) -> Any:
+        with store._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM sessions WHERE session_id = ?",
+                (current.info.session_id,),
+            ).fetchone()
+        record = _make_record(
+            row["last_seq"] + 1,
+            row["last_hash"],
+            _iso(store._now()),
+            payload,
+        )
+        _append_line(Path(row["log_path"]), record)
+        raise OSError("database update failed")
+
+    monkeypatch.setattr(store, "_append", fail_after_log)
+    with pytest.raises(OSError):
+        handle.commit_state()
+    assert handle.dirty is True
+    monkeypatch.setattr(store, "_append", original_append)
+
+    handle.retry_save()
+    handle.close()
+    resumed = store.resume(handle.info.session_id)
+
+    assert resumed.manager.conversation.active_items()[0]["content"] == (
+        "durable after retry"
+    )
+    assert resumed.info.last_seq == 2
+
+
+def test_retry_save_discards_partial_tail_before_appending(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    manager.conversation.append_user("safe retry")
+    log_path = store.sessions_dir / f"{handle.info.session_id}.jsonl"
+    with log_path.open("ab") as stream:
+        stream.write(b'{"partial":')
+    handle.dirty = True
+
+    handle.retry_save()
+    handle.close()
+    resumed = store.resume(handle.info.session_id)
+
+    assert resumed.manager.conversation.active_items()[0]["content"] == "safe retry"
+
+
+def test_startup_repairs_orphaned_log_and_stale_index(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    home = tmp_path / "home"
+    store = SessionStore(project, home=home)
+    handle = store.create(context, manager, [])
+    manager.conversation.append_user("recover the index")
+    handle.commit_state()
+    handle.close()
+    session_id = handle.info.session_id
+    with store._connect() as connection:
+        connection.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+
+    repaired_store = SessionStore(project, home=home)
+    repaired = repaired_store.get_session(session_id)
+
+    assert repaired.title == "recover the index"
+    assert repaired.status == "closed"
+    assert repaired.last_seq == 2

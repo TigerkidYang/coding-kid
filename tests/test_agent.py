@@ -94,6 +94,37 @@ def test_run_turn_injects_request_only_memory_and_records_valid_citations(
     )
 
 
+def test_memory_usage_tracking_failure_does_not_fail_turn(tmp_path: Path) -> None:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Test OS",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(32_768, "test"))
+    manager.conversation.append_user("Apply ALPHA")
+
+    answer = run_turn(
+        manager,
+        lambda *args, **kwargs: SimpleNamespace(
+            output=[
+                text_message(
+                    "Done.\n"
+                    '<coding_kid_memory_citations>["memory-1"]'
+                    "</coding_kid_memory_citations>"
+                )
+            ],
+            usage=None,
+        ),
+        on_memory_citations=lambda cited: (_ for _ in ()).throw(OSError("disk")),
+    )
+
+    assert answer == "Done."
+
+
 def test_run_turn_executes_multiple_tools_in_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

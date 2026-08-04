@@ -229,7 +229,15 @@ def run_turn(
                     if compatibility_messages is not None:
                         compatibility_messages[:] = manager.conversation.active_items()
                     if on_memory_citations is not None:
-                        on_memory_citations(parsed.memory_citations)
+                        try:
+                            on_memory_citations(parsed.memory_citations)
+                        except Exception as error:  # noqa: BLE001
+                            emit(
+                                event_sink,
+                                ContextWarning(
+                                    f"Memory usage tracking failed: {error}"
+                                ),
+                            )
                     emit(event_sink, TurnCompleted(parsed.text))
                     return parsed.text
 

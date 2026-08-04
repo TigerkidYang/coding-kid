@@ -263,6 +263,9 @@ class CodingKidApp(App[None]):
         if text == "/session":
             self._show_session()
             return
+        if text == "/session save":
+            self._retry_session_save()
+            return
         if text == "/sessions":
             self._show_sessions()
             return
@@ -280,6 +283,11 @@ class CodingKidApp(App[None]):
             return
         if text.startswith("/forget "):
             self._forget(text.removeprefix("/forget "))
+            return
+        if self.session_handle is not None and self.session_handle.dirty:
+            self._show_persistence_error(
+                "Save the pending transition with /session save before continuing."
+            )
             return
         if text == "/compact":
             self._start_manual_compaction()
@@ -331,7 +339,13 @@ class CodingKidApp(App[None]):
             self.manager.restore(turn_start)
             set_todos(todos_start)
             if self.session_handle is not None:
-                self.session_handle.record_aborted(user_text, str(error))
+                try:
+                    self.session_handle.record_aborted(user_text, str(error))
+                except BaseException as persistence_error:
+                    self.call_from_thread(
+                        self._show_persistence_error,
+                        str(persistence_error),
+                    )
         else:
             if self.session_handle is not None:
                 self.session_handle.todos = get_todos()
@@ -483,6 +497,19 @@ class CodingKidApp(App[None]):
                 f"[b]• Session[/]\n  {escape(self._session_label())}",
                 classes="context-cell",
             )
+        )
+
+    def _retry_session_save(self) -> None:
+        if self.session_handle is None:
+            self._show_session()
+            return
+        try:
+            self.session_handle.retry_save()
+        except Exception as error:
+            self._show_persistence_error(str(error))
+            return
+        self._append_cell(
+            Static("[dim]• Session state is durable.[/]", classes="context-cell")
         )
 
     def _show_sessions(self) -> None:

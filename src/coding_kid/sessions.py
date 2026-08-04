@@ -98,6 +98,13 @@ class SessionHandle:
         """Retry a transition that previously failed to reach durable storage."""
         if not self.dirty:
             return
+        if self.store._recover_pending(self):
+            self.dirty = False
+            self.transcript_length = len(self.manager.conversation.transcript)
+            self.info = self.store.get_session(
+                self.info.session_id, include_deleted=True
+            )
+            return
         self.dirty = False
         try:
             self.commit_state(kind=kind)
@@ -141,6 +148,7 @@ class SessionStore:
         self.database_path = self.project_dir / "state.sqlite3"
         self._prepare_storage()
         self._migrate()
+        self._repair_index()
 
     def _prepare_storage(self) -> None:
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
@@ -226,6 +234,72 @@ class SessionStore:
                     f"Unsupported session database schema: {row['version']}"
                 )
         _restrict(self.database_path, 0o600)
+
+    def _repair_index(self) -> None:
+        """Discover orphan logs and reconcile logs whose writer lease is stale."""
+        with self._connect() as connection:
+            rows = {
+                Path(row["log_path"]): row
+                for row in connection.execute("SELECT * FROM sessions").fetchall()
+            }
+        now = _iso(self._now())
+        for path in self.sessions_dir.glob("*.jsonl"):
+            indexed = rows.get(path)
+            if (
+                indexed is not None
+                and indexed["lease_owner"] is not None
+                and indexed["lease_expires_at"] is not None
+                and indexed["lease_expires_at"] > now
+            ):
+                continue
+            try:
+                records = _read_records(path)
+                header = records[0]
+                if header.get("project_identity") != self.project_identity:
+                    continue
+                context, _, _ = _restore_records(records)
+            except SessionCorruptError:
+                if indexed is not None:
+                    with self._connect() as connection:
+                        connection.execute(
+                            """
+                            UPDATE sessions SET status = 'damaged', damaged = 1,
+                                lease_owner = NULL, lease_expires_at = NULL
+                            WHERE session_id = ?
+                            """,
+                            (indexed["session_id"],),
+                        )
+                continue
+            last = records[-1]
+            title = _title_from_records(records)
+            status = "closed" if last.get("kind") == "session_closed" else "active"
+            session_id = header["session_id"]
+            created_at = header["timestamp"]
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO sessions(
+                        session_id, title, status, model, created_at, updated_at,
+                        log_path, last_seq, last_hash, damaged
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    ON CONFLICT(session_id) DO UPDATE SET
+                        title = excluded.title, status = excluded.status,
+                        updated_at = excluded.updated_at,
+                        last_seq = excluded.last_seq, last_hash = excluded.last_hash,
+                        damaged = 0, lease_owner = NULL, lease_expires_at = NULL
+                    """,
+                    (
+                        session_id,
+                        title,
+                        status,
+                        context.model,
+                        created_at,
+                        last["timestamp"],
+                        str(path),
+                        last["seq"],
+                        last["hash"],
+                    ),
+                )
 
     def create(
         self,
@@ -404,6 +478,48 @@ class SessionStore:
             )
         return record
 
+    def _recover_pending(self, handle: SessionHandle) -> bool:
+        """Reconcile a record flushed before its SQLite index transaction failed."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM sessions WHERE session_id = ?",
+                (handle.info.session_id,),
+            ).fetchone()
+        if row is None or row["lease_owner"] != handle.owner:
+            raise SessionBusyError("Session writer lease was lost")
+        path = Path(row["log_path"])
+        _truncate_incomplete_tail(path)
+        records = _read_records(path)
+        last = records[-1]
+        if last["seq"] == row["last_seq"]:
+            return False
+        if last["seq"] != row["last_seq"] + 1 or last["prev_hash"] != row["last_hash"]:
+            raise SessionCorruptError(
+                "Session log and index diverged while recovering a write"
+            )
+        title = row["title"]
+        if title == "New session" and last.get("kind") == "state_committed":
+            title = _title_from_payload(last)
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE sessions SET title = ?, updated_at = ?, last_seq = ?,
+                    last_hash = ?, lease_expires_at = ?
+                WHERE session_id = ? AND lease_owner = ?
+                """,
+                (
+                    title,
+                    last["timestamp"],
+                    last["seq"],
+                    last["hash"],
+                    _iso(self._now() + LEASE_DURATION),
+                    handle.info.session_id,
+                    handle.owner,
+                ),
+            )
+        handle.last_hash = last["hash"]
+        return True
+
     def _acquire_lease(self, session_id: str, owner: str) -> None:
         now = _iso(self._now())
         expires = _iso(self._now() + LEASE_DURATION)
@@ -565,6 +681,17 @@ def _append_line(path: Path, record: dict[str, Any]) -> None:
     _restrict(path, 0o600)
 
 
+def _truncate_incomplete_tail(path: Path) -> None:
+    data = path.read_bytes()
+    if not data or data.endswith((b"\n", b"\r")):
+        return
+    boundary = data.rfind(b"\n")
+    with path.open("r+b") as stream:
+        stream.truncate(boundary + 1)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
 def _read_records(path: Path) -> list[dict[str, Any]]:
     try:
         data = path.read_bytes()
@@ -718,6 +845,15 @@ def _title_from_payload(payload: dict[str, Any]) -> str:
             if isinstance(content, str) and content.strip():
                 compact = " ".join(content.split())
                 return compact[:77] + ("..." if len(compact) > 77 else "")
+    return "New session"
+
+
+def _title_from_records(records: list[dict[str, Any]]) -> str:
+    for record in records:
+        if record.get("kind") == "state_committed":
+            title = _title_from_payload(record)
+            if title != "New session":
+                return title
     return "New session"
 
 

@@ -141,6 +141,17 @@ def chat(
             else:
                 output_function(_format_session(session_handle.info))
             continue
+        if user_input == "/session save":
+            if session_handle is None:
+                output_function("Session persistence is not active.")
+            else:
+                try:
+                    session_handle.retry_save()
+                except Exception as error:
+                    output_function(f"Fatal persistence error: {error}")
+                else:
+                    output_function("Session state is durable.")
+            continue
         if user_input == "/sessions":
             if session_handle is None:
                 output_function("Session persistence is not active.")
@@ -209,6 +220,11 @@ def chat(
                 else:
                     output_function(f"Forgot memory {entry.memory_id[:8]}.")
             continue
+        if session_handle is not None and session_handle.dirty:
+            output_function(
+                "Persistence is pending. Use /session save before continuing."
+            )
+            continue
         if user_input == "/compact":
             snapshot = manager.clone()
             try:
@@ -233,7 +249,7 @@ def chat(
                         session_handle.commit_state(kind="context_committed")
                     except Exception as error:
                         output_function(f"Fatal persistence error: {error}")
-                        return
+                        continue
             continue
 
         turn_start = manager.clone()
@@ -265,14 +281,20 @@ def chat(
             manager.restore(turn_start)
             set_todos(todos_start)
             if session_handle is not None:
-                session_handle.record_aborted(user_input, "interrupted")
+                try:
+                    session_handle.record_aborted(user_input, "interrupted")
+                except Exception as error:
+                    output_function(f"Persistence warning: {error}")
             output_function("\nTask interrupted. You can enter another request.")
             continue
         except Exception as error:
             manager.restore(turn_start)
             set_todos(todos_start)
             if session_handle is not None:
-                session_handle.record_aborted(user_input, str(error))
+                try:
+                    session_handle.record_aborted(user_input, str(error))
+                except Exception as persistence_error:
+                    output_function(f"Persistence warning: {persistence_error}")
             output_function(f"Error: {error}")
             continue
 
@@ -281,11 +303,12 @@ def chat(
             try:
                 session_handle.commit_state()
             except Exception as error:
+                output_function(f"Coding Kid> {answer}")
                 output_function(
                     "Fatal persistence error: the completed turn remains in memory "
                     f"but is not durable: {error}"
                 )
-                return
+                continue
 
         output_function(f"Coding Kid> {answer}")
 
@@ -322,21 +345,31 @@ def _format_memory_sync(result: Any) -> str:
     )
 
 
-def _open_session(options: SessionOptions) -> SessionHandle:
-    current_context = SessionContext.capture()
-    store = SessionStore(current_context.project_root)
+def _open_session(
+    options: SessionOptions,
+    current_context: SessionContext | None = None,
+    store: SessionStore | None = None,
+) -> SessionHandle:
+    current = current_context or SessionContext.capture()
+    session_store = store or SessionStore(current.project_root)
     if options.mode == "continue":
-        handle = store.continue_latest()
+        handle = session_store.continue_latest()
     elif options.mode == "resume" and options.session_id:
-        handle = store.resume(options.session_id)
+        handle = session_store.resume(options.session_id)
     else:
-        manager = ContextManager.capture(current_context)
+        manager = ContextManager.capture(current)
         clear_todos()
-        handle = store.create(current_context, manager, [])
-    if handle.context.cwd != current_context.cwd:
+        handle = session_store.create(current, manager, [])
+    if handle.context.cwd != current.cwd:
         handle.close()
         raise SessionError(
             f"Resume from the session's original directory: {handle.context.cwd}"
+        )
+    if handle.context.model != current.model:
+        handle.close()
+        raise SessionError(
+            "Resume with the session's original OPENROUTER_MODEL: "
+            f"{handle.context.model}"
         )
     return handle
 
@@ -354,7 +387,7 @@ def main(options: SessionOptions | None = None) -> None:
             deleted = store.soft_delete(selection.delete_session)
             print(f"Deleted session {deleted.session_id[:8]} (evidence retained).")
             return
-        handle = _open_session(selection)
+        handle = _open_session(selection, current_context, store)
     except RuntimeError as error:
         print(f"Error: {error}")
         return
@@ -375,4 +408,7 @@ def main(options: SessionOptions | None = None) -> None:
     except RuntimeError as error:
         print(f"Error: {error}")
     finally:
-        handle.close()
+        try:
+            handle.close()
+        except Exception as error:
+            print(f"Persistence warning while closing session: {error}")
