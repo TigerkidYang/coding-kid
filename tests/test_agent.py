@@ -601,7 +601,7 @@ def test_system_prompt_describes_the_runtime() -> None:
 
     assert str(session_context.cwd) in instructions
     assert "OPENROUTER_MODEL" in instructions
-    assert "cmd.exe" in instructions
+    assert "PowerShell" in instructions
     assert "only call the tools provided" in SYSTEM_PROMPT.lower()
     assert "recursive tree commands" in SYSTEM_PROMPT.lower()
     assert 'use "."' in SYSTEM_PROMPT.lower()

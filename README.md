@@ -256,8 +256,11 @@ the turn rolls back.
 
 ## Tools
 
-- `execute`: run one foreground Windows `cmd.exe` command with a 2-minute
-  timeout.
+- `execute`: run one non-interactive foreground Windows PowerShell command.
+  Commands and output use a Unicode-safe boundary; stdout/stderr are captured
+  as bounded byte streams, and timeout or interruption terminates the process
+  tree. A 2-minute timeout returns partial output with `exit_code: 124` so the
+  model can recover.
 - `read`: read a UTF-8 text file.
 - `write`: create or completely overwrite a UTF-8 text file.
 - `search`: search file names and text contents, returning at most 100 matches;

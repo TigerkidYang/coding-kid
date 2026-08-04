@@ -78,6 +78,46 @@ Useful invariants:
 - Long-lived async MCP connections need a session-owned lifecycle boundary when
   the surrounding Agent loop remains synchronous.
 
+## Version 07 Terminal-Boundary Correction
+
+The post-verification real Skill A/B run exposed a Windows GBK display failure
+on `✳`. A focused source pass treated it as a boundary-class defect rather than
+patching that character.
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/shell-command/src/powershell.rs`
+- `research/repos/codex/codex-rs/core/src/exec.rs`
+- `research/repos/codex/codex-rs/core/src/unified_exec/process.rs`
+- `research/repos/codex/codex-rs/core/src/unified_exec/head_tail_buffer.rs`
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/utils/process.ts`
+- `research/repos/claude-code/src/utils/ShellCommand.ts`
+- `research/repos/claude-code/src/tasks/LocalShellTask/LocalShellTask.tsx`
+- `research/repos/claude-code/src/tools/BashTool/BashTool.tsx`
+
+Useful invariants:
+
+- Preserve command/output as Unicode or bytes across the process boundary;
+  request UTF-8 explicitly on Windows and decode invalid output lossily.
+- Bound output while reading it, retaining useful head and tail data, rather
+  than buffering an unbounded result and truncating only afterward.
+- A timeout or interruption must terminate the process tree, return partial
+  evidence, and place a deadline on pipe draining because descendants can
+  inherit stdout/stderr handles.
+- Foreground Agent commands must be non-interactive unless a separate PTY/input
+  protocol exists.
+- UI rendering failures such as an incompatible redirected-output codec must
+  not roll back an otherwise valid tool/Agent protocol round.
+
+Coding Kid applies the subset appropriate to its foreground-only terminal:
+UTF-16LE encoded PowerShell input with explicit UTF-8 output, byte-first
+head/tail capture, legacy/lossy decoding fallback, CLIXML normalization,
+process-tree cleanup, partial timeout results, closed stdin, and safe CLI
+rendering. Background processes, PTY input, and sandboxing remain separate.
+
 ## Version 06 Persistent-Memory Source Reading
 
 Version 06 was designed from a fresh source pass over both research objects,

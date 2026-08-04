@@ -56,6 +56,27 @@ call returns the full body inside the current tool protocol round. At most eight
 different Skills load per turn, and Skill loads do not consume the 64-call work
 budget.
 
+## Foreground Terminal Boundary
+
+`terminal.py` owns the complete built-in `execute` process boundary. On
+Windows, model commands enter PowerShell through its UTF-16LE `EncodedCommand`
+protocol; the script explicitly selects UTF-8 output, and Python child
+processes receive UTF-8 environment hints. Standard input is closed so a
+foreground command cannot silently wait for interactive input.
+
+Stdout and stderr remain byte streams while two readers drain them. Each stream
+keeps a bounded head and tail, so a noisy process cannot allocate unbounded
+memory before the registry's existing 50,000-character result limit applies.
+UTF-8 is preferred at decode time, then the platform legacy codec, then lossy
+UTF-8. PowerShell's redirected CLIXML progress envelope is discarded while
+real error records are retained.
+
+Timeout returns conventional exit code 124, partial output, elapsed time, and a
+`timed_out` marker. Timeout, interruption, and unexpected parent failure
+terminate the process tree; pipe draining has its own deadline for inherited
+handles. CLI output is configured for UTF-8 and has a codec-safe fallback, so
+displaying a command or answer cannot invalidate the Agent protocol round.
+
 ## Version Launcher and Session Selection
 
 `launcher.py` accepts `v1` through `v7`; V07 is the living default. V1–V6 run

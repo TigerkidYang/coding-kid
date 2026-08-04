@@ -71,7 +71,7 @@ class SessionContext:
         return cls(
             cwd=resolved_cwd,
             operating_system=f"{platform.system()} {platform.release()}".strip(),
-            shell="cmd.exe",
+            shell="PowerShell",
             model=os.getenv("OPENROUTER_MODEL", "not set"),
             local_date=date.today().isoformat(),
             project_root=project_root,
@@ -173,10 +173,10 @@ def render_environment(context: SessionContext) -> str:
             f"- Current working directory: {context.cwd}",
             f"- Project root: {context.project_root}",
             f"- Operating system: {context.operating_system}",
-            f"- Shell: {context.shell}",
+            "- Shell: PowerShell",
             f"- Configured model (OPENROUTER_MODEL): {context.model}",
             f"- Session date: {context.local_date}",
-            "The execute tool runs commands through Windows cmd.exe. Use Windows commands.",
+            "The execute tool runs non-interactive Windows PowerShell commands.",
         ]
     )
 

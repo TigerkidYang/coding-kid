@@ -45,8 +45,23 @@ when that version is about to begin.
 
 Consequence:
 Versions 01 through 06 are complete. Version 07 is the current pluggable
-capability implementation. Do not define a later version until Version 07 is
-complete.
+capability implementation and is complete. Do not define a later version until
+the user chooses one from the research topic list.
+
+## Treat terminal execution as a byte and process-lifecycle boundary
+
+Decision:
+Run living-runtime Windows commands through non-interactive PowerShell with
+Unicode-safe encoded input and explicit UTF-8 output. Capture bounded byte
+streams, decode with deterministic fallback, return partial timeout evidence,
+terminate descendant processes, and isolate output-codec failures from Agent
+state.
+
+Consequence:
+The terminal no longer depends on the host GBK/ANSI code page, a noisy command
+cannot consume unbounded capture memory, and a timeout is recoverable evidence
+instead of an exception with discarded output. This does not add PTY input,
+background tasks, sandboxing, or approvals.
 
 ## Compose Version 07 capabilities at session startup
 
