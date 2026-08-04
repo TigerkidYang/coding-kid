@@ -44,6 +44,44 @@ Research notes should support two outcomes:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
 
+## Version 08 Background-Task Source Reading
+
+Version 08 uses the existing Claude Code and Codex snapshots to add bounded
+local background shell tasks while keeping Coding Kid's Agent loop synchronous.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/Task.ts`
+- `research/repos/claude-code/src/tasks/LocalShellTask/LocalShellTask.tsx`
+- `research/repos/claude-code/src/tasks/LocalShellTask/killShellTasks.ts`
+- `research/repos/claude-code/src/utils/task/framework.ts`
+- `research/repos/claude-code/src/tools/BashTool/BashTool.tsx`
+- `research/repos/claude-code/src/tools/TaskOutputTool/TaskOutputTool.tsx`
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/core/src/unified_exec/mod.rs`
+- `research/repos/codex/codex-rs/core/src/unified_exec/process.rs`
+- `research/repos/codex/codex-rs/core/src/unified_exec/process_manager.rs`
+- `research/repos/codex/codex-rs/core/src/unified_exec/async_watcher.rs`
+- `research/repos/codex/codex-rs/core/src/tools/handlers/unified_exec/`
+
+Useful invariants:
+
+- Backgrounding is an explicit model choice. Process creation alone does not
+  prove that a server is ready; readiness needs output evidence or a health
+  probe.
+- A task handle separates launch from later `poll`, bounded `wait`, and `stop`
+  operations. Waiting cancellation must not implicitly kill the task.
+- Process state, output collection, completion notification, retention, and
+  process-tree cleanup need one owner and atomic terminal transitions.
+- Output and event streams must be bounded while the process is running, not
+  only truncated after completion.
+- Completion may become visible to the UI and the next model step, but it must
+  not autonomously create a paid model request.
+- Coding Kid applies a process-local subset: no PTY input, automatic
+  backgrounding, task persistence, remote jobs, or multi-agent work.
+
 ## Version 07 Skills, Plugins, and MCP Source Reading
 
 Version 07 was designed from current source snapshots of Claude Code and Codex,

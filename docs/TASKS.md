@@ -1,5 +1,58 @@
 # Tasks
 
+## Current Core Version: 08 — Background Tasks
+
+Completion status: implementation authorized and in progress.
+
+### Goal
+
+Add process-local, cross-turn background shell tasks without changing the
+synchronous Agent loop. The model explicitly chooses background execution and
+can list, poll, wait for, or stop a task through one bounded task runtime.
+
+### Included Scope
+
+- An optional `background` flag on `execute`; foreground behavior remains the
+  Version 07 Unicode-safe, bounded, two-minute command boundary.
+- A session-owned background task manager with random IDs, explicit lifecycle
+  states, bounded stdout/stderr, concurrency and retention limits, process-tree
+  cleanup, completion events, and deterministic shutdown.
+- A `task` tool with `list`, `poll`, `wait`, and `stop` actions. Waiting is
+  bounded and cancellable without terminating the task.
+- Dynamic model-visible task status plus `/tasks` and `/task stop <id>` in the
+  plain CLI and Streaming TUI.
+- Installed teaching-version selection for V1–V8, with V07 frozen before V08
+  changes.
+- Deterministic, concurrency, packaging, fresh-install, and one bounded real
+  model verification.
+
+### Excluded Scope
+
+- Automatic backgrounding, implicit readiness detection, PTY or stdin input,
+  autonomous model wakeups, scheduled work, and generic remote jobs.
+- Background task survival across Coding Kid process restarts or persistence in
+  sessions and long-term memory.
+- Multi-agent workflows, sandboxing, approvals, and changes to MCP connection
+  lifecycle.
+- SWE-bench or any paid batch evaluation.
+
+### Completion Criteria
+
+- Background `execute` returns immediately with a stable task ID while the
+  process continues across Agent turns.
+- The model and user can inspect and stop tasks; `wait` distinguishes a bounded
+  wait timeout from process completion, and readiness requires concrete logs or
+  a health probe.
+- Task count, retained records, stdout/stderr, UI events, prompt summaries, and
+  waits are bounded; normal application exit terminates every running process
+  tree and drains readers.
+- Interrupted or failed turns keep launched tasks discoverable while preserving
+  existing conversation/context/todo rollback.
+- Foreground execution, persistence, TUI, Skills, Plugins, MCP, historical
+  launch selection, and packaging remain covered by deterministic tests.
+- Pytest, Ruff, wheel inspection, fresh-install V1–V8 launches, concurrency
+  stress, and one independently checked real background-task session pass.
+
 ## Current Core Version: 07 — Pluggable Capabilities
 
 Completion status: complete and archived under
