@@ -2,15 +2,15 @@
 
 Coding Kid is a small Python coding agent built for learning. The current
 version shows the complete loop, persistent project sessions, layered
-long-term memory, pluggable Skills and MCP tools, a session todo checklist,
-bounded conversation context, streamed model output, and a full-screen terminal
-interface:
+long-term memory, pluggable Skills and MCP tools, process-local background shell
+tasks, a session todo checklist, bounded conversation context, streamed model
+output, and a full-screen terminal interface:
 
 ```text
 session context + project instructions + Skill metadata + recalled memory
   + explicit Skill bodies + user input
   -> OpenRouter stream -> typed events -> TUI
-  -> tool call -> built-in / Skill / MCP tool -> final answer
+  -> tool call -> built-in / background task / Skill / MCP tool -> final answer
 ```
 
 Interactive terminals run a simplified Codex-style Textual interface. Piped or
@@ -65,7 +65,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v7; new session)
+coding-kid       # latest living core version (currently v8; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -73,6 +73,7 @@ coding-kid v4    # bounded context management
 coding-kid v5    # streaming full-screen TUI
 coding-kid v6    # persistent sessions and long-term memory
 coding-kid v7    # Skills, Plugins, and MCP tools
+coding-kid v8    # process-local background shell tasks
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -82,9 +83,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–07
+The command preserves the directory from which it was invoked. Versions 03–08
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 07 is
+Versions 01 and 02 retain their original historical behavior. Version 08 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -95,7 +96,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Version 06–07 session selection is explicit:
+Living Version 08 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -108,13 +109,33 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 07 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 08 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. `Esc` or `Ctrl+C` requests interruption during
 an active turn; `Ctrl+C` exits while idle. `/exit` and `/quit` also stop the
 session. `/context` shows the current window status, `/compact` creates a
 manual context checkpoint, and `/session` or `/sessions` inspect persistence.
 `/capabilities` reports loaded Skills and Plugins plus MCP server/tool status
 without displaying environment values.
+
+## Background Tasks
+
+Version 08 lets the model explicitly choose non-interactive background shell
+execution with `execute(command, background=true)`. The call returns a stable
+process-local `task_<12 hex>` ID immediately. The `task` tool can list, poll,
+wait for up to 30 seconds, or stop that task. Waiting only proves process exit;
+server readiness still requires log evidence or a health check.
+
+Background tasks survive Agent turns, including failed or interrupted turns,
+but never survive a Coding Kid process restart and are not written into session
+or long-term-memory state. A resumed session therefore starts with an empty task
+set and any old task ID is invalid. Completion does not wake the model or make
+an automatic provider request.
+
+Use `/tasks` to inspect tasks and `/task stop <id>` to stop one without a model
+call. The TUI displays lifecycle events and the running count; the plain CLI
+prints completion notices only at prompt boundaries. At most eight tasks run at
+once, 32 records are retained, each output stream keeps 256,000 bytes, and app
+shutdown stops every running process tree.
 
 The transcript streams assistant Markdown and records compact Codex-style
 activity cells. Normal tool results stay in model context instead of filling
@@ -256,11 +277,15 @@ the turn rolls back.
 
 ## Tools
 
-- `execute`: run one non-interactive foreground Windows PowerShell command.
+- `execute`: run one non-interactive foreground Windows PowerShell command, or
+  explicitly start it in the process-local background.
   Commands and output use a Unicode-safe boundary; stdout/stderr are captured
   as bounded byte streams, and timeout or interruption terminates the process
   tree. A 2-minute timeout returns partial output with `exit_code: 124` so the
   model can recover.
+- `task`: list, poll, wait for, or stop a background shell task. Waits are
+  cancellable and bounded to 30 seconds; cancelling a wait does not kill the
+  task.
 - `read`: read a UTF-8 text file.
 - `write`: create or completely overwrite a UTF-8 text file.
 - `search`: search file names and text contents, returning at most 100 matches;
@@ -332,7 +357,7 @@ interrupted turns restore conversation and todo state to the start of the turn.
 ## Current Limits
 
 This teaching version intentionally has no vector memory, remote memory sync,
-encryption at rest, generic background-task framework, multi-agent workflow,
+encryption at rest, persistent or remote jobs, multi-agent workflow,
 sandbox, approval flow, path restriction, marketplace, Plugin downloader,
 OAuth, MCP Resources/Prompts, or provider abstraction. The TUI has no queued
 input, attachments, mentions, reasoning display, mouse workflow,
@@ -346,6 +371,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 ## Teaching Versions
 
 Completed checkpoints V1–V7 are preserved under `versions/` and by matching
-annotated tags. Version 07 adds pluggable capabilities. The installed
-launcher bundles V1–V6 runtime source and shares one Python environment and one
-set of third-party dependencies across all versions.
+annotated tags. Living Version 08 adds background tasks. The installed launcher
+bundles V1–V7 runtime source and shares one Python environment and one set of
+third-party dependencies across all versions.

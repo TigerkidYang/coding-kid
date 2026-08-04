@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -11,10 +12,12 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.widgets import Markdown, Static, TextArea
 
 from coding_kid.agent import current_instructions, run_turn
+from coding_kid.background_tasks import BackgroundTaskManager, TaskEvent
 from coding_kid.capabilities import CapabilityRuntime
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
@@ -40,7 +43,7 @@ from coding_kid.memory import MemoryManager, MemorySyncResult
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.skills import SkillTurnState, explicit_skill_names
-from coding_kid.tools import get_todos, set_todos, tool_definitions
+from coding_kid.tools import build_tool_registry, get_todos, set_todos
 
 Provider = Callable[..., Any]
 
@@ -190,6 +193,7 @@ class CodingKidApp(App[None]):
         session_handle: SessionHandle | None = None,
         memory_manager: MemoryManager | None = None,
         capability_runtime: CapabilityRuntime | None = None,
+        background_tasks: BackgroundTaskManager | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -199,6 +203,8 @@ class CodingKidApp(App[None]):
         self.session_handle = session_handle
         self.memory_manager = memory_manager
         self.capability_runtime = capability_runtime
+        self.background_tasks = background_tasks or BackgroundTaskManager()
+        self._owns_background_tasks = background_tasks is None
         self.active_turn = False
         self.cancellation_token: CancellationToken | None = None
         self._active_assistant: AssistantCell | None = None
@@ -228,6 +234,7 @@ class CodingKidApp(App[None]):
         self.query_one(Composer).focus()
         self.set_interval(0.05, self._flush_deltas)
         self.set_interval(1.0, self._refresh_status)
+        self.set_interval(0.1, self._drain_task_events)
         if self.memory_manager is not None and self.memory_manager.mode == "auto":
             self.call_after_refresh(self._start_memory_sync, False)
 
@@ -236,7 +243,7 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v07)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v08)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}",
@@ -245,8 +252,8 @@ class CodingKidApp(App[None]):
         )
         self._append_cell(
             Static(
-                "[dim]  Describe a task, or use /session, /sessions, /context, "
-                "/compact, or /exit.[/]",
+                "[dim]  Describe a task, or use /tasks, /session, /sessions, "
+                "/context, /compact, or /exit.[/]",
                 classes="help-cell",
             )
         )
@@ -270,6 +277,12 @@ class CodingKidApp(App[None]):
             return
         if text == "/context":
             self._show_context()
+            return
+        if text == "/tasks":
+            self._show_background_tasks()
+            return
+        if text.startswith("/task stop "):
+            self._start_task_stop(text.removeprefix("/task stop ").strip())
             return
         if text == "/capabilities":
             self._show_capabilities()
@@ -331,7 +344,7 @@ class CodingKidApp(App[None]):
                 user_text
             )
         skill_state: SkillTurnState | None = None
-        registry = None
+        registry = build_tool_registry(self.background_tasks, token)
         overlays: tuple[str, ...] = ()
         if self.capability_runtime is not None:
             skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
@@ -346,29 +359,38 @@ class CodingKidApp(App[None]):
                         ),
                     }
                 )
-            registry = self.capability_runtime.registry_for_turn(skill_state, token)
+            registry = self.capability_runtime.registry_for_turn(
+                skill_state,
+                token,
+                base_registry=registry,
+            )
             metadata = self.capability_runtime.skill_metadata()
             overlays = (metadata,) if metadata else ()
         self.manager.conversation.append_user(user_text)
         try:
-            run_turn(
-                self.manager,
-                self.provider,
-                on_context=None,
-                session_context=self.session_context,
-                stream_provider=self.streaming_provider,
-                event_sink=self._thread_event_sink(),
-                cancellation_token=token,
-                request_context=request_context,
-                on_memory_citations=(
+            turn_options = {
+                "on_context": None,
+                "session_context": self.session_context,
+                "stream_provider": self.streaming_provider,
+                "event_sink": self._thread_event_sink(),
+                "cancellation_token": token,
+                "request_context": request_context,
+                "on_memory_citations": (
                     lambda cited: (
                         self.memory_manager.record_usage(set(cited) & set(recalled_ids))
                         if self.memory_manager is not None
                         else None
                     )
                 ),
-                tool_registry=registry,
-                instruction_overlays=overlays,
+                "tool_registry": registry,
+                "instruction_overlays": overlays,
+            }
+            if "background_tasks" in inspect.signature(run_turn).parameters:
+                turn_options["background_tasks"] = self.background_tasks
+            run_turn(
+                self.manager,
+                self.provider,
+                **turn_options,
             )
         except BaseException as error:
             self.manager.restore(turn_start)
@@ -514,14 +536,17 @@ class CodingKidApp(App[None]):
         )
 
     def _show_context(self) -> None:
-        definitions = tool_definitions()
-        overlays: tuple[str, ...] = ()
+        base_registry = build_tool_registry(self.background_tasks)
+        definitions = base_registry.definitions()
+        task_summary = self.background_tasks.prompt_summary()
+        overlays: tuple[str, ...] = (task_summary,) if task_summary else ()
         if self.capability_runtime is not None:
             definitions = self.capability_runtime.registry_for_turn(
-                SkillTurnState(self.capability_runtime.snapshot.skills)
+                SkillTurnState(self.capability_runtime.snapshot.skills),
+                base_registry=base_registry,
             ).definitions()
             metadata = self.capability_runtime.skill_metadata()
-            overlays = (metadata,) if metadata else ()
+            overlays = (*overlays, *((metadata,) if metadata else ()))
         status = self.manager.status_text(
             current_instructions(self.session_context, overlays), definitions
         )
@@ -721,15 +746,21 @@ class CodingKidApp(App[None]):
 
     def _run_manual_compaction(self) -> None:
         snapshot = self.manager.clone()
-        definitions = tool_definitions()
-        overlays: tuple[str, ...] = ()
+        base_registry = build_tool_registry(
+            self.background_tasks,
+            self.cancellation_token,
+        )
+        definitions = base_registry.definitions()
+        task_summary = self.background_tasks.prompt_summary()
+        overlays: tuple[str, ...] = (task_summary,) if task_summary else ()
         if self.capability_runtime is not None:
             definitions = self.capability_runtime.registry_for_turn(
                 SkillTurnState(self.capability_runtime.snapshot.skills),
                 self.cancellation_token,
+                base_registry=base_registry,
             ).definitions()
             metadata = self.capability_runtime.skill_metadata()
-            overlays = (metadata,) if metadata else ()
+            overlays = (*overlays, *((metadata,) if metadata else ()))
         try:
             compact_context(
                 self.manager,
@@ -795,7 +826,12 @@ class CodingKidApp(App[None]):
     def _refresh_footer(self) -> None:
         left = f"{self.session_context.model} · {self.session_context.cwd}"
         remaining = self.manager.context_remaining_percent()
-        right = "" if remaining is None else f"{remaining}% context left"
+        right_parts = []
+        if self.background_tasks.running_count:
+            right_parts.append(f"{self.background_tasks.running_count} background")
+        if remaining is not None:
+            right_parts.append(f"{remaining}% context left")
+        right = " · ".join(right_parts)
         self.query_one("#footer-left", Static).update(escape(left))
         self.query_one("#footer-right", Static).update(escape(right))
 
@@ -810,6 +846,75 @@ class CodingKidApp(App[None]):
             self.action_interrupt()
         else:
             self.exit()
+
+    def on_unmount(self) -> None:
+        if self._owns_background_tasks:
+            self.background_tasks.close()
+
+    def _show_background_tasks(self) -> None:
+        self._append_cell(
+            Static(
+                Text(self.background_tasks.status_text()),
+                classes="context-cell",
+                markup=False,
+            )
+        )
+
+    def _start_task_stop(self, task_id: str) -> None:
+        if not task_id:
+            self._append_cell(Static("■ Usage: /task stop <id>", classes="error-cell"))
+            return
+        if self.active_turn:
+            return
+        self._begin_activity(f"Stopping {task_id}")
+        self.run_worker(
+            lambda: self._run_task_stop(task_id),
+            name="task-stop",
+            group="agent",
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _run_task_stop(self, task_id: str) -> None:
+        try:
+            self.background_tasks.stop(task_id)
+        except BaseException as error:
+            self.call_from_thread(self._show_task_stop_error, str(error))
+        finally:
+            self.call_from_thread(self._finish_activity)
+
+    def _show_task_stop_error(self, message: str) -> None:
+        self._append_cell(Static(f"■ {escape(message)}", classes="error-cell"))
+
+    def _drain_task_events(self) -> None:
+        events = self.background_tasks.drain_events()
+        if not events:
+            return
+        try:
+            for event in events:
+                self._show_task_event(event)
+            self._refresh_footer()
+        except NoMatches:
+            # The interval can race with Textual removing widgets on shutdown.
+            return
+
+    def _show_task_event(self, event: TaskEvent) -> None:
+        labels = {
+            "running": "started",
+            "completed": "completed",
+            "failed": "failed",
+            "stopped": "stopped",
+        }
+        suffix = f" (exit {event.exit_code})" if event.exit_code is not None else ""
+        style = "error-cell" if event.status == "failed" else "notice-cell"
+        self._append_cell(
+            Static(
+                f"• Background task {labels[event.status]}{suffix}\n"
+                f"  {escape(event.task_id)} · {escape(_bounded(event.command))}",
+                classes=style,
+            )
+        )
 
 
 def _tool_status(name: str, arguments: dict[str, Any]) -> str:
@@ -850,6 +955,7 @@ def run_tui(
     session_handle: SessionHandle | None = None,
     memory_manager: MemoryManager | None = None,
     capability_runtime: CapabilityRuntime | None = None,
+    background_tasks: BackgroundTaskManager | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -860,4 +966,5 @@ def run_tui(
         session_handle=session_handle,
         memory_manager=memory_manager,
         capability_runtime=capability_runtime,
+        background_tasks=background_tasks,
     ).run()

@@ -66,6 +66,13 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
+- Version 08 implementation is in progress: explicit process-local background
+  shell tasks survive Agent turns through one bounded application-owned manager.
+  The model can start, list, poll, wait for, and stop tasks; the CLI and TUI add
+  direct task controls and lifecycle notifications. Tasks are not persistent,
+  do not wake the model, and are cleaned up with their process trees on exit.
+  Version 07 is frozen in the installed historical runtime and the launcher now
+  selects V1–V8 with V08 as the default.
 - Version 07 is complete and archived under
   `versions/07-pluggable-capabilities/` with tag
   `version-07-pluggable-capabilities`: a user-configured, session-scoped
@@ -110,9 +117,9 @@ without explicit permission.
   official SWE-bench Verified × 10 regression check at 7/10.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
-- An unnumbered cross-version launcher improvement is complete. Version 06 now
-  extends its registry so one installation selects Versions 01–06 and defaults
-  to the living Version 06 runtime. The original V1–V3 launcher increment passed
+- An unnumbered cross-version launcher improvement is complete. Each version
+  transition extends its registry; Version 08 selects Versions 01–08 and
+  defaults to the living Version 08 runtime. The original V1–V3 increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.
 - The user explicitly delegated this launcher improvement to the assistant.

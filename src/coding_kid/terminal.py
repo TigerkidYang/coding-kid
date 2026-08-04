@@ -117,6 +117,7 @@ def run_command(
         _terminate_process_tree(process)
         raise
     finally:
+        release_process_tree(process)
         _finish_readers(process, readers)
 
     stderr_text = _decode_process_output(stderr.render())
@@ -131,7 +132,9 @@ def run_command(
     )
 
 
-def spawn_command(command: str) -> subprocess.Popen[bytes]:
+def spawn_command(
+    command: str, *, process_job: bool = False
+) -> subprocess.Popen[bytes]:
     """Start one non-interactive command using the shared terminal boundary."""
     if not command:
         raise ValueError("command must not be empty")
@@ -145,7 +148,7 @@ def spawn_command(command: str) -> subprocess.Popen[bytes]:
         )
     else:
         process_options["start_new_session"] = True
-    return subprocess.Popen(
+    process = subprocess.Popen(
         _shell_argv(command),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -153,6 +156,9 @@ def spawn_command(command: str) -> subprocess.Popen[bytes]:
         env=environment,
         **process_options,
     )
+    if os.name == "nt" and process_job:
+        _attach_windows_job(process)
+    return process
 
 
 def decode_process_output(data: bytes) -> str:
@@ -168,6 +174,12 @@ def normalize_process_stderr(stderr: str) -> str:
 def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
     """Terminate a command and its descendants with bounded cleanup."""
     _terminate_process_tree(process)
+
+
+def release_process_tree(process: subprocess.Popen[bytes]) -> None:
+    """Release process-group resources, killing any descendants still attached."""
+    if os.name == "nt":
+        _close_windows_job(process)
 
 
 def _shell_argv(command: str) -> list[str]:
@@ -222,22 +234,23 @@ def _finish_readers(
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        return
     if os.name == "nt":
-        try:
-            subprocess.run(
-                ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-        except (OSError, subprocess.SubprocessError):
-            pass
+        if not _terminate_windows_job(process) and process.poll() is None:
+            try:
+                subprocess.run(
+                    ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                    timeout=5,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
     else:
+        if process.poll() is not None:
+            return
         try:
             os.killpg(process.pid, 15)
         except OSError:
@@ -250,6 +263,109 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
             process.wait(timeout=1)
         except (OSError, subprocess.SubprocessError):
             pass
+
+
+def _attach_windows_job(process: subprocess.Popen[bytes]) -> None:
+    """Place a new Windows process in a kill-on-close Job Object when possible."""
+    import ctypes
+    from ctypes import wintypes
+
+    class IoCounters(ctypes.Structure):
+        _fields_ = [
+            (name, ctypes.c_ulonglong)
+            for name in (
+                "ReadOperationCount",
+                "WriteOperationCount",
+                "OtherOperationCount",
+                "ReadTransferCount",
+                "WriteTransferCount",
+                "OtherTransferCount",
+            )
+        ]
+
+    class BasicLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_longlong),
+            ("PerJobUserTimeLimit", ctypes.c_longlong),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class ExtendedLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", BasicLimitInformation),
+            ("IoInfo", IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+    ]
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        return
+    info = ExtendedLimitInformation()
+    info.BasicLimitInformation.LimitFlags = 0x00002000
+    configured = kernel32.SetInformationJobObject(
+        job,
+        9,
+        ctypes.byref(info),
+        ctypes.sizeof(info),
+    )
+    assigned = configured and kernel32.AssignProcessToJobObject(
+        job, wintypes.HANDLE(process._handle)
+    )
+    if not assigned:
+        kernel32.CloseHandle(job)
+        return
+    setattr(process, "_coding_kid_job", job)
+
+
+def _terminate_windows_job(process: subprocess.Popen[bytes]) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    job = getattr(process, "_coding_kid_job", None)
+    if not job:
+        return False
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    kernel32.TerminateJobObject.restype = wintypes.BOOL
+    terminated = bool(kernel32.TerminateJobObject(wintypes.HANDLE(job), 1))
+    _close_windows_job(process)
+    return terminated
+
+
+def _close_windows_job(process: subprocess.Popen[bytes]) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    job = getattr(process, "_coding_kid_job", None)
+    if not job:
+        return
+    setattr(process, "_coding_kid_job", None)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.CloseHandle(wintypes.HANDLE(job))
 
 
 def _decode_process_output(data: bytes) -> str:

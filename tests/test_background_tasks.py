@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -126,7 +128,9 @@ def test_spawn_failure_does_not_register_task(
 ) -> None:
     manager = BackgroundTaskManager()
 
-    def fail_spawn(command: str) -> subprocess.Popen[bytes]:
+    def fail_spawn(
+        command: str, *, process_job: bool = False
+    ) -> subprocess.Popen[bytes]:
         raise OSError("spawn failed")
 
     monkeypatch.setattr("coding_kid.background_tasks.spawn_command", fail_spawn)
@@ -200,3 +204,50 @@ def test_background_launch_returns_without_waiting_for_completion(
         assert time.monotonic() - started_at < 1
     finally:
         manager.close()
+
+
+@pytest.mark.parametrize("round_number", range(10))
+def test_concurrent_lifecycle_stress_has_no_regression_or_leak(
+    tmp_path: Path,
+    round_number: int,
+) -> None:
+    quick = tmp_path / f"quick-{round_number}.py"
+    slow = tmp_path / f"slow-{round_number}.py"
+    _write_script(quick, "import time\ntime.sleep(0.05)\n")
+    _write_script(slow, "import time\ntime.sleep(30)\n")
+    manager = BackgroundTaskManager()
+    quick_ids = [manager.start(_script_command(quick)).task_id for _ in range(2)]
+    slow_ids = [manager.start(_script_command(slow)).task_id for _ in range(2)]
+    observed: dict[str, list[str]] = {task_id: [] for task_id in slow_ids}
+
+    def observe_and_stop(task_id: str) -> None:
+        observed[task_id].append(manager.poll(task_id).status)
+        observed[task_id].append(manager.stop(task_id).status)
+        observed[task_id].append(manager.poll(task_id).status)
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = [pool.submit(manager.wait, task_id, 10) for task_id in quick_ids]
+        futures.extend(pool.submit(observe_and_stop, task_id) for task_id in slow_ids)
+        futures.append(pool.submit(manager.close))
+        for future in futures:
+            future.result(timeout=15)
+
+    manager.close()
+    snapshots = manager.list()
+    assert all(snapshot.status != "running" for snapshot in snapshots)
+    assert all(states[-1] == "stopped" for states in observed.values())
+    task_prefixes = tuple(f"coding-kid-{item.task_id}" for item in snapshots)
+    lingering = [
+        thread.name
+        for thread in threading.enumerate()
+        if thread.name.startswith(task_prefixes)
+    ]
+    assert lingering == [], [(item.task_id, item.status) for item in snapshots]
+    events = manager.drain_events()
+    for snapshot in snapshots:
+        statuses = [
+            event.status for event in events if event.task_id == snapshot.task_id
+        ]
+        assert statuses[0] == "running"
+        assert len(statuses) == 2
+        assert statuses[-1] == snapshot.status

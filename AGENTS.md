@@ -220,6 +220,13 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
+- Version 08 implementation is in progress: an application-owned bounded
+  background-task manager supports explicit background `execute`, unified
+  list/poll/wait/stop operations, CLI/TUI controls and notifications, dynamic
+  model summaries, and deterministic process-tree cleanup without changing the
+  synchronous Agent loop. V07 is frozen in the installed historical runtime,
+  and the launcher now selects V1–V8 with V08 as the default. The user
+  explicitly delegated implementation and verification to the assistant.
 - Version 07 implementation and verification are complete: session-scoped
   Skills, explicitly enabled local Plugins, and stdio/Streamable HTTP MCP tools
   share one bounded per-turn registry without changing the synchronous Agent

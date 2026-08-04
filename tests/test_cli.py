@@ -1,8 +1,11 @@
 from typing import Any
+from pathlib import Path
+import sys
 
 import pytest
 
 import coding_kid.cli as cli
+from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.memory import MemoryManager
@@ -39,6 +42,47 @@ def test_chat_accepts_input_shows_tool_activity_and_exits(monkeypatch: Any) -> N
     assert '"content": "hello"' not in rendered
     assert "Wrote hello.txt" not in rendered
     assert "Created hello.txt." in rendered
+
+
+def test_chat_lists_stops_and_notifies_about_background_tasks(tmp_path: Path) -> None:
+    script = tmp_path / "slow.py"
+    script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    tasks = BackgroundTaskManager()
+    task_id = tasks.start(f'& "{sys.executable}" "{script}"').task_id
+    inputs = iter(["/tasks", f"/task stop {task_id}", "/exit"])
+    outputs: list[str] = []
+    try:
+        cli.chat(
+            input_function=lambda prompt: next(inputs),
+            output_function=outputs.append,
+            background_tasks=tasks,
+        )
+    finally:
+        tasks.close()
+
+    rendered = "\n".join(outputs)
+    assert task_id in rendered
+    assert "running" in rendered
+    assert f"Stopped {task_id} (stopped" in rendered
+
+
+def test_chat_reports_completed_task_at_prompt_boundary(tmp_path: Path) -> None:
+    script = tmp_path / "quick.py"
+    script.write_text("print('done', flush=True)\n", encoding="utf-8")
+    tasks = BackgroundTaskManager()
+    task_id = tasks.start(f'& "{sys.executable}" "{script}"').task_id
+    tasks.wait(task_id, 10)
+    outputs: list[str] = []
+    try:
+        cli.chat(
+            input_function=lambda prompt: "/exit",
+            output_function=outputs.append,
+            background_tasks=tasks,
+        )
+    finally:
+        tasks.close()
+
+    assert any(f"[task] {task_id} completed" in line for line in outputs)
 
 
 def test_chat_reports_an_error_and_keeps_running(monkeypatch: Any) -> None:

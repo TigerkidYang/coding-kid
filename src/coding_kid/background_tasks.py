@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+import os
 import secrets
 import subprocess
 import threading
@@ -15,6 +16,7 @@ from coding_kid.terminal import (
     IO_DRAIN_TIMEOUT_SECONDS,
     decode_process_output,
     normalize_process_stderr,
+    release_process_tree,
     spawn_command,
     terminate_process_tree,
 )
@@ -109,6 +111,7 @@ class _TaskRecord:
     condition: threading.Condition = field(
         default_factory=lambda: threading.Condition(threading.RLock())
     )
+    termination_lock: threading.Lock = field(default_factory=threading.Lock)
     readers: tuple[threading.Thread, ...] = ()
     watcher: threading.Thread | None = None
 
@@ -128,6 +131,7 @@ class BackgroundTaskManager:
         self._events: deque[TaskEvent] = deque(maxlen=MAX_TASK_EVENTS)
         self._lock = threading.RLock()
         self._closed = False
+        self._close_complete = threading.Event()
 
     def start(self, command: str) -> TaskSnapshot:
         if not command:
@@ -141,38 +145,37 @@ class BackgroundTaskManager:
                 )
             self._evict_terminal_tasks()
             task_id = self._new_task_id()
-            process = spawn_command(command)
+            process = spawn_command(command, process_job=True)
             record = _TaskRecord(task_id, command, process, self._clock())
             self._tasks[task_id] = record
             self._events.append(TaskEvent(task_id, "running", command))
-
-        assert process.stdout is not None
-        assert process.stderr is not None
-        readers = (
-            threading.Thread(
-                target=self._read_stream,
-                args=(record, process.stdout, record.stdout),
+            assert process.stdout is not None
+            assert process.stderr is not None
+            readers = (
+                threading.Thread(
+                    target=self._read_stream,
+                    args=(record, process.stdout, record.stdout),
+                    daemon=True,
+                    name=f"coding-kid-{task_id}-stdout",
+                ),
+                threading.Thread(
+                    target=self._read_stream,
+                    args=(record, process.stderr, record.stderr),
+                    daemon=True,
+                    name=f"coding-kid-{task_id}-stderr",
+                ),
+            )
+            watcher = threading.Thread(
+                target=self._watch,
+                args=(record,),
                 daemon=True,
-                name=f"coding-kid-{task_id}-stdout",
-            ),
-            threading.Thread(
-                target=self._read_stream,
-                args=(record, process.stderr, record.stderr),
-                daemon=True,
-                name=f"coding-kid-{task_id}-stderr",
-            ),
-        )
-        watcher = threading.Thread(
-            target=self._watch,
-            args=(record,),
-            daemon=True,
-            name=f"coding-kid-{task_id}-watcher",
-        )
-        record.readers = readers
-        record.watcher = watcher
-        for reader in readers:
-            reader.start()
-        watcher.start()
+                name=f"coding-kid-{task_id}-watcher",
+            )
+            record.readers = readers
+            record.watcher = watcher
+            for reader in readers:
+                reader.start()
+            watcher.start()
         return self._snapshot(record)
 
     @property
@@ -213,35 +216,50 @@ class BackgroundTaskManager:
 
     def stop(self, task_id: str) -> TaskSnapshot:
         record = self._get(task_id)
-        with record.condition:
-            if record.status != "running":
-                return self._snapshot(record)
-            record.stop_requested = True
-        terminate_process_tree(record.process)
-        snapshot, _ = self.wait(task_id, IO_DRAIN_TIMEOUT_SECONDS + 1.0)
-        if snapshot.status == "running":
-            self._finish(record, record.process.poll(), forced_status="stopped")
-        return self._snapshot(record)
+        with record.termination_lock:
+            with record.condition:
+                if record.status != "running":
+                    return self._snapshot(record)
+                record.stop_requested = True
+            terminate_process_tree(record.process)
+            snapshot, _ = self.wait(task_id, IO_DRAIN_TIMEOUT_SECONDS + 1.0)
+            if snapshot.status == "running":
+                self._finish(record, record.process.poll(), forced_status="stopped")
+            self._join_record_threads(record)
+            return self._snapshot(record)
 
     def close(self) -> None:
         with self._lock:
             if self._closed:
-                return
-            self._closed = True
-            running = [
-                task.task_id
-                for task in self._tasks.values()
-                if task.status == "running"
-            ]
-        for task_id in running:
-            self.stop(task_id)
-        with self._lock:
-            records = tuple(self._tasks.values())
-        for record in records:
-            if record.watcher is not None:
-                record.watcher.join(IO_DRAIN_TIMEOUT_SECONDS + 1.0)
-            for reader in record.readers:
-                reader.join(IO_DRAIN_TIMEOUT_SECONDS)
+                close_complete = self._close_complete
+                owns_close = False
+            else:
+                self._closed = True
+                close_complete = self._close_complete
+                owns_close = True
+                running = [
+                    task.task_id
+                    for task in self._tasks.values()
+                    if task.status == "running"
+                ]
+        if not owns_close:
+            close_complete.wait()
+            return
+        try:
+            for task_id in running:
+                self.stop(task_id)
+            with self._lock:
+                records = tuple(self._tasks.values())
+            # A concurrent stop may have won the state transition before its
+            # process-tree termination finished. Closing is the final process
+            # boundary, so independently verify every retained process here.
+            for record in records:
+                if record.process.poll() is None:
+                    terminate_process_tree(record.process)
+            for record in records:
+                self._join_record_threads(record)
+        finally:
+            close_complete.set()
 
     def drain_events(self) -> tuple[TaskEvent, ...]:
         with self._lock:
@@ -322,10 +340,29 @@ class BackgroundTaskManager:
 
     def _watch(self, record: _TaskRecord) -> None:
         exit_code = record.process.wait()
+        release_process_tree(record.process)
         deadline = self._clock() + IO_DRAIN_TIMEOUT_SECONDS
         for reader in record.readers:
             reader.join(max(0.0, deadline - self._clock()))
         self._finish(record, exit_code)
+
+    def _join_record_threads(self, record: _TaskRecord) -> None:
+        if record.watcher is not None:
+            record.watcher.join(IO_DRAIN_TIMEOUT_SECONDS + 1.0)
+        alive_readers = [reader for reader in record.readers if reader.is_alive()]
+        if alive_readers:
+            # A just-spawned descendant can inherit a pipe while taskkill races
+            # with process creation. Closing the parent's descriptors releases
+            # readers even when that descendant never produces output.
+            for stream in (record.process.stdout, record.process.stderr):
+                if stream is None:
+                    continue
+                try:
+                    os.close(stream.fileno())
+                except (OSError, ValueError):
+                    pass
+            for reader in alive_readers:
+                reader.join(IO_DRAIN_TIMEOUT_SECONDS)
 
     def _finish(
         self,

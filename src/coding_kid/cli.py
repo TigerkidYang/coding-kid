@@ -9,6 +9,7 @@ import sys
 from typing import Any
 
 from coding_kid.agent import current_instructions, run_turn
+from coding_kid.background_tasks import BackgroundTaskManager, TaskEvent
 from coding_kid.capabilities import CapabilityRuntime
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
@@ -17,7 +18,7 @@ from coding_kid.memory import MemoryManager
 from coding_kid.provider import generate
 from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
 from coding_kid.skills import SkillTurnState, explicit_skill_names
-from coding_kid.tools import clear_todos, get_todos, set_todos, tool_definitions
+from coding_kid.tools import build_tool_registry, clear_todos, get_todos, set_todos
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
@@ -86,6 +87,11 @@ def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
                 f"[tool] todo: {len(items)} items "
                 f"({in_progress} in progress, {completed} done)"
             )
+    elif name == "task":
+        action = arguments.get("action", "?")
+        task_id = arguments.get("task_id")
+        suffix = f" {task_id}" if task_id else ""
+        rendered = f"[tool] task {action}{suffix}"
     else:
         rendered = f"[tool] {name}"
 
@@ -102,9 +108,12 @@ def chat(
     session_handle: SessionHandle | None = None,
     memory_manager: MemoryManager | None = None,
     capability_runtime: CapabilityRuntime | None = None,
+    background_tasks: BackgroundTaskManager | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     output_function = _safe_output_function(output_function)
+    owns_background_tasks = background_tasks is None
+    background_tasks = background_tasks or BackgroundTaskManager()
     if session_handle is None:
         try:
             session_context = SessionContext.capture()
@@ -148,23 +157,44 @@ def chat(
         output_function(message)
 
     while True:
+        for event in background_tasks.drain_events():
+            if event.status != "running":
+                output_function(_format_task_event(event))
         try:
             user_input = input_function("You> ").strip()
         except (EOFError, KeyboardInterrupt):
             output_function("\nGoodbye.")
-            return
+            break
 
         if user_input in {"/exit", "/quit"}:
             output_function("Goodbye.")
-            return
+            break
         if not user_input:
             continue
+        if user_input == "/tasks":
+            output_function(background_tasks.status_text())
+            continue
+        if user_input.startswith("/task stop "):
+            task_id = user_input.removeprefix("/task stop ").strip()
+            try:
+                result = background_tasks.stop(task_id)
+            except Exception as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function(
+                    f"Stopped {result.task_id} ({result.status}, "
+                    f"exit {result.exit_code})."
+                )
+                background_tasks.drain_events()
+            continue
         if user_input == "/context":
-            definitions = tool_definitions()
+            base_registry = build_tool_registry(background_tasks)
+            definitions = base_registry.definitions()
             context_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
                 definitions = capability_runtime.registry_for_turn(
-                    SkillTurnState(capability_runtime.snapshot.skills)
+                    SkillTurnState(capability_runtime.snapshot.skills),
+                    base_registry=base_registry,
                 ).definitions()
                 metadata = capability_runtime.skill_metadata()
                 context_overlays = (metadata,) if metadata else ()
@@ -274,11 +304,13 @@ def chat(
             continue
         if user_input == "/compact":
             snapshot = manager.clone()
-            definitions = tool_definitions()
+            base_registry = build_tool_registry(background_tasks)
+            definitions = base_registry.definitions()
             compact_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
                 definitions = capability_runtime.registry_for_turn(
-                    SkillTurnState(capability_runtime.snapshot.skills)
+                    SkillTurnState(capability_runtime.snapshot.skills),
+                    base_registry=base_registry,
                 ).definitions()
                 metadata = capability_runtime.skill_metadata()
                 compact_overlays = (metadata,) if metadata else ()
@@ -316,7 +348,7 @@ def chat(
         if memory_manager is not None:
             request_context, recalled_ids = memory_manager.recall_context(user_input)
         skill_state: SkillTurnState | None = None
-        registry = None
+        registry = build_tool_registry(background_tasks)
         overlays: tuple[str, ...] = ()
         if capability_runtime is not None:
             skill_state = SkillTurnState(capability_runtime.snapshot.skills)
@@ -331,7 +363,10 @@ def chat(
                         ),
                     }
                 )
-            registry = capability_runtime.registry_for_turn(skill_state)
+            registry = capability_runtime.registry_for_turn(
+                skill_state,
+                base_registry=registry,
+            )
             metadata = capability_runtime.skill_metadata()
             overlays = (metadata,) if metadata else ()
         manager.conversation.append_user(user_input)
@@ -344,20 +379,19 @@ def chat(
                         set(cited) & set(recalled_ids)
                     ),
                 }
+            parameters = inspect.signature(run_turn).parameters
+            if "tool_registry" in parameters:
+                turn_options["tool_registry"] = registry
+            if "background_tasks" in parameters:
+                turn_options["background_tasks"] = background_tasks
+            if capability_runtime is not None and "instruction_overlays" in parameters:
+                turn_options["instruction_overlays"] = overlays
             answer = run_turn(
                 manager,
                 on_tool=show_tool,
                 on_context=show_context,
                 session_context=session_context,
-                **(
-                    {
-                        **turn_options,
-                        "tool_registry": registry,
-                        "instruction_overlays": overlays,
-                    }
-                    if capability_runtime is not None
-                    else turn_options
-                ),
+                **turn_options,
             )
             if not answer.strip():
                 raise RuntimeError("Model returned an empty answer")
@@ -396,6 +430,9 @@ def chat(
 
         output_function(f"Coding Kid> {answer}")
 
+    if owns_background_tasks:
+        background_tasks.close()
+
 
 def _format_session(info: SessionInfo) -> str:
     marker = " damaged" if info.damaged else ""
@@ -403,6 +440,11 @@ def _format_session(info: SessionInfo) -> str:
         f"{info.session_id[:8]}  {info.status}{marker}  {info.model}  "
         f"{info.updated_at}  {info.title}"
     )
+
+
+def _format_task_event(event: TaskEvent) -> str:
+    suffix = f", exit {event.exit_code}" if event.exit_code is not None else ""
+    return f"[task] {event.task_id} {event.status}{suffix}: {event.command}"
 
 
 def _format_sessions(items: list[SessionInfo]) -> str:
@@ -479,6 +521,7 @@ def main(options: SessionOptions | None = None) -> None:
 
     try:
         memory_manager = MemoryManager(handle.store)
+        background_tasks = BackgroundTaskManager()
         capability_runtime = CapabilityRuntime.capture(
             handle.context,
             context_window=handle.manager.budget.context_length,
@@ -490,6 +533,8 @@ def main(options: SessionOptions | None = None) -> None:
                 "session_handle": handle,
                 "memory_manager": memory_manager,
             }
+            if "background_tasks" in inspect.signature(run_tui).parameters:
+                tui_options["background_tasks"] = background_tasks
             if "capability_runtime" in inspect.signature(run_tui).parameters:
                 tui_options["capability_runtime"] = capability_runtime
             run_tui(handle.context, handle.manager, **tui_options)
@@ -498,12 +543,16 @@ def main(options: SessionOptions | None = None) -> None:
                 "session_handle": handle,
                 "memory_manager": memory_manager,
             }
+            if "background_tasks" in inspect.signature(chat).parameters:
+                chat_options["background_tasks"] = background_tasks
             if "capability_runtime" in inspect.signature(chat).parameters:
                 chat_options["capability_runtime"] = capability_runtime
             chat(**chat_options)
     except RuntimeError as error:
         print(f"Error: {error}")
     finally:
+        if "background_tasks" in locals():
+            background_tasks.close()
         if "capability_runtime" in locals():
             capability_runtime.close()
         try:

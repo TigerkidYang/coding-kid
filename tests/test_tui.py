@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ from typing import Any
 from textual.widgets import Static
 
 from coding_kid.context import SessionContext
+from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import ToolCompleted
 from coding_kid.memory import MemoryManager
@@ -42,6 +44,7 @@ def make_app(
     *,
     provider: Any | None = None,
     streaming_provider: Any | None = None,
+    background_tasks: BackgroundTaskManager | None = None,
 ) -> CodingKidApp:
     context = SessionContext(
         cwd=tmp_path,
@@ -59,6 +62,7 @@ def make_app(
         provider=provider or (lambda *args, **kwargs: response(text_message("ok"))),
         streaming_provider=streaming_provider
         or (lambda *args, **kwargs: response(text_message("ok"))),
+        background_tasks=background_tasks,
     )
 
 
@@ -100,6 +104,38 @@ def test_tui_renders_codex_style_session_header_and_footer(tmp_path: Path) -> No
             assert app.query_one(Composer).has_focus
 
     asyncio.run(exercise())
+
+
+def test_tui_shows_background_events_tasks_and_running_count(tmp_path: Path) -> None:
+    script = tmp_path / "slow.py"
+    script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    tasks = BackgroundTaskManager()
+    task_id = tasks.start(f'& "{sys.executable}" "{script}"').task_id
+
+    async def exercise() -> None:
+        app = make_app(tmp_path, background_tasks=tasks)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause(0.2)
+            assert "1 background" in content(app.query_one("#footer-right", Static))
+            notices = [content(widget) for widget in app.query(".notice-cell")]
+            assert any(task_id in notice and "started" in notice for notice in notices)
+
+            app.query_one(Composer).load_text("/tasks")
+            await pilot.press("enter")
+            await pilot.pause()
+            contexts = [content(widget) for widget in app.query(".context-cell")]
+            assert any(task_id in item and "running" in item for item in contexts)
+
+            app.query_one(Composer).load_text(f"/task stop {task_id}")
+            await pilot.press("enter")
+            await pilot.pause(0.3)
+            assert tasks.poll(task_id).status == "stopped"
+            assert "background" not in content(app.query_one("#footer-right", Static))
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        tasks.close()
 
 
 def test_tui_submits_and_consolidates_streaming_answer_once(tmp_path: Path) -> None:

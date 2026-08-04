@@ -2,16 +2,17 @@
 
 ## Overview
 
-Version 07 adds a session-scoped capability runtime without changing the
-synchronous model/tool loop introduced by earlier versions. Skills provide
-lazy instructions, MCP provides structured tools, and Plugins package and
-namespace both.
+Version 08 adds process-local background shell tasks without changing the
+synchronous model/tool loop. One application-owned task manager survives user
+turns, while each model step receives a fresh bounded task summary and a tool
+registry bound to the same manager.
 
 ```text
 launcher.py
-  |-- v1-v6 -> isolated bundled runtime process
-  `-- v7/default -> cli.py
+  |-- v1-v7 -> isolated bundled runtime process
+  `-- v8/default -> cli.py
                      |-- SessionStore / MemoryManager
+                     |-- BackgroundTaskManager -> shell process trees
                      |-- CapabilityRuntime
                      |     |-- Skill + Plugin metadata snapshot
                      |     `-- MCP asyncio thread -> stdio / Streamable HTTP
@@ -24,7 +25,37 @@ launcher.py
 The UI remains a projection of canonical state. A successful turn is first
 committed by the agent and then appended as one durable session transition.
 Failed and interrupted turns roll back the conversation and todos; their audit
-records are not replayed into model context.
+records are not replayed into model context. Already-started background tasks
+are intentionally outside that transaction and remain discoverable.
+
+## Background Task Runtime
+
+`background_tasks.py` owns task identity, process state, output readers,
+completion watchers, bounded event delivery, and shutdown. `execute` retains
+its existing foreground behavior unless the model explicitly passes
+`background=true`; background commands inherit cwd and the Unicode-safe shell
+environment, close stdin, and return immediately without a PTY.
+
+Each task has one monotonic transition from `running` to `completed`, `failed`,
+or `stopped`. IDs are random `task_<12 hex>` values. At most eight processes
+run concurrently and 32 records remain addressable; only the oldest terminal
+record can be evicted. Stdout and stderr each retain a 256,000-byte tail with an
+omission marker. UI events, command summaries, and the dynamic model projection
+are separately bounded.
+
+Two byte-reader threads and one watcher drain every process without blocking
+the Agent loop. On Windows, background processes also enter a kill-on-close Job
+Object, closing the narrow race in which a descendant starts while `taskkill`
+is enumerating the tree. `stop` is idempotent, `wait` is cancellable and capped
+at 30 seconds, and concurrent `stop`/`close` operations share a termination lock
+and close-completion barrier. Application shutdown stops all running trees and
+joins task threads before closing MCP and persistent session resources.
+
+The manager is created afresh on each Coding Kid process start. Task IDs and OS
+processes never enter session logs, compaction, or memory. Successful tool-call
+protocol rounds still persist normally; after resume, an old ID yields an
+explicit unknown/expired error. Task completion produces UI events only and
+never wakes the model or initiates a provider call.
 
 ## Pluggable Capability Runtime
 
@@ -79,9 +110,9 @@ displaying a command or answer cannot invalidate the Agent protocol round.
 
 ## Version Launcher and Session Selection
 
-`launcher.py` accepts `v1` through `v7`; V07 is the living default. V1–V6 run
-from frozen runtime packages in isolated child processes. Session flags apply
-only to V06:
+`launcher.py` accepts `v1` through `v8`; V08 is the living default. V1–V7 run
+from frozen runtime packages in isolated child processes. Living-runtime
+session flags select V08 sessions:
 
 - No flag or `--new` creates a new session.
 - `--continue` resumes the most recently updated project session.
@@ -166,13 +197,15 @@ mode preserves recall and explicit commands without automatic model requests.
 
 ## Request and Commit Flow
 
-1. The CLI or TUI selects and acquires one durable session.
+1. The CLI or TUI selects a durable session and creates one process-local task
+   manager.
 2. The current user text retrieves a bounded, request-only memory attachment
    and deterministically loads explicitly mentioned Skills.
 3. The real user message enters the in-memory transcript and active context.
 4. The agent assembles cached project context, Skill metadata, recalled memory,
-   explicit Skill bodies, active history, todos, and recovery guidance for each
-   provider step using one tool-registry snapshot.
+   explicit Skill bodies, active history, todos, the current bounded task
+   summary, and recovery guidance for each provider step using one tool-registry
+   snapshot.
 5. Compaction may replace only the active view; recalled memory is not included
    in the compaction source. A checkpoint is committed only when its estimated
    request is smaller than the original. The summary prompt includes
@@ -195,6 +228,8 @@ mode preserves recall and explicit commands without automatic model requests.
   context and accounts for the model window.
 - `compaction.py` creates atomic structured handoffs for older active history.
 - `agent.py` owns the bounded model/tool loop and request-only context injection.
+- `background_tasks.py` owns process-local task state, output, events, and
+  cleanup.
 - `capability_config.py`, `plugins.py`, `skills.py`, and `capabilities.py` own
   user configuration, local packages, lazy instructions, and MCP lifecycle.
 - `provider.py` implements complete and streaming OpenRouter Responses calls.
@@ -207,7 +242,7 @@ Storage directories and files receive restrictive permissions where the host
 supports them. Raw logs may contain prompts and tool results, so users must
 treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Version 07 does not add encryption at rest, remote synchronization, vector
-search, a generic background-task framework, multi-agent workflows, sandboxing,
+Version 08 does not add encryption at rest, remote synchronization, vector
+search, persistent or remote jobs, multi-agent workflows, sandboxing,
 approvals, a Plugin marketplace, OAuth, or non-tool MCP primitives. All tools
 still run with the current user's permissions.

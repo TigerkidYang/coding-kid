@@ -44,9 +44,9 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 06 are complete. Version 07 is the current pluggable
-capability implementation and is complete. Do not define a later version until
-the user chooses one from the research topic list.
+Versions 01 through 07 are complete. Version 08 is the current background-task
+implementation. Do not define a later version until the user chooses one from
+the research topic list.
 
 ## Treat terminal execution as a byte and process-lifecycle boundary
 
@@ -60,8 +60,27 @@ state.
 Consequence:
 The terminal no longer depends on the host GBK/ANSI code page, a noisy command
 cannot consume unbounded capture memory, and a timeout is recoverable evidence
-instead of an exception with discarded output. This does not add PTY input,
-background tasks, sandboxing, or approvals.
+instead of an exception with discarded output. Version 08 reuses this boundary
+for explicit background tasks, but still does not add PTY input, sandboxing, or
+approvals.
+
+## Keep Version 08 background work explicit and process-local
+
+Decision:
+Create one `BackgroundTaskManager` per Coding Kid application process. The model
+must explicitly set `execute(..., background=true)`, and uses one `task` tool to
+list, poll, wait for, or stop work. Keep the synchronous Agent loop: completion
+adds a bounded UI event and a dynamic next-step summary, but never wakes the
+model. Treat `wait` as process completion only; readiness requires output or a
+health probe.
+
+Consequence:
+Background processes survive turn rollback but not application restart. IDs,
+processes, output, and notifications are not persisted or remembered. Eight
+running tasks, 32 retained records, 256,000 bytes per stream, a 30-second wait,
+and bounded UI/prompt queues define the resource envelope. Windows background
+processes use a kill-on-close Job Object in addition to the shared terminal
+boundary so concurrent stop and shutdown reclaim descendants and readers.
 
 ## Compose Version 07 capabilities at session startup
 
@@ -188,7 +207,7 @@ historical runtime source inside the distribution and execute it in an isolated
 child Python process; execute the latest living runtime directly.
 
 Consequence:
-`coding-kid v1` through `v7` work from any project directory without
+`coding-kid v1` through `v8` work from any project directory without
 installing separate conflicting distributions or duplicating dependencies. The
 teaching labels are separate from the distribution's package release number.
 Completed archives remain read-only provenance and are not imported at runtime;
