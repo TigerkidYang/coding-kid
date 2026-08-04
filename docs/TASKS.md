@@ -2,8 +2,10 @@
 
 ## Current Core Version: 09 — Multi-Agent Workflows
 
-Completion status: implementation and verification complete. Archive/tag/push
-await user confirmation.
+Completion status: complete and archived under
+`versions/09-multi-agent-workflows/` with annotated tag
+`version-09-multi-agent-workflows`. The user explicitly confirmed stage
+completion on 2026-08-05.
 
 ### Goal
 

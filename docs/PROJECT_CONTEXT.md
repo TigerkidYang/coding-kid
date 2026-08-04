@@ -66,18 +66,19 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 09 multi-Agent workflows are implemented and verified. One root-owned
-  `AgentManager` runs up to four isolated child
+- Version 09 multi-Agent workflows are complete and archived under
+  `versions/09-multi-agent-workflows/` with annotated tag
+  `version-09-multi-agent-workflows`. One root-owned `AgentManager` runs up to
+  four isolated child
   Agent loops concurrently, retains 16 process-local records, and exposes
   strict spawn/list/poll/wait/followup/stop operations. Children share cwd,
   Skills, and MCP but not root history, memory, todos, compaction state,
   background tasks, or nested-Agent tools. CLI/TUI controls and notifications
   do not wake the model. V08 is frozen in the installed runtime and the launcher
-  selects V1–V9 with V09 as the default. Archiving and tagging await the user's
-  stage-complete confirmation. It passes 273 tests, Ruff, 10-round four-worker
+  selects V1–V9 with V09 as the default. It passes 273 tests, Ruff, 10-round four-worker
   stress, final wheel inspection, V08 source fidelity, clean-install V1–V9
   launches, and three real parallel/followup/stop scenarios. The complete live
-  run used USD 0.011379095.
+  run used USD 0.011379095. The user explicitly confirmed stage completion.
 - Version 08 is complete and archived under `versions/08-background-tasks/`
   with annotated tag `version-08-background-tasks`. Explicit process-local
   background shell tasks survive Agent turns through one bounded

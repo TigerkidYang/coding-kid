@@ -219,15 +219,17 @@ In particular:
 
 ## Current State
 
-- Version 09 implementation and verification are complete, pending the user's
-  stage-complete confirmation before archive/tag/push. A root-owned bounded
+- Version 09 is complete and archived under
+  `versions/09-multi-agent-workflows/` with annotated tag
+  `version-09-multi-agent-workflows`. A root-owned bounded
   `AgentManager` provides true parallel child runs plus list/poll/wait/followup/
   stop, isolated child conversation/compaction/todos/budgets, restricted child
   tools, CLI/TUI state and notifications, and cancellation evidence without
   changing the synchronous root loop. V08 is frozen in the installed runtime;
   the launcher selects V1–V9 with V09 as default. It passes 273 tests, Ruff,
   10-round four-worker stress, final wheel/V08 fidelity/clean-install checks,
-  and three real `openai/gpt-5.6-luna` workflows for USD 0.011379095 total.
+  and three real `openai/gpt-5.6-luna` workflows for USD 0.011379095 total. The
+  user explicitly confirmed stage completion.
 - The project is named Coding Kid.
 - Version 08 is complete and archived under
   `versions/08-background-tasks/` with annotated tag

@@ -1,0 +1,7 @@
+{
+  "name": "readonly-inspector",
+  "version": "1.0.0",
+  "description": "A disabled-by-default example combining one Skill and one read-only MCP server.",
+  "skills": ["skills"],
+  "mcpServers": ".mcp.json"
+}

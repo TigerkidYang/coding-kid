@@ -392,7 +392,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V8 are preserved under `versions/` and by matching
-annotated tags. Living Version 09 adds multi-Agent workflows. The installed launcher bundles
+Completed checkpoints V1–V9 are preserved under `versions/` and by matching
+annotated tags. Version 09 adds multi-Agent workflows. The installed launcher bundles
 V1–V8 runtime source and shares one Python environment and one set of
 third-party dependencies across all versions.
