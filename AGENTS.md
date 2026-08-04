@@ -220,8 +220,9 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
-- Version 08 implementation and verification are complete, awaiting user
-  acceptance before archive/tag/push. An application-owned bounded
+- Version 08 is complete and archived under
+  `versions/08-background-tasks/` with annotated tag
+  `version-08-background-tasks`. An application-owned bounded
   background-task manager supports explicit background `execute`, unified
   list/poll/wait/stop operations, CLI/TUI controls and notifications, dynamic
   model summaries, and deterministic process-tree cleanup without changing the
@@ -231,8 +232,8 @@ In particular:
   passes 254 deterministic tests, Ruff, 10-round concurrency and process-tree
   stress, final wheel inspection, clean-install V1–V8 launches, and a real
   background/wait/stop run. The instrumented final live run cost USD 0.00116478;
-  all live attempts remained below USD 0.01 total. No archive or V08 tag exists
-  yet.
+  all live attempts remained below USD 0.01 total. The user explicitly
+  confirmed stage completion.
 - Version 07 implementation and verification are complete: session-scoped
   Skills, explicitly enabled local Plugins, and stdio/Streamable HTTP MCP tools
   share one bounded per-turn registry without changing the synchronous Agent

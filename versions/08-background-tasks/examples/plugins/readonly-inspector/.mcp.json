@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "local": {
+      "transport": "stdio",
+      "command": "python",
+      "args": ["server.py"],
+      "cwd": ".",
+      "enabled": true,
+      "required": false,
+      "enabledTools": ["inspect_text"]
+    }
+  }
+}

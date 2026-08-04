@@ -66,9 +66,10 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 08 implementation and verification are complete, awaiting user
-  acceptance before archive/tag/push. Explicit process-local background shell
-  tasks survive Agent turns through one bounded application-owned manager.
+- Version 08 is complete and archived under `versions/08-background-tasks/`
+  with annotated tag `version-08-background-tasks`. Explicit process-local
+  background shell tasks survive Agent turns through one bounded
+  application-owned manager.
   The model can start, list, poll, wait for, and stop tasks; the CLI and TUI add
   direct task controls and lifecycle notifications. Tasks are not persistent,
   do not wake the model, and are cleaned up with their process trees on exit.
@@ -76,7 +77,7 @@ without explicit permission.
   selects V1–V8 with V08 as the default. It passes 254 tests, Ruff, 10-round
   concurrency/process-tree stress, wheel and clean-install verification, and a
   real Unicode background/wait/stop session whose instrumented final run cost
-  USD 0.00116478. No V08 archive or tag exists yet.
+  USD 0.00116478. The user explicitly confirmed stage completion.
 - Version 07 is complete and archived under
   `versions/07-pluggable-capabilities/` with tag
   `version-07-pluggable-capabilities`: a user-configured, session-scoped

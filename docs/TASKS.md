@@ -2,8 +2,9 @@
 
 ## Current Core Version: 08 — Background Tasks
 
-Completion status: implementation and verification complete; awaiting user
-acceptance before archive, tag, and push.
+Completion status: complete and archived under `versions/08-background-tasks/`
+with annotated tag `version-08-background-tasks`. The user explicitly confirmed
+stage completion.
 
 ### Goal
 

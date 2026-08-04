@@ -370,7 +370,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V7 are preserved under `versions/` and by matching
-annotated tags. Living Version 08 adds background tasks. The installed launcher
-bundles V1–V7 runtime source and shares one Python environment and one set of
+Completed checkpoints V1–V8 are preserved under `versions/` and by matching
+annotated tags. Version 08 adds background tasks. The installed launcher bundles
+V1–V7 runtime source and shares one Python environment and one set of
 third-party dependencies across all versions.
