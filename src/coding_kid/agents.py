@@ -13,11 +13,14 @@ from typing import Any, Literal, TYPE_CHECKING
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import (
+    AssistantMessageCompleted,
     CancellationToken,
+    CompactionStarted,
     EventSink,
     ToolCompleted,
     ToolStarted,
     TurnCancelled,
+    TurnStarted,
 )
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.skills import SkillTurnState, explicit_skill_names
@@ -73,6 +76,8 @@ class AgentSnapshot:
     status: AgentStatus
     description: str
     duration_seconds: float
+    started_at: float
+    ended_at: float | None
     turn_count: int
     tool_calls: int
     last_activity: str | None
@@ -86,6 +91,10 @@ class AgentSnapshot:
             f"wait_timed_out: {str(wait_timed_out).lower()}",
             f"description: {self.description}",
             f"duration_seconds: {self.duration_seconds:.3f}",
+            f"started_at: {self.started_at:.6f}",
+            f"ended_at: {self.ended_at:.6f}"
+            if self.ended_at is not None
+            else "ended_at: null",
             f"turn_count: {self.turn_count}",
             f"tool_calls: {self.tool_calls}",
             f"last_activity: {self.last_activity or 'null'}",
@@ -388,7 +397,10 @@ class AgentManager:
         except BaseException as error:
             status: AgentStatus = "stopped" if record.token.cancelled else "failed"
             detail = None if isinstance(error, TurnCancelled) else str(error)
-            self._finish(record, generation, status, error=detail)
+            result = (
+                _latest_tool_output(record.manager) if status == "stopped" else None
+            )
+            self._finish(record, generation, status, result=result, error=detail)
 
     def _run_default_child(self, record: _AgentRecord, message: str) -> str:
         from coding_kid.agent import run_turn
@@ -430,11 +442,18 @@ class AgentManager:
             instruction_overlays=tuple(overlays),
             todo_state=record.todos,
             max_tool_calls=MAX_CHILD_TOOL_CALLS,
+            rollback_on_cancel=False,
         )
 
     def _observe(self, record: _AgentRecord, event: Any) -> None:
         with record.condition:
-            if isinstance(event, ToolStarted):
+            if isinstance(event, TurnStarted):
+                record.last_activity = "model"
+            elif isinstance(event, AssistantMessageCompleted):
+                record.last_activity = "model response"
+            elif isinstance(event, CompactionStarted):
+                record.last_activity = "compaction"
+            elif isinstance(event, ToolStarted):
                 record.last_activity = event.name
             elif isinstance(event, ToolCompleted):
                 record.tool_calls += 1
@@ -473,6 +492,8 @@ class AgentManager:
                 status=record.status,
                 description=record.description,
                 duration_seconds=max(0.0, ended_at - record.started_at),
+                started_at=record.started_at,
+                ended_at=record.ended_at,
                 turn_count=record.turn_count,
                 tool_calls=record.tool_calls,
                 last_activity=record.last_activity,
@@ -537,3 +558,11 @@ def _bounded_result(value: str | None) -> str | None:
         f"{value[:half]}\n... Agent output truncated "
         f"({omitted} characters omitted) ...\n{value[-half:]}"
     )
+
+
+def _latest_tool_output(manager: ContextManager) -> str | None:
+    for item in reversed(manager.conversation.active_items()):
+        if isinstance(item, dict) and item.get("type") == "function_call_output":
+            output = item.get("output")
+            return output if isinstance(output, str) else str(output)
+    return None

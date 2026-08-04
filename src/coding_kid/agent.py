@@ -125,6 +125,7 @@ def run_turn(
     todo_state: TodoState | None = None,
     max_tool_calls: int = MAX_TOOL_CALLS_PER_TURN,
     agent_manager: AgentManager | None = None,
+    rollback_on_cancel: bool = True,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     registry = tool_registry or DEFAULT_TOOL_REGISTRY
@@ -286,7 +287,7 @@ def run_turn(
             empty_responses = 0
             tool_budget_reached = tool_calls_executed >= max_tool_calls
 
-            for tool_call in parsed.tool_calls:
+            for tool_index, tool_call in enumerate(parsed.tool_calls):
                 if cancellation_token is not None:
                     cancellation_token.raise_if_cancelled()
                 if tool_calls_executed >= max_tool_calls and tool_call.name not in {
@@ -330,8 +331,6 @@ def run_turn(
                                 )
                             ),
                         )
-                    if cancellation_token is not None:
-                        cancellation_token.raise_if_cancelled()
                     if tool_calls_executed >= max_tool_calls:
                         tool_budget_reached = True
                 round_items.append(
@@ -341,13 +340,25 @@ def run_turn(
                         "output": result,
                     }
                 )
+                if cancellation_token is not None and cancellation_token.cancelled:
+                    for skipped in parsed.tool_calls[tool_index + 1 :]:
+                        round_items.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": skipped.call_id,
+                                "output": "Tool call skipped: turn cancelled.",
+                            }
+                        )
+                    manager.conversation.append_model_round(round_items)
+                    cancellation_token.raise_if_cancelled()
 
             manager.conversation.append_model_round(round_items)
             recovery_overlays = (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
 
         raise RuntimeError("Agent reached the maximum number of model/tool steps")
     except TurnCancelled as error:
-        manager.restore(turn_snapshot)
+        if rollback_on_cancel:
+            manager.restore(turn_snapshot)
         emit(event_sink, TurnInterrupted(str(error)))
         raise
     except BaseException as error:

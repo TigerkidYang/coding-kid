@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import json
+import sys
 import threading
 import time
 from typing import Any
@@ -21,6 +23,20 @@ def text_response(text: str) -> SimpleNamespace:
             SimpleNamespace(
                 type="message",
                 content=[SimpleNamespace(type="output_text", text=text)],
+            )
+        ],
+        usage=None,
+    )
+
+
+def tool_response(name: str, arguments: dict[str, Any]) -> SimpleNamespace:
+    return SimpleNamespace(
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                call_id="call-1",
+                name=name,
+                arguments=json.dumps(arguments),
             )
         ],
         usage=None,
@@ -241,6 +257,7 @@ def test_default_children_use_the_real_loop_in_parallel_with_restricted_tools(
         with calls_lock:
             calls.append((list(messages), {tool["name"] for tool in tools}))
         barrier.wait(timeout=2)
+        time.sleep(0.03)
         prompt = next(
             item["content"]
             for item in messages
@@ -261,6 +278,11 @@ def test_default_children_use_the_real_loop_in_parallel_with_restricted_tools(
 
     assert first_done.result == "answer for alpha-only"
     assert second_done.result == "answer for beta-only"
+    assert first_done.ended_at is not None
+    assert second_done.ended_at is not None
+    assert max(first_done.started_at, second_done.started_at) < min(
+        first_done.ended_at, second_done.ended_at
+    )
     assert len(calls) == 2
     for messages, names in calls:
         assert "spawn_agent" not in names
@@ -295,6 +317,51 @@ def test_provider_failure_becomes_a_bounded_failed_snapshot(tmp_path: Path) -> N
     assert not timed_out
     assert failed.status == "failed"
     assert failed.error == "provider unavailable"
+    agents.close()
+
+
+def test_stopping_foreground_command_retains_partial_tool_evidence(
+    tmp_path: Path,
+) -> None:
+    ready = tmp_path / "ready.txt"
+    late = tmp_path / "late.txt"
+    script = tmp_path / "slow.py"
+    script.write_text(
+        "import pathlib, time\n"
+        f"pathlib.Path({str(ready)!r}).write_text('ready')\n"
+        "print('partial child evidence', flush=True)\n"
+        "time.sleep(5)\n"
+        f"pathlib.Path({str(late)!r}).write_text('late')\n",
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def provider(*args: Any, **kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        return tool_response("execute", {"command": f'& "{sys.executable}" "{script}"'})
+
+    agents = AgentManager(
+        context(tmp_path),
+        ContextBudget(None, "test"),
+        call_provider=provider,
+        stream_provider=None,
+    )
+    started = agents.start("slow command", "run it")
+    deadline = time.monotonic() + 2
+    while not ready.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert ready.exists()
+
+    stopped = agents.stop(started.agent_id, 2)
+
+    assert stopped.status == "stopped"
+    assert stopped.result is not None
+    assert "partial child evidence" in stopped.result
+    assert "cancelled: true" in stopped.result
+    time.sleep(0.1)
+    assert not late.exists()
+    assert calls == 1
     agents.close()
 
 
