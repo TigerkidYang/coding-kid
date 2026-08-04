@@ -42,6 +42,10 @@ class CancellationToken:
             message = "Turn steered" if self.reason == "steered" else "Turn interrupted"
             raise TurnCancelled(message, reason=self.reason)
 
+    def wait(self, timeout: float) -> bool:
+        """Wait for cancellation, returning true when it arrives."""
+        return self._event.wait(timeout)
+
     @property
     def reason(self) -> str:
         with self._lock:
@@ -99,6 +103,11 @@ class StallDetected:
 @dataclass(frozen=True)
 class AssistantTextDelta:
     delta: str
+
+
+@dataclass(frozen=True)
+class AssistantStreamReset:
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -197,6 +206,7 @@ TurnEvent: TypeAlias = (
     | BudgetWarning
     | StallDetected
     | AssistantTextDelta
+    | AssistantStreamReset
     | AssistantMessageCompleted
     | ToolStarted
     | ToolCompleted

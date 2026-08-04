@@ -19,6 +19,7 @@ from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import (
     AssistantMessageCompleted,
     AssistantTextDelta,
+    AssistantStreamReset,
     CancellationToken,
     TodoUpdated,
     ToolCompleted,
@@ -27,8 +28,11 @@ from coding_kid.events import (
     TurnCompleted,
     TurnInterrupted,
     TurnStarted,
+    RetryScheduled,
 )
+from coding_kid.provider import ProviderIncompleteError
 from coding_kid.tools import build_tool_registry, get_todos
+from coding_kid.turn_control import TurnLimits
 
 
 def tool_call(call_id: str, name: str, arguments: dict[str, Any]) -> SimpleNamespace:
@@ -566,7 +570,80 @@ def test_run_turn_retries_one_empty_model_response() -> None:
     assert len(provider_instructions) == 2
     assert provider_instructions[0].startswith(SYSTEM_PROMPT)
     assert "previous response was empty" in provider_instructions[1].lower()
-    assert "answer the user now" in provider_instructions[1].lower()
+
+
+def test_run_turn_retries_transient_provider_failure_observably(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    events: list[Any] = []
+
+    class TransientError(RuntimeError):
+        status_code = 503
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise TransientError("temporary")
+        return SimpleNamespace(output=[text_message("Recovered")], usage=None)
+
+    monkeypatch.setattr(agent_module, "provider_retry_delay", lambda error, attempt: 0)
+
+    assert run_turn([], provider, event_sink=events.append) == "Recovered"
+    assert calls == 2
+    assert len([event for event in events if isinstance(event, RetryScheduled)]) == 1
+    assert any(isinstance(event, AssistantStreamReset) for event in events)
+
+
+def test_run_turn_recovers_from_output_limit_twice() -> None:
+    calls = 0
+    seen_instructions: list[str] = []
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        seen_instructions.append(instructions)
+        if calls < 3:
+            raise ProviderIncompleteError("max_output_tokens")
+        return SimpleNamespace(output=[text_message("Finished")], usage=None)
+
+    assert run_turn([], provider) == "Finished"
+    assert calls == 3
+    assert "Output limit recovery" in seen_instructions[-1]
+
+
+def test_run_turn_enforces_shared_recovery_budget() -> None:
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        raise ProviderIncompleteError("max_output_tokens")
+
+    with pytest.raises(RuntimeError, match="recovery budget"):
+        run_turn([], provider, limits=TurnLimits(max_recoveries=1))
+
+
+def test_run_turn_stops_repeated_identical_tool_actions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    advertised_tool_counts: list[int] = []
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        advertised_tool_counts.append(len(tools))
+        if calls <= 4:
+            return SimpleNamespace(
+                output=[tool_call(f"call-{calls}", "read", {"path": "same.txt"})],
+                usage=None,
+            )
+        return SimpleNamespace(
+            output=[text_message("Stopped with evidence")], usage=None
+        )
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", lambda name, arguments: "same")
+
+    assert run_turn([], provider) == "Stopped with evidence"
+    assert advertised_tool_counts[-1] == 0
 
 
 def test_run_turn_recovers_from_an_empty_response_after_a_tool(

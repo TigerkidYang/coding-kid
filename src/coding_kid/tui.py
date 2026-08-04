@@ -25,6 +25,7 @@ from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
 from coding_kid.events import (
     AssistantMessageCompleted,
+    AssistantStreamReset,
     AssistantTextDelta,
     CancellationToken,
     CompactionCompleted,
@@ -480,6 +481,8 @@ class CodingKidApp(App[None]):
     def handle_turn_event(self, event: TurnEvent) -> None:
         if isinstance(event, AssistantTextDelta):
             self._pending_deltas.append(event.delta)
+        elif isinstance(event, AssistantStreamReset):
+            self._discard_active_assistant()
         elif isinstance(event, AssistantMessageCompleted):
             self._complete_assistant(event.text)
         elif isinstance(event, ToolStarted):

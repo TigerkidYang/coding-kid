@@ -36,7 +36,7 @@ def test_generate_sends_inputs_and_returns_raw_response(
         "api_key": "test-key",
         "base_url": "https://openrouter.ai/api/v1",
         "timeout": 120.0,
-        "max_retries": 2,
+        "max_retries": 0,
     }
     assert captured == {
         "model": "test/model",
@@ -194,6 +194,34 @@ def test_generate_streaming_rejects_failure_and_missing_terminal(
         provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
 
 
+def test_generate_streaming_classifies_output_limit_incomplete(
+    monkeypatch: Any,
+) -> None:
+    incomplete = SimpleNamespace(
+        type="response.incomplete",
+        response=SimpleNamespace(
+            incomplete_details=SimpleNamespace(reason="max_output_tokens")
+        ),
+    )
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> Any:
+            return iter([incomplete])
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(provider.ProviderIncompleteError) as raised:
+        provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
+    assert raised.value.reason == "max_output_tokens"
+    assert provider.is_output_limit_error(raised.value)
+
+
 def test_generate_streaming_honors_cancellation(monkeypatch: Any) -> None:
     token = CancellationToken()
 
@@ -249,3 +277,16 @@ def test_response_usage_and_context_error_classification() -> None:
         RuntimeError("maximum context length exceeded")
     )
     assert not provider.is_context_window_error(RuntimeError("authentication failed"))
+
+
+def test_provider_retry_classification_and_bounded_delay() -> None:
+    transient = RuntimeError("server")
+    transient.status_code = 503  # type: ignore[attr-defined]
+    limited = RuntimeError("limited")
+    limited.status_code = 429  # type: ignore[attr-defined]
+    limited.headers = {"retry-after": "90"}  # type: ignore[attr-defined]
+
+    assert provider.retryable_provider_error(transient)
+    assert provider.retryable_provider_error(limited)
+    assert provider.provider_retry_delay(limited, 1) == 30.0
+    assert not provider.retryable_provider_error(RuntimeError("bad request"))

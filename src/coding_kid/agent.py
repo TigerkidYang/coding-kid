@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
+import time
 from typing import Any, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
@@ -16,10 +18,14 @@ from coding_kid.context_manager import (
 )
 from coding_kid.events import (
     AssistantMessageCompleted,
+    AssistantStreamReset,
     AssistantTextDelta,
+    BudgetWarning,
     CancellationToken,
     ContextWarning,
     EventSink,
+    RetryScheduled,
+    StallDetected,
     TodoItem,
     TodoUpdated,
     StepStarted,
@@ -34,7 +40,13 @@ from coding_kid.events import (
     emit,
 )
 from coding_kid.parser import parse_output
-from coding_kid.provider import generate, is_context_window_error
+from coding_kid.provider import (
+    generate,
+    is_context_window_error,
+    is_output_limit_error,
+    provider_retry_delay,
+    retryable_provider_error,
+)
 from coding_kid.tools import (
     DEFAULT_TOOL_REGISTRY,
     TodoState,
@@ -44,7 +56,7 @@ from coding_kid.tools import (
     get_todos,
     tool_definitions,
 )
-from coding_kid.turn_control import TransitionReason
+from coding_kid.turn_control import TransitionReason, TurnLimits
 
 if TYPE_CHECKING:
     from coding_kid.agents import AgentManager
@@ -70,6 +82,18 @@ Before answering, call todo once to reflect the actual state and finish the
 remaining work. Do not give a final answer while any item is pending or
 in_progress."""
 
+OUTPUT_LIMIT_RECOVERY = """
+
+Output limit recovery: The previous response was cut off. Resume directly from
+the available work without apologizing or repeating the completed portion. Keep
+the remainder concise and use tools only when necessary."""
+
+STALL_RECOVERY = """
+
+Stall circuit breaker: Repeated identical tool actions produced no new evidence.
+Do not call more tools. Explain the useful evidence already collected and state
+the remaining blocker clearly."""
+
 Provider = Callable[..., Any]
 StreamingProvider = Callable[..., Any]
 ToolObserver = Callable[[str, dict[str, Any], str], None]
@@ -77,6 +101,35 @@ ContextObserver = Callable[[str], None]
 MemoryCitationObserver = Callable[[tuple[str, ...]], None]
 MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 64
+MAX_PROVIDER_ATTEMPTS = 3
+MAX_OUTPUT_LIMIT_RECOVERIES = 2
+
+
+def _provider_request_with_retry(
+    request: Callable[[], Any],
+    *,
+    event_sink: EventSink | None,
+    cancellation_token: CancellationToken | None,
+) -> Any:
+    """Run one observable, cancellable provider retry policy."""
+    for attempt in range(1, MAX_PROVIDER_ATTEMPTS + 1):
+        try:
+            return request()
+        except Exception as error:
+            if not retryable_provider_error(error) or attempt >= MAX_PROVIDER_ATTEMPTS:
+                raise
+            delay = provider_retry_delay(error, attempt)
+            emit(event_sink, AssistantStreamReset("provider_retry"))
+            emit(event_sink, RetryScheduled(type(error).__name__, attempt, delay))
+            emit(
+                event_sink,
+                TransitionSelected(TransitionReason.PROVIDER_RETRY.value),
+            )
+            if cancellation_token is None:
+                time.sleep(delay)
+            elif cancellation_token.wait(delay):
+                cancellation_token.raise_if_cancelled()
+    raise AssertionError("provider retry loop exhausted without returning")
 
 
 def current_instructions(
@@ -129,8 +182,15 @@ def run_turn(
     max_tool_calls: int = MAX_TOOL_CALLS_PER_TURN,
     agent_manager: AgentManager | None = None,
     rollback_on_cancel: bool = False,
+    limits: TurnLimits | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
+    configured_limits = limits or TurnLimits(
+        max_steps=max_steps,
+        max_tool_calls=max_tool_calls,
+    )
+    max_steps = configured_limits.max_steps
+    max_tool_calls = configured_limits.max_tool_calls
     registry = tool_registry or DEFAULT_TOOL_REGISTRY
     tools = registry.definitions() if tool_registry is not None else tool_definitions()
     dispatch = registry.dispatch if tool_registry is not None else dispatch_tool
@@ -145,10 +205,34 @@ def run_turn(
     tool_calls_executed = 0
     recovery_overlays: tuple[str, ...] = ()
     reactive_recovery_attempted = False
+    recovery_count = 0
+    output_limit_recoveries = 0
+    last_action_fingerprint: str | None = None
+    identical_action_count = 0
+    stalled = False
+    budget_warned = False
+    turn_started_at = time.monotonic()
     emit(event_sink, TurnStarted())
+
+    def record_recovery(reason: TransitionReason) -> None:
+        nonlocal recovery_count
+        recovery_count += 1
+        emit(event_sink, TransitionSelected(reason.value))
+        if recovery_count > configured_limits.max_recoveries:
+            raise RuntimeError("Turn recovery budget exhausted")
 
     try:
         for step_number in range(1, max_steps + 1):
+            if (
+                time.monotonic() - turn_started_at
+                > configured_limits.max_elapsed_seconds
+            ):
+                emit(event_sink, BudgetWarning("Turn elapsed-time budget exhausted"))
+                emit(
+                    event_sink,
+                    TransitionSelected(TransitionReason.BUDGET_EXHAUSTED.value),
+                )
+                raise RuntimeError("Turn elapsed-time budget exhausted")
             emit(event_sink, StepStarted(step_number))
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()
@@ -168,14 +252,15 @@ def run_turn(
                 instruction_overlays + task_overlay + recovery_overlays,
                 todo_state,
             )
+            active_tools = [] if stalled else tools
 
-            if manager.should_auto_compact(instructions, tools):
+            if manager.should_auto_compact(instructions, active_tools):
                 try:
                     compact_context(
                         manager,
                         call_provider,
                         instructions=instructions,
-                        tools=tools,
+                        tools=active_tools,
                         trigger="auto",
                         on_context=on_context,
                         event_sink=event_sink,
@@ -198,21 +283,28 @@ def run_turn(
             local_estimate = estimate_request_tokens(
                 instructions,
                 model_input,
-                tools,
+                active_tools,
             )
             try:
-                if stream_provider is None:
-                    response = call_provider(instructions, model_input, tools)
-                else:
-                    response = stream_provider(
+
+                def request() -> Any:
+                    if stream_provider is None:
+                        return call_provider(instructions, model_input, active_tools)
+                    return stream_provider(
                         instructions,
                         model_input,
-                        tools,
+                        active_tools,
                         on_text_delta=lambda delta: emit(
                             event_sink, AssistantTextDelta(delta)
                         ),
                         cancellation_token=cancellation_token,
                     )
+
+                response = _provider_request_with_retry(
+                    request,
+                    event_sink=event_sink,
+                    cancellation_token=cancellation_token,
+                )
                 if cancellation_token is not None:
                     cancellation_token.raise_if_cancelled()
             except Exception as error:
@@ -225,13 +317,23 @@ def run_turn(
                         manager,
                         call_provider,
                         instructions=instructions,
-                        tools=tools,
+                        tools=active_tools,
                         trigger="recovery",
                         on_context=on_context,
                         event_sink=event_sink,
                         cancellation_token=cancellation_token,
                     )
+                    record_recovery(TransitionReason.AUTO_COMPACTION)
                     reactive_recovery_attempted = True
+                    continue
+                if (
+                    is_output_limit_error(error)
+                    and output_limit_recoveries < MAX_OUTPUT_LIMIT_RECOVERIES
+                ):
+                    output_limit_recoveries += 1
+                    record_recovery(TransitionReason.OUTPUT_LIMIT_RECOVERY)
+                    recovery_overlays = (OUTPUT_LIMIT_RECOVERY,)
+                    emit(event_sink, AssistantStreamReset("output_limit_recovery"))
                     continue
                 raise
 
@@ -243,6 +345,11 @@ def run_turn(
             )
             round_items = _round_items(response, parsed.text, parsed.memory_citations)
 
+            if stalled and parsed.tool_calls:
+                raise RuntimeError(
+                    "Model requested tools after the stall circuit breaker"
+                )
+
             if not parsed.tool_calls:
                 manager.conversation.append_model_round(round_items)
                 if parsed.text.strip():
@@ -252,6 +359,7 @@ def run_turn(
                     )
                     if has_incomplete_todo and not todo_reconciliation_requested:
                         todo_reconciliation_requested = True
+                        record_recovery(TransitionReason.COMPLETION_RETRY)
                         recovery_overlays = (TODO_RECONCILIATION,)
                         if tool_calls_executed >= max_tool_calls:
                             recovery_overlays += (TOOL_BUDGET_RECOVERY,)
@@ -288,10 +396,7 @@ def run_turn(
                 if empty_responses >= MAX_EMPTY_RESPONSES:
                     raise RuntimeError("Model returned repeated empty responses")
                 recovery_overlays = (EMPTY_RESPONSE_RECOVERY,)
-                emit(
-                    event_sink,
-                    TransitionSelected(TransitionReason.EMPTY_RESPONSE_RECOVERY.value),
-                )
+                record_recovery(TransitionReason.EMPTY_RESPONSE_RECOVERY)
                 if tool_calls_executed >= max_tool_calls:
                     recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                 continue
@@ -311,6 +416,9 @@ def run_turn(
                         "Use the results already available and answer the user."
                     )
                     tool_budget_reached = True
+                    if not budget_warned:
+                        emit(event_sink, BudgetWarning("Tool-call budget reached"))
+                        budget_warned = True
                 else:
                     emit(
                         event_sink,
@@ -345,6 +453,26 @@ def run_turn(
                         )
                     if tool_calls_executed >= max_tool_calls:
                         tool_budget_reached = True
+                fingerprint = json.dumps(
+                    [tool_call.name, tool_call.arguments, result],
+                    sort_keys=True,
+                    ensure_ascii=False,
+                    default=str,
+                )
+                if fingerprint == last_action_fingerprint:
+                    identical_action_count += 1
+                else:
+                    last_action_fingerprint = fingerprint
+                    identical_action_count = 1
+                if identical_action_count == 3:
+                    emit(
+                        event_sink,
+                        StallDetected(
+                            f"Repeated {tool_call.name} with the same result three times"
+                        ),
+                    )
+                if identical_action_count >= configured_limits.max_identical_actions:
+                    stalled = True
                 round_items.append(
                     {
                         "type": "function_call_output",
@@ -369,7 +497,16 @@ def run_turn(
                 event_sink,
                 TransitionSelected(TransitionReason.TOOL_FOLLOWUP.value),
             )
-            recovery_overlays = (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
+            if stalled:
+                emit(
+                    event_sink,
+                    TransitionSelected(TransitionReason.STALLED.value),
+                )
+                recovery_overlays = (STALL_RECOVERY,)
+            else:
+                recovery_overlays = (
+                    (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
+                )
 
         emit(
             event_sink,

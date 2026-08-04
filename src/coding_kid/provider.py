@@ -15,6 +15,14 @@ from coding_kid.events import CancellationToken
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
+class ProviderIncompleteError(RuntimeError):
+    """A streaming response ended intentionally before a complete response."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(f"Streaming response incomplete: {reason}")
+        self.reason = reason
+
+
 def required_environment(name: str) -> str:
     """Read one required setting and fail with a useful message if absent."""
     value = os.getenv(name)
@@ -35,7 +43,7 @@ def generate(
         api_key=required_environment("OPENROUTER_API_KEY"),
         base_url=OPENROUTER_BASE_URL,
         timeout=120.0,
-        max_retries=2,
+        max_retries=0,
     )
     request: dict[str, Any] = {
         "model": required_environment("OPENROUTER_MODEL"),
@@ -64,7 +72,7 @@ def generate_streaming(
         api_key=required_environment("OPENROUTER_API_KEY"),
         base_url=OPENROUTER_BASE_URL,
         timeout=120.0,
-        max_retries=2,
+        max_retries=0,
     )
     request: dict[str, Any] = {
         "model": required_environment("OPENROUTER_MODEL"),
@@ -92,11 +100,12 @@ def generate_streaming(
                     on_text_delta(delta)
             elif event_type in {"response.completed", "response.done"}:
                 final_response = getattr(event, "response", None)
-            elif event_type in {
-                "response.error",
-                "response.failed",
-                "response.incomplete",
-            }:
+            elif event_type == "response.incomplete":
+                response = getattr(event, "response", None)
+                details = getattr(response, "incomplete_details", None)
+                reason = getattr(details, "reason", None) or "unknown"
+                raise ProviderIncompleteError(str(reason))
+            elif event_type in {"response.error", "response.failed"}:
                 raise RuntimeError(_stream_error_message(event))
     finally:
         close = getattr(stream, "close", None)
@@ -160,3 +169,43 @@ def is_context_window_error(error: Exception) -> bool:
         "too many tokens",
     )
     return any(marker in rendered for marker in markers)
+
+
+def is_output_limit_error(error: Exception) -> bool:
+    """Recognize a terminal response cut off by its output-token allowance."""
+    if isinstance(error, ProviderIncompleteError):
+        return error.reason.casefold() in {
+            "max_output_tokens",
+            "max_tokens",
+            "length",
+        }
+    rendered = str(error).casefold()
+    return "max_output_tokens" in rendered or "maximum output" in rendered
+
+
+def retryable_provider_error(error: Exception) -> bool:
+    """Retry only transient transport and server failures."""
+    status = getattr(error, "status_code", None)
+    if isinstance(status, int):
+        return status in {408, 409, 429} or status >= 500
+    name = type(error).__name__.casefold()
+    return isinstance(error, (ConnectionError, TimeoutError)) or any(
+        marker in name for marker in ("connection", "timeout", "ratelimit")
+    )
+
+
+def provider_retry_delay(error: Exception, attempt: int) -> float:
+    """Return a bounded Retry-After or short exponential delay."""
+    headers = getattr(error, "headers", None)
+    value = None
+    if headers is not None:
+        getter = getattr(headers, "get", None)
+        if callable(getter):
+            value = getter("retry-after")
+    try:
+        retry_after = float(value) if value is not None else None
+    except (TypeError, ValueError):
+        retry_after = None
+    if retry_after is not None:
+        return max(0.0, min(30.0, retry_after))
+    return min(4.0, 0.5 * (2 ** max(0, attempt - 1)))
