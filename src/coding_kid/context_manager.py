@@ -153,6 +153,17 @@ class ConversationState:
         self.active = [segment.clone() for segment in snapshot.active]
         self.checkpoints = list(snapshot.checkpoints)
 
+    def restore_projection_preserving_new_transcript(
+        self, snapshot: ConversationState
+    ) -> None:
+        """Undo temporary compaction while retaining newly completed rounds."""
+        new_segments = self.transcript[len(snapshot.transcript) :]
+        self.active = [
+            *(segment.clone() for segment in snapshot.active),
+            *(segment.clone() for segment in new_segments),
+        ]
+        self.checkpoints = list(snapshot.checkpoints)
+
 
 @dataclass(frozen=True)
 class ContextBudget:

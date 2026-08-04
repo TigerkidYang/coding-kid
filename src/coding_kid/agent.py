@@ -561,6 +561,10 @@ def run_turn(
     except TurnCancelled as error:
         if rollback_on_cancel:
             manager.restore(turn_snapshot)
+        else:
+            manager.conversation.restore_projection_preserving_new_transcript(
+                turn_snapshot.conversation
+            )
         emit(
             event_sink,
             TransitionSelected(
@@ -572,6 +576,9 @@ def run_turn(
         emit(event_sink, TurnInterrupted(str(error)))
         raise
     except BaseException as error:
+        manager.conversation.restore_projection_preserving_new_transcript(
+            turn_snapshot.conversation
+        )
         emit(
             event_sink,
             TransitionSelected(TransitionReason.FATAL_ERROR.value),
