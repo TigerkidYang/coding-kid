@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sys
+import threading
 from types import SimpleNamespace
 from typing import Any
 
@@ -31,7 +32,7 @@ from coding_kid.events import (
     RetryScheduled,
 )
 from coding_kid.provider import ProviderIncompleteError
-from coding_kid.tools import build_tool_registry, get_todos
+from coding_kid.tools import ToolRegistry, build_tool_registry, get_todos
 from coding_kid.turn_control import TurnLimits
 
 
@@ -200,6 +201,115 @@ def test_run_turn_executes_multiple_tools_in_order(
     second_request = provider_calls[1][1]
     assert second_request[-2]["call_id"] == "call-1"
     assert second_request[-1]["call_id"] == "call-2"
+
+
+def test_run_turn_overlaps_explicitly_safe_tools_and_orders_results() -> None:
+    barrier = threading.Barrier(2)
+    active = 0
+    maximum_active = 0
+    lock = threading.Lock()
+
+    def safe_read(path: str) -> str:
+        nonlocal active, maximum_active
+        with lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        try:
+            barrier.wait(timeout=2)
+            return f"read {path}"
+        finally:
+            with lock:
+                active -= 1
+
+    registry = ToolRegistry(
+        {
+            "safe_read": {
+                "description": "Test-only safe read.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"],
+                    "additionalProperties": False,
+                },
+                "function": safe_read,
+                "parallel_safe": True,
+            }
+        }
+    )
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call("call-1", "safe_read", {"path": "one"}),
+                    tool_call("call-2", "safe_read", {"path": "two"}),
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Finished.")]),
+        ]
+    )
+    requests: list[list[Any]] = []
+
+    def provider(*args: Any, **kwargs: Any) -> Any:
+        requests.append(list(args[1]))
+        return next(responses)
+
+    assert run_turn([], provider, tool_registry=registry) == "Finished."
+    assert maximum_active == 2
+    outputs = [
+        item
+        for item in requests[1]
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    ]
+    assert [item["call_id"] for item in outputs] == ["call-1", "call-2"]
+    assert [item["output"] for item in outputs] == ["read one", "read two"]
+
+
+def test_run_turn_keeps_exclusive_tools_between_safe_batches() -> None:
+    order: list[str] = []
+
+    def record(label: str) -> str:
+        order.append(label)
+        return label
+
+    schema = {
+        "type": "object",
+        "properties": {"label": {"type": "string"}},
+        "required": ["label"],
+        "additionalProperties": False,
+    }
+    registry = ToolRegistry(
+        {
+            "safe": {
+                "description": "Test-only safe operation.",
+                "parameters": schema,
+                "function": record,
+                "parallel_safe": True,
+            },
+            "exclusive": {
+                "description": "Test-only exclusive operation.",
+                "parameters": schema,
+                "function": record,
+            },
+        }
+    )
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call("call-1", "safe", {"label": "safe one"}),
+                    tool_call("call-2", "exclusive", {"label": "exclusive"}),
+                    tool_call("call-3", "safe", {"label": "safe two"}),
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Finished.")]),
+        ]
+    )
+
+    assert (
+        run_turn([], lambda *args, **kwargs: next(responses), tool_registry=registry)
+        == "Finished."
+    )
+    assert order == ["safe one", "exclusive", "safe two"]
 
 
 def test_run_turn_completes_background_work_protocol(tmp_path: Path) -> None:

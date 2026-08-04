@@ -221,6 +221,16 @@ def test_every_strict_tool_requires_each_declared_property() -> None:
         ]
 
 
+def test_only_builtin_read_and_search_are_parallel_safe() -> None:
+    registry = ToolRegistry()
+
+    assert registry.parallel_safe("read")
+    assert registry.parallel_safe("search")
+    assert not registry.parallel_safe("write")
+    assert not registry.parallel_safe("execute")
+    assert not registry.parallel_safe("missing")
+
+
 def test_background_execute_and_task_actions(tmp_path: Path) -> None:
     script = tmp_path / "worker.py"
     script.write_text("print('background result')\n", encoding="utf-8")

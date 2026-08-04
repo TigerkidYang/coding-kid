@@ -340,6 +340,7 @@ TOOLS: dict[str, ToolEntry] = {
             "additionalProperties": False,
         },
         "function": read,
+        "parallel_safe": True,
     },
     "write": {
         "description": "Create or completely overwrite a UTF-8 text file.",
@@ -369,6 +370,7 @@ TOOLS: dict[str, ToolEntry] = {
             "additionalProperties": False,
         },
         "function": search,
+        "parallel_safe": True,
     },
     "patch": {
         "description": "Replace one unique, exact text fragment in a file.",
@@ -555,6 +557,11 @@ class ToolRegistry:
             }
             for name, entry in self._entries.items()
         ]
+
+    def parallel_safe(self, name: str) -> bool:
+        """Return true only for tools explicitly safe to overlap."""
+        entry = self._entries.get(name)
+        return bool(entry is not None and entry.get("parallel_safe", False))
 
     def dispatch(self, name: str, arguments: dict[str, Any]) -> str:
         entry = self._entries.get(name)

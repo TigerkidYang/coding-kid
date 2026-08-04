@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 import json
 import time
 from typing import Any, TYPE_CHECKING
@@ -404,6 +405,7 @@ def run_turn(
             empty_responses = 0
             tool_budget_reached = tool_calls_executed >= max_tool_calls
 
+            tool_results: list[str | None] = [None] * len(parsed.tool_calls)
             for tool_index, tool_call in enumerate(parsed.tool_calls):
                 if cancellation_token is not None:
                     cancellation_token.raise_if_cancelled()
@@ -419,40 +421,94 @@ def run_turn(
                     if not budget_warned:
                         emit(event_sink, BudgetWarning("Tool-call budget reached"))
                         budget_warned = True
+                    tool_results[tool_index] = result
                 else:
-                    emit(
-                        event_sink,
-                        ToolStarted(tool_call.name, dict(tool_call.arguments)),
-                    )
-                    result = dispatch(tool_call.name, tool_call.arguments)
                     if tool_call.name not in {"todo", "skill"}:
                         tool_calls_executed += 1
-                    if on_tool is not None:
-                        on_tool(tool_call.name, tool_call.arguments, result)
-                    emit(
-                        event_sink,
-                        ToolCompleted(
-                            tool_call.name,
-                            dict(tool_call.arguments),
-                            result,
-                        ),
-                    )
-                    if tool_call.name == "todo" and not result.startswith("ERROR:"):
-                        emit(
-                            event_sink,
-                            TodoUpdated(
-                                tuple(
-                                    TodoItem(item["content"], item["status"])
-                                    for item in (
-                                        todo_state.items
-                                        if todo_state is not None
-                                        else get_todos()
-                                    )
-                                )
-                            ),
-                        )
                     if tool_calls_executed >= max_tool_calls:
                         tool_budget_reached = True
+
+            def invoke_tool(tool_index: int) -> str:
+                tool_call = parsed.tool_calls[tool_index]
+                emit(
+                    event_sink,
+                    ToolStarted(tool_call.name, dict(tool_call.arguments)),
+                )
+                result = dispatch(tool_call.name, tool_call.arguments)
+                if on_tool is not None:
+                    on_tool(tool_call.name, tool_call.arguments, result)
+                emit(
+                    event_sink,
+                    ToolCompleted(
+                        tool_call.name,
+                        dict(tool_call.arguments),
+                        result,
+                    ),
+                )
+                if tool_call.name == "todo" and not result.startswith("ERROR:"):
+                    emit(
+                        event_sink,
+                        TodoUpdated(
+                            tuple(
+                                TodoItem(item["content"], item["status"])
+                                for item in (
+                                    todo_state.items
+                                    if todo_state is not None
+                                    else get_todos()
+                                )
+                            )
+                        ),
+                    )
+                return result
+
+            tool_index = 0
+            while tool_index < len(parsed.tool_calls):
+                if tool_results[tool_index] is not None:
+                    tool_index += 1
+                    continue
+                if registry.parallel_safe(parsed.tool_calls[tool_index].name):
+                    batch: list[int] = []
+                    while (
+                        tool_index < len(parsed.tool_calls)
+                        and tool_results[tool_index] is None
+                        and registry.parallel_safe(parsed.tool_calls[tool_index].name)
+                    ):
+                        batch.append(tool_index)
+                        tool_index += 1
+                    with ThreadPoolExecutor(
+                        max_workers=min(4, len(batch)),
+                        thread_name_prefix="coding-kid-read",
+                    ) as executor:
+                        futures = [
+                            executor.submit(invoke_tool, index) for index in batch
+                        ]
+                        for index, future in zip(batch, futures, strict=True):
+                            tool_results[index] = future.result()
+                else:
+                    tool_results[tool_index] = invoke_tool(tool_index)
+                    tool_index += 1
+
+                if cancellation_token is not None and cancellation_token.cancelled:
+                    for pending_index, pending_result in enumerate(tool_results):
+                        if pending_result is None:
+                            tool_results[pending_index] = (
+                                "Tool call skipped: turn cancelled."
+                            )
+                    round_items.extend(
+                        {
+                            "type": "function_call_output",
+                            "call_id": tool_call.call_id,
+                            "output": result,
+                        }
+                        for tool_call, result in zip(
+                            parsed.tool_calls, tool_results, strict=True
+                        )
+                    )
+                    manager.conversation.append_model_round(round_items)
+                    cancellation_token.raise_if_cancelled()
+
+            for tool_call, result in zip(parsed.tool_calls, tool_results, strict=True):
+                assert result is not None
                 fingerprint = json.dumps(
                     [tool_call.name, tool_call.arguments, result],
                     sort_keys=True,
@@ -480,17 +536,6 @@ def run_turn(
                         "output": result,
                     }
                 )
-                if cancellation_token is not None and cancellation_token.cancelled:
-                    for skipped in parsed.tool_calls[tool_index + 1 :]:
-                        round_items.append(
-                            {
-                                "type": "function_call_output",
-                                "call_id": skipped.call_id,
-                                "output": "Tool call skipped: turn cancelled.",
-                            }
-                        )
-                    manager.conversation.append_model_round(round_items)
-                    cancellation_token.raise_if_cancelled()
 
             manager.conversation.append_model_round(round_items)
             emit(
