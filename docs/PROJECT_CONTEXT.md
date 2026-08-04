@@ -72,7 +72,11 @@ without explicit permission.
   compaction, and renders terminal-only streamed answers reliably. It passed
   180 deterministic tests, Ruff, 10 rounds of concurrency stress, wheel
   inspection, and fresh-install V1–V6 verification without a paid request. The
-  original `version-06-persistent-memory` tag remains unchanged.
+  subsequent real `openai/gpt-5.6-luna` TUI verification passed tool-history
+  resume, failed-compaction rollback, interruption recovery, final rendering,
+  and cross-session automatic memory extraction, consolidation, search, and
+  recall for about USD 0.00133 total. The original
+  `version-06-persistent-memory` tag remains unchanged.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
 - Version 01 is complete and archived under `versions/01-minimal-agent/` with

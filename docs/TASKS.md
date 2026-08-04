@@ -34,8 +34,8 @@ selectively carry useful knowledge into later sessions.
   vector databases, remote synchronization, or encryption at rest.
 - Automatic cross-project extraction, silent deletion of raw sessions, or
   memory facts treated as authoritative without freshness checks.
-- SWE-bench, paid benchmarks, or live provider calls without separate explicit
-  authorization.
+- SWE-bench and paid benchmark evaluation. Ordinary bounded live verification
+  follows the standing authorization in `AGENTS.md`.
 
 ### Completion Criteria
 
@@ -70,8 +70,15 @@ selectively carry useful knowledge into later sessions.
   unrelated project directory. Installed V06 session listing and `--continue`
   also passed without a provider request.
 - Installed-wheel tool-history persistence/resume passed with a deterministic
-  fake provider. No live provider call, paid benchmark, or SWE-bench run was
-  performed for the correction.
+  fake provider.
+- Real `openai/gpt-5.6-luna` TUI verification passed actual read-tool use,
+  provider-safe tool-history resume across restarts, safe rejection and rollback
+  of ineffective compaction, resume after that rollback, interruption recovery,
+  terminal-only final rendering, and automatic cross-session memory extraction,
+  consolidation, search, and recall. Persisted sessions were closed and
+  undamaged, with no turn-error records or null optional protocol fields. Total
+  recorded spend was about **USD 0.00133**.
+- No paid benchmark or SWE-bench run was performed for the correction.
 
 ## Current Core Version: 05 — Streaming TUI
 

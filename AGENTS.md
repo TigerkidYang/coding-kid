@@ -221,8 +221,11 @@ In particular:
   items, rejects ineffective or tool-contradicting compaction, and fixes
   terminal-only TUI answers. It passed 180 deterministic tests, Ruff, 10 rounds
   of concurrency stress, wheel inspection, and fresh-install V1–V6 launches
-  without a paid request. It is archived under
-  `versions/06-persistent-memory/`; the original tag remains
+  without a paid request. A real `openai/gpt-5.6-luna` TUI verification then
+  passed tool use, provider-safe resume, failed-compaction rollback, interruption
+  recovery, terminal-only rendering, and cross-session automatic memory
+  extraction/consolidation/search/recall for about USD 0.00133 total. It is
+  archived under `versions/06-persistent-memory/`; the original tag remains
   `version-06-persistent-memory` and the correction is tagged
   `version-06-persistent-memory-fix1`.
 - The user explicitly delegated implementation and deterministic verification
