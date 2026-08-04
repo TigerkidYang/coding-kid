@@ -277,3 +277,86 @@ def test_default_children_use_the_real_loop_in_parallel_with_restricted_tools(
     time.sleep(0.05)
     assert len(calls) == 2
     agents.close()
+
+
+def test_provider_failure_becomes_a_bounded_failed_snapshot(tmp_path: Path) -> None:
+    def provider(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("provider unavailable")
+
+    agents = AgentManager(
+        context(tmp_path),
+        ContextBudget(None, "test"),
+        call_provider=provider,
+        stream_provider=None,
+    )
+    started = agents.start("failure", "fail safely")
+    failed, timed_out = agents.wait(started.agent_id, 2)
+
+    assert not timed_out
+    assert failed.status == "failed"
+    assert failed.error == "provider unavailable"
+    agents.close()
+
+
+def test_ten_round_agent_stress_has_no_concurrency_or_event_leaks(
+    tmp_path: Path,
+) -> None:
+    state_lock = threading.Lock()
+    releases: dict[str, threading.Event] = {}
+    entered: dict[str, threading.Event] = {}
+    active = 0
+    peak = 0
+
+    def runner(
+        manager: Any,
+        todos: TodoState,
+        message: str,
+        token: CancellationToken,
+        event_sink: EventSink,
+    ) -> str:
+        nonlocal active, peak
+        round_name = message.split(":", 1)[0]
+        todos.replace([{"content": message, "status": "in_progress"}])
+        with state_lock:
+            active += 1
+            peak = max(peak, active)
+            entered[message].set()
+        try:
+            releases[round_name].wait(2)
+            token.raise_if_cancelled()
+            return message
+        finally:
+            with state_lock:
+                active -= 1
+
+    agents = AgentManager(
+        context(tmp_path), ContextBudget(None, "test"), child_runner=runner
+    )
+    terminal_keys: set[tuple[str, int]] = set()
+    try:
+        for round_index in range(10):
+            round_name = f"round-{round_index}"
+            releases[round_name] = threading.Event()
+            messages = [f"{round_name}:{worker}" for worker in range(4)]
+            for message in messages:
+                entered[message] = threading.Event()
+            started = [agents.start(message, message) for message in messages]
+            assert all(entered[message].wait(1) for message in messages)
+            releases[round_name].set()
+            for snapshot in started:
+                assert agents.wait(snapshot.agent_id, 2)[0].status == "completed"
+            events = agents.drain_events()
+            terminals = [event for event in events if event.status == "completed"]
+            assert len(terminals) == 4
+            for event in terminals:
+                key = (event.agent_id, event.turn_count)
+                assert key not in terminal_keys
+                terminal_keys.add(key)
+        assert peak == 4
+    finally:
+        agents.close()
+
+    assert not any(
+        thread.is_alive() and thread.name.startswith("coding-kid-agent_")
+        for thread in threading.enumerate()
+    )
