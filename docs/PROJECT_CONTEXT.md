@@ -115,7 +115,7 @@ without explicit permission.
   fresh-install V1–V5 launches without a paid model request.
 - Version 05 remains session-local and does not add background tasks, multi-agent
   work, skills, plugins, MCP, permissions, sandboxing, or persistent traces.
-- Version 05 is not yet archived or tagged; that occurs after the user declares
-  the version complete.
+- Version 05 is complete and archived under `versions/05-streaming-tui/` with
+  annotated tag `version-05-streaming-tui`.
 - The user explicitly delegated implementation and verification of Version 05
   to the assistant.

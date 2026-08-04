@@ -209,8 +209,8 @@ In particular:
   simplified Codex-style full-screen Streaming TUI over the existing todo,
   tool, and context-management state. It passed 140 tests, Ruff, wheel
   inspection, and fresh-install V1–V5 launches without a paid request.
-- Version 05 is awaiting the user's completion declaration before archive and
-  annotated tag creation.
+- Version 05 is complete and archived under `versions/05-streaming-tui/` with
+  annotated tag `version-05-streaming-tui`.
 - The user explicitly delegated implementation and verification of Version 05
   to the assistant.
 - Existing source-code research is available to support implementation.

@@ -2,8 +2,8 @@
 
 ## Current Core Version: 05 — Streaming TUI
 
-Completion status: implementation and deterministic verification complete;
-awaiting the user's completion declaration before archive and tag creation.
+Completion status: complete and archived under `versions/05-streaming-tui/`
+with annotated tag `version-05-streaming-tui`.
 
 ### Goal
 
@@ -62,7 +62,11 @@ context-management lifecycle visible without changing canonical agent state.
 - Fresh temporary installation: explicit V1–V5, default V05, and the
   `coding-kid v5` console entry point all launched from an unrelated directory
   and exited without a provider request.
-- No SWE-bench, benchmark, or paid model request was run.
+- An explicitly authorized live end-to-end session launched the installed
+  `coding-kid` command in a real PTY against OpenRouter. It exercised multi-turn
+  edits, todo history, pytest, streamed Markdown, `/context`, `/compact`, tool
+  interruption, text-stream interruption, rollback, recovery, and `/exit`.
+- No SWE-bench or benchmark was run.
 
 ## Current Core Version: 04 — Context Management
 
@@ -402,7 +406,7 @@ results back to the model, and returns a final response to the user.
 
 ## Next Action
 
-- Implement and verify Version 05 only. Do not define a later version.
+- Wait for the user to define the next version. Do not define it in advance.
 
 ## Version 02 Verification
 
@@ -422,8 +426,8 @@ results back to the model, and returns a final response to the user.
 - Treat `versions/01-minimal-agent/` as a read-only historical checkpoint.
 - Treat `versions/02-task-decomposition/` as a read-only historical checkpoint.
 - Treat `versions/03-context-assembly/` as a read-only historical checkpoint.
-- Keep Version 05 work within its recorded Streaming TUI scope.
 - Treat `versions/04-context-management/` as a read-only historical checkpoint.
+- Treat `versions/05-streaming-tui/` as a read-only historical checkpoint.
 - Research only as needed to answer a concrete current-version question.
 - Do not work on articles unless the user explicitly resumes article work.
 - Follow `docs/VERSIONING.md` for routine commits and completed-version
