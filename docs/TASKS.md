@@ -87,6 +87,15 @@ Plugins package namespaced Skills and MCP configuration.
 - The original and intermediate `fix1` tags remain unchanged; the final
   cleanup-hardened correction is tagged
   `version-07-pluggable-capabilities-fix2`.
+- A post-tag real `openai/gpt-5.6-luna` CLI session then exercised five actual
+  `execute` calls: multilingual/emoji PowerShell output, a missing command with
+  exit code 1, successful recovery, and separate Unicode Python stdout/stderr.
+  The model noticed its first Python newline was literal and corrected the
+  command with `chr(10)`. All expected exit codes and text were preserved, the
+  isolated project stayed empty, and no Skill, Plugin, MCP server, benchmark,
+  or additional paid batch was involved. The failed credential-discovery
+  launch made no provider request; the one bounded live session remained under
+  the standing USD 1.00 cap.
 
 ## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
 

@@ -82,6 +82,9 @@ without explicit permission.
   installed-wheel Unicode round trip. The final checkpoint is tagged
   `version-07-pluggable-capabilities-fix2`; neither the original tag nor the
   intermediate `fix1` tag is moved.
+  A subsequent real `openai/gpt-5.6-luna` CLI smoke passed Unicode PowerShell,
+  recoverable command failure, self-correction, and separate Unicode Python
+  stdout/stderr without modifying its isolated project.
 - Version 06 is complete and archived under `versions/06-persistent-memory/`.
   Its corrected checkpoint, tagged `version-06-persistent-memory-fix1`, keeps
   restored tool history provider-safe, refuses ineffective or contradictory

@@ -234,6 +234,9 @@ In particular:
   tests, Ruff, and fresh-wheel verification. The final checkpoint is tagged
   `version-07-pluggable-capabilities-fix2`; the original and intermediate
   `fix1` tags remain unchanged.
+  A subsequent real `openai/gpt-5.6-luna` CLI smoke passed multilingual and
+  emoji PowerShell output, recoverable command failure, model self-correction,
+  and separate Unicode Python stdout/stderr in an unchanged isolated project.
 - Version 06 is complete: persistent multi-session state plus layered long-term
   memory. The corrective checkpoint normalizes replayed provider protocol
   items, rejects ineffective or tool-contradicting compaction, and fixes
