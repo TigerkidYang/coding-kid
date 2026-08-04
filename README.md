@@ -2,13 +2,15 @@
 
 Coding Kid is a small Python coding agent built for learning. The current
 version shows the complete loop, persistent project sessions, layered
-long-term memory, a session todo checklist, bounded conversation context,
-streamed model output, and a full-screen terminal interface:
+long-term memory, pluggable Skills and MCP tools, a session todo checklist,
+bounded conversation context, streamed model output, and a full-screen terminal
+interface:
 
 ```text
-session context + project instructions + recalled memory + user input
+session context + project instructions + Skill metadata + recalled memory
+  + explicit Skill bodies + user input
   -> OpenRouter stream -> typed events -> TUI
-  -> tool call -> local tool -> OpenRouter stream -> final answer
+  -> tool call -> built-in / Skill / MCP tool -> final answer
 ```
 
 Interactive terminals run a simplified Codex-style Textual interface. Piped or
@@ -63,13 +65,14 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v6; new session)
+coding-kid       # latest living core version (currently v7; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
 coding-kid v4    # bounded context management
 coding-kid v5    # streaming full-screen TUI
 coding-kid v6    # persistent sessions and long-term memory
+coding-kid v7    # Skills, Plugins, and MCP tools
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -79,9 +82,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–06
+The command preserves the directory from which it was invoked. Versions 03–07
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 06 is
+Versions 01 and 02 retain their original historical behavior. Version 07 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -92,7 +95,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Version 06 session selection is explicit:
+Version 06–07 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -105,11 +108,13 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 06 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 07 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. `Esc` or `Ctrl+C` requests interruption during
 an active turn; `Ctrl+C` exits while idle. `/exit` and `/quit` also stop the
 session. `/context` shows the current window status, `/compact` creates a
 manual context checkpoint, and `/session` or `/sessions` inspect persistence.
+`/capabilities` reports loaded Skills and Plugins plus MCP server/tool status
+without displaying environment values.
 
 The transcript streams assistant Markdown and records compact Codex-style
 activity cells. Normal tool results stay in model context instead of filling
@@ -121,6 +126,61 @@ results remain bounded.
 • Edited hello.txt
 • Created `hello.txt`.
 ```
+
+## Pluggable Capabilities
+
+Version 07 separates capability packaging from execution:
+
+- A Skill is a `SKILL.md` containing instructions. Coding Kid keeps only its
+  name, description, and source in the prompt, then loads the complete body on
+  `$skill-name`, `$plugin:skill-name`, or a model `skill(name)` call.
+- MCP supplies structured external tools over stdio or Streamable HTTP. MCP
+  tools enter the same per-session registry as built-in tools but do not use
+  OpenAI strict schemas.
+- A Plugin is an explicitly enabled local manifest that packages namespaced
+  Skills and MCP server declarations. It adds no new execution protocol.
+
+Standalone Skills live under `%CODING_KID_HOME%/skills/<name>/SKILL.md` or in
+`.coding-kid/skills/<name>/SKILL.md` from the project root down to the current
+directory. A minimal Skill is:
+
+```markdown
+---
+description: Explain when and how this procedure should be used.
+---
+
+Complete instructions go here.
+```
+
+Executable capabilities are enabled only from
+`%CODING_KID_HOME%/capabilities.json`; repository MCP configuration is never
+started automatically. For example:
+
+```json
+{
+  "plugins": [
+    {"path": "C:/plugins/example", "enabled": true}
+  ],
+  "mcpServers": {
+    "local": {
+      "transport": "stdio",
+      "command": "python",
+      "args": ["server.py"],
+      "env": {"TOKEN": "${DEMO_TOKEN}"},
+      "required": false,
+      "enabledTools": ["lookup"]
+    }
+  }
+}
+```
+
+Environment substitution accepts only a complete `${ENV_NAME}` value. HTTP
+headers sourced from the environment use `"envHeaders": {"Authorization":
+"DEMO_AUTH_HEADER"}`. Configuration and connections are recaptured on every
+process start or resume; credentials, connections, and MCP schemas are not
+persisted. See
+[`examples/plugins/readonly-inspector`](examples/plugins/readonly-inspector)
+for a disabled-by-default Skill + MCP Plugin.
 
 ## Persistent Sessions
 
@@ -209,6 +269,11 @@ the turn rolls back.
   `in_progress`. A checklist has at most 20 items and each item has at most 200
   characters. Pass an empty list to clear it. New chats start empty, and a
   fully completed checklist is cleared after the final answer.
+- `skill`: load one complete Skill body for the current turn. At most eight
+  different Skills can load per turn; repeated calls do not reload the file.
+- `mcp__<server>__<tool>` and
+  `mcp__<plugin>__<server>__<tool>`: dynamically discovered MCP tools selected
+  by configured filters, the 64-tool limit, and the context budget.
 
 ## Test
 
@@ -231,9 +296,10 @@ model to continue. Repeated empty responses become a visible error instead of a
 blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
 history before the next prompt.
 
-Each user turn executes at most 64 file/shell tool calls. Todo checklist updates
-do not count toward that budget. Calls beyond the budget are skipped internally
-and the model is instructed to answer from evidence already collected.
+Each user turn executes at most 64 built-in/MCP work calls. Todo checklist
+updates and Skill loads do not count toward that budget. Calls beyond the
+budget are skipped internally and the model is instructed to answer from
+evidence already collected.
 Repository-overview requests are guided toward selective inspection instead of
 recursive trees, dependency scans, test runs, or Git archaeology.
 
@@ -264,18 +330,19 @@ interrupted turns restore conversation and todo state to the start of the turn.
 
 This teaching version intentionally has no vector memory, remote memory sync,
 encryption at rest, generic background-task framework, multi-agent workflow,
-sandbox, approval flow, path restriction, or provider abstraction. The TUI has
-no queued input, attachments, mentions, reasoning display, mouse workflow,
+sandbox, approval flow, path restriction, marketplace, Plugin downloader,
+OAuth, MCP Resources/Prompts, or provider abstraction. The TUI has no queued
+input, attachments, mentions, reasoning display, mouse workflow,
 themes, or trace files. It supports only project `AGENTS.md` files: no global
-instructions, override files, fallback names, includes, rules, skills,
-plugins, or MCP. Tools run with the permissions of the current user. Use it
-only in a local test project you control.
+instructions, override files, fallback names, includes, or rules. It has no
+Hooks, Apps, or LSP. Built-in and MCP tools run with the permissions of the
+current user. Use it only in a local test project you control.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
 Completed checkpoints V1–V6 are preserved under `versions/` and by matching
-annotated tags. The living Version 06 adds persistent sessions and long-term
-memory. The installed launcher bundles V1–V5 runtime source and shares one
-Python environment and one set of third-party dependencies across all versions.
+annotated tags. The living Version 07 adds pluggable capabilities. The installed
+launcher bundles V1–V6 runtime source and shares one Python environment and one
+set of third-party dependencies across all versions.

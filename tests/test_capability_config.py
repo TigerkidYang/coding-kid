@@ -68,7 +68,7 @@ def test_resolves_only_complete_environment_references(
     config = load_capability_config(tmp_path)
 
     assert config.mcp_servers[0].env == (("TOKEN", "secret-value"),)
-    assert "secret-value" not in repr(config.path)
+    assert "secret-value" not in repr(config)
 
 
 @pytest.mark.parametrize("reference", ["DEMO_TOKEN", "prefix-${DEMO_TOKEN}"])

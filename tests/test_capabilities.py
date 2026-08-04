@@ -7,13 +7,22 @@ import subprocess
 import sys
 import time
 from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from coding_kid.capabilities import CapabilityRuntime, CapabilityStartupError
+from coding_kid.capabilities import (
+    CapabilityRuntime,
+    CapabilityStartupError,
+    MCPTool,
+)
 from coding_kid.agent import run_turn
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.events import CancellationToken, MCPServerChanged, SkillLoaded
+from coding_kid.capability_config import load_capability_config
+from coding_kid.plugins import load_plugins
+from coding_kid.skills import discover_skills
 from coding_kid.skills import SkillTurnState
 
 
@@ -114,6 +123,30 @@ def test_mcp_tool_timeout_is_bounded(tmp_path: Path) -> None:
         runtime.close()
 
 
+def test_mcp_tool_cancellation_does_not_break_connection(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _write_config(home, {"local": _stdio_server()})
+    runtime = CapabilityRuntime.capture(_context(tmp_path), home=home)
+    token = CancellationToken()
+    registry = runtime.registry_for_turn(SkillTurnState(runtime.snapshot.skills), token)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(
+                registry.dispatch,
+                "mcp__local__wait",
+                {"milliseconds": 1000},
+            )
+            time.sleep(0.05)
+            token.cancel()
+            assert pending.result(timeout=1) == "ERROR: MCP tool call cancelled"
+        fresh = runtime.registry_for_turn(SkillTurnState(runtime.snapshot.skills))
+        assert '"echo": "still-connected"' in fresh.dispatch(
+            "mcp__local__echo", {"text": "still-connected"}
+        )
+    finally:
+        runtime.close()
+
+
 def test_normalized_tool_collisions_skip_both_tools(tmp_path: Path) -> None:
     home = tmp_path / "home"
     _write_config(home, {"local": _stdio_server()})
@@ -124,6 +157,27 @@ def test_normalized_tool_collisions_skip_both_tools(tmp_path: Path) -> None:
         assert any("collision" in warning for warning in runtime.warnings)
     finally:
         runtime.close()
+
+
+def test_mcp_tool_count_and_definition_budget_are_bounded() -> None:
+    runtime = CapabilityRuntime.__new__(CapabilityRuntime)
+    runtime.context_window = None
+    runtime._warnings = []
+    tools = [
+        MCPTool(
+            f"mcp__local__tool_{index:02}",
+            "local",
+            f"tool_{index:02}",
+            "A" * 200,
+            {"type": "object", "properties": {}},
+        )
+        for index in range(70)
+    ]
+
+    selected = runtime._select_tools(tools)
+
+    assert len(selected) < 64
+    assert any("omitted" in warning for warning in runtime._warnings)
 
 
 def test_plugin_namespaces_skills_and_mcp_tools(tmp_path: Path) -> None:
@@ -268,6 +322,27 @@ def test_skill_to_mcp_to_final_answer_protocol(tmp_path: Path) -> None:
     assert "Call mcp__local__echo" in str(calls[1][0])
     assert '"echo": "capability"' in str(calls[2][0])
     assert calls[0][1] == calls[1][1] == calls[2][1]
+    assert any(isinstance(event, SkillLoaded) for event in runtime.events)
+    assert any(isinstance(event, MCPServerChanged) for event in runtime.events)
+
+
+def test_bundled_example_plugin_is_valid_but_not_enabled_by_default(
+    tmp_path: Path,
+) -> None:
+    example = Path(__file__).parents[1] / "examples" / "plugins" / "readonly-inspector"
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "capabilities.json").write_text(
+        json.dumps({"plugins": [{"path": str(example), "enabled": True}]}),
+        encoding="utf-8",
+    )
+    config = load_capability_config(home)
+    plugins = load_plugins(config.plugins)
+    skills = discover_skills(_context(tmp_path), home=home, plugins=plugins.plugins)
+
+    assert plugins.plugins[0].name == "readonly-inspector"
+    assert plugins.plugins[0].mcp_config is not None
+    assert skills.skills[0].name == "readonly-inspector:inspect-text"
 
 
 def _tool_call(call_id: str, name: str, arguments: dict[str, object]) -> object:

@@ -2,20 +2,23 @@
 
 ## Overview
 
-Version 06 adds durable project sessions and layered long-term memory without
-changing the synchronous model/tool loop introduced by earlier versions.
+Version 07 adds a session-scoped capability runtime without changing the
+synchronous model/tool loop introduced by earlier versions. Skills provide
+lazy instructions, MCP provides structured tools, and Plugins package and
+namespace both.
 
 ```text
 launcher.py
-  |-- v1-v5 -> isolated bundled runtime process
-  `-- v6/default -> cli.py
-                     |-- SessionStore -> JSONL logs + project SQLite
-                     |-- MemoryManager -> extraction/consolidation + user SQLite
+  |-- v1-v6 -> isolated bundled runtime process
+  `-- v7/default -> cli.py
+                     |-- SessionStore / MemoryManager
+                     |-- CapabilityRuntime
+                     |     |-- Skill + Plugin metadata snapshot
+                     |     `-- MCP asyncio thread -> stdio / Streamable HTTP
                      |-- non-TTY -> plain chat
                      `-- TTY -> tui.py -> worker -> agent.py -> provider
                                   ^             |       |
-                                  `-- events.py <-+       +-> parser.py / tools.py
-                                             context_manager.py / compaction.py
+                                  `-- events.py <-+       +-> session ToolRegistry
 ```
 
 The UI remains a projection of canonical state. A successful turn is first
@@ -23,9 +26,39 @@ committed by the agent and then appended as one durable session transition.
 Failed and interrupted turns roll back the conversation and todos; their audit
 records are not replayed into model context.
 
+## Pluggable Capability Runtime
+
+`capability_config.py` strictly reads only the user-owned
+`%CODING_KID_HOME%/capabilities.json`. Repository MCP declarations are inert.
+`plugins.py` resolves explicitly enabled local manifests and rejects any
+declared path whose resolved target leaves the Plugin root. `skills.py`
+discovers user, hierarchical project, and Plugin Skills; stores only validated
+metadata in the session snapshot; and reads a complete body only on invocation.
+
+`capabilities.py` owns one immutable discovery snapshot and one dedicated
+asyncio event-loop thread. Server startup is concurrent. A required failure
+aborts startup, while an optional failure becomes a redacted warning. The same
+thread retains official MCP SDK clients and stdio subprocesses, bridges tool
+calls back to the synchronous agent, cancels timed-out or interrupted calls,
+and closes every connection on process exit.
+
+MCP names are normalized and namespaced before they enter `ToolRegistry`.
+Collisions are rejected in full. Only JSON-object input schemas are exposed;
+descriptions, total count, definition tokens, and results are bounded. MCP
+schemas use `strict: false`; built-in and Skill schemas remain strict. The
+registry is fixed for a turn and is shared by normal requests, context
+estimation, and compaction.
+
+Skill metadata consumes at most 2% of a known context window (or 8,000
+characters in passive mode). Explicit `$skill` bodies follow recalled memory in
+request-only context and never enter canonical history. A model `skill(name)`
+call returns the full body inside the current tool protocol round. At most eight
+different Skills load per turn, and Skill loads do not consume the 64-call work
+budget.
+
 ## Version Launcher and Session Selection
 
-`launcher.py` accepts `v1` through `v6`; V06 is the living default. V1–V5 run
+`launcher.py` accepts `v1` through `v7`; V07 is the living default. V1–V6 run
 from frozen runtime packages in isolated child processes. Session flags apply
 only to V06:
 
@@ -113,10 +146,12 @@ mode preserves recall and explicit commands without automatic model requests.
 ## Request and Commit Flow
 
 1. The CLI or TUI selects and acquires one durable session.
-2. The current user text retrieves a bounded, request-only memory attachment.
+2. The current user text retrieves a bounded, request-only memory attachment
+   and deterministically loads explicitly mentioned Skills.
 3. The real user message enters the in-memory transcript and active context.
-4. The agent assembles cached project context, recalled memory, active history,
-   todos, and recovery guidance for each provider step.
+4. The agent assembles cached project context, Skill metadata, recalled memory,
+   explicit Skill bodies, active history, todos, and recovery guidance for each
+   provider step using one tool-registry snapshot.
 5. Compaction may replace only the active view; recalled memory is not included
    in the compaction source. A checkpoint is committed only when its estimated
    request is smaller than the original. The summary prompt includes
@@ -139,9 +174,11 @@ mode preserves recall and explicit commands without automatic model requests.
   context and accounts for the model window.
 - `compaction.py` creates atomic structured handoffs for older active history.
 - `agent.py` owns the bounded model/tool loop and request-only context injection.
+- `capability_config.py`, `plugins.py`, `skills.py`, and `capabilities.py` own
+  user configuration, local packages, lazy instructions, and MCP lifecycle.
 - `provider.py` implements complete and streaming OpenRouter Responses calls.
 - `parser.py` extracts text, tool calls, and valid memory citations.
-- `tools.py` contains file, command, search, patch, delete, and todo tools.
+- `tools.py` contains built-in tools and the session-level registry abstraction.
 
 ## Security and Scope Boundaries
 
@@ -149,7 +186,7 @@ Storage directories and files receive restrictive permissions where the host
 supports them. Raw logs may contain prompts and tool results, so users must
 treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Version 06 does not add encryption at rest, remote synchronization, vector
-search, a generic background-task framework, multi-agent workflows, skills,
-plugins, MCP, sandboxing, or approvals. Tools still run with the current user's
-permissions.
+Version 07 does not add encryption at rest, remote synchronization, vector
+search, a generic background-task framework, multi-agent workflows, sandboxing,
+approvals, a Plugin marketplace, OAuth, or non-tool MCP primitives. All tools
+still run with the current user's permissions.

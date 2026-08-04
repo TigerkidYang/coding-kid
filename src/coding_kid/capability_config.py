@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -38,10 +38,10 @@ class MCPServerConfig:
     command: str | None = None
     args: tuple[str, ...] = ()
     cwd: Path | None = None
-    env: tuple[tuple[str, str], ...] = ()
+    env: tuple[tuple[str, str], ...] = field(default=(), repr=False)
     url: str | None = None
     headers: tuple[tuple[str, str], ...] = ()
-    env_headers: tuple[tuple[str, str], ...] = ()
+    env_headers: tuple[tuple[str, str], ...] = field(default=(), repr=False)
     startup_timeout: float = 10.0
     tool_timeout: float = 120.0
     enabled_tools: tuple[str, ...] | None = None

@@ -6,6 +6,7 @@ import asyncio
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import re
 import threading
@@ -23,7 +24,15 @@ from coding_kid.capability_config import (
 )
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import estimate_tokens, normalize_protocol_value
-from coding_kid.events import CancellationToken
+from coding_kid.events import (
+    CancellationToken,
+    CapabilityWarning,
+    EventSink,
+    MCPServerChanged,
+    SkillLoaded,
+    TurnEvent,
+    emit,
+)
 from coding_kid.plugins import Plugin, load_plugins
 from coding_kid.skills import SkillCatalog, SkillTurnState, discover_skills
 from coding_kid.tools import DEFAULT_TOOL_REGISTRY, ToolEntry, ToolRegistry
@@ -72,13 +81,19 @@ class CapabilityRuntime:
         snapshot: CapabilitySnapshot,
         *,
         context_window: int | None = None,
+        event_sink: EventSink | None = None,
     ) -> None:
         self.snapshot = snapshot
         self.context_window = context_window
+        self._event_sink = event_sink
+        self._events: list[TurnEvent] = []
         self._warnings = list(snapshot.warnings)
+        for warning in snapshot.warnings:
+            self._record_event(CapabilityWarning(warning))
         self._statuses: list[MCPServerStatus] = []
         self._clients: dict[str, Client] = {}
         self._http_clients: dict[str, httpx2.AsyncClient] = {}
+        self._stdio_errlog = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
         self._configs = {
             server.qualified_server_name: server for server in snapshot.servers
         }
@@ -104,6 +119,7 @@ class CapabilityRuntime:
         *,
         context_window: int | None = None,
         home: Path | None = None,
+        event_sink: EventSink | None = None,
     ) -> CapabilityRuntime:
         config = load_capability_config(home)
         outcome = load_plugins(config.plugins)
@@ -132,7 +148,11 @@ class CapabilityRuntime:
             tuple(servers),
             tuple(warnings),
         )
-        return cls(snapshot, context_window=context_window)
+        return cls(
+            snapshot,
+            context_window=context_window,
+            event_sink=event_sink,
+        )
 
     @property
     def warnings(self) -> tuple[str, ...]:
@@ -146,8 +166,22 @@ class CapabilityRuntime:
     def tools(self) -> tuple[MCPTool, ...]:
         return self._tools
 
+    @property
+    def events(self) -> tuple[TurnEvent, ...]:
+        return tuple(self._events)
+
     def skill_metadata(self) -> str:
         return self.snapshot.skills.render(self.context_window)
+
+    def load_skill(
+        self, state: SkillTurnState, name: str, *, explicit: bool = False
+    ) -> str:
+        result = state.load(name, explicit=explicit)
+        if not result.startswith("ERROR:") and "already loaded" not in result:
+            skill = self.snapshot.skills.by_name().get(name)
+            if skill is not None:
+                self._record_event(SkillLoaded(name, str(skill.path)))
+        return result
 
     def registry_for_turn(
         self,
@@ -167,7 +201,7 @@ class CapabilityRuntime:
                     "required": ["name"],
                     "additionalProperties": False,
                 },
-                "function": skill_state.load,
+                "function": lambda name: self.load_skill(skill_state, name),
             },
         )
         for tool in self._tools:
@@ -221,6 +255,7 @@ class CapabilityRuntime:
             self._thread.join(timeout=10)
         if not self._loop.is_closed():
             self._loop.close()
+        self._stdio_errlog.close()
 
     def __enter__(self) -> CapabilityRuntime:
         return self
@@ -262,12 +297,16 @@ class CapabilityRuntime:
                         config.qualified_server_name, "failed", detail=detail
                     )
                 )
+                self._record_event(
+                    MCPServerChanged(config.qualified_server_name, "failed")
+                )
                 if config.required:
                     required_failure = True
                 else:
                     self._warnings.append(
                         f"Optional MCP server {config.qualified_server_name} {detail}"
                     )
+                    self._record_event(CapabilityWarning(self._warnings[-1]))
             else:
                 discovered.extend(result)
                 self._statuses.append(
@@ -277,10 +316,21 @@ class CapabilityRuntime:
                         len(result),
                     )
                 )
+                self._record_event(
+                    MCPServerChanged(
+                        config.qualified_server_name,
+                        "connected",
+                        len(result),
+                    )
+                )
         if required_failure:
             await self._close_clients()
             raise CapabilityStartupError("One or more required MCP servers failed")
         self._tools = self._select_tools(discovered)
+
+    def _record_event(self, event: TurnEvent) -> None:
+        self._events.append(event)
+        emit(self._event_sink, event)
 
     async def _connect_server(self, config: MCPServerConfig) -> list[MCPTool]:
         async with asyncio.timeout(config.startup_timeout):
@@ -292,7 +342,7 @@ class CapabilityRuntime:
                     cwd=config.cwd,
                     encoding_error_handler="replace",
                 )
-                transport = stdio_client(parameters)
+                transport = stdio_client(parameters, errlog=self._stdio_errlog)
             else:
                 headers = dict(config.headers) | dict(config.env_headers)
                 http_client = httpx2.AsyncClient(headers=headers, follow_redirects=True)

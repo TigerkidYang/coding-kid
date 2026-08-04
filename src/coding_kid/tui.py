@@ -341,7 +341,9 @@ class CodingKidApp(App[None]):
                 request_context.append(
                     {
                         "role": "user",
-                        "content": skill_state.load(skill_name, explicit=True),
+                        "content": self.capability_runtime.load_skill(
+                            skill_state, skill_name, explicit=True
+                        ),
                     }
                 )
             registry = self.capability_runtime.registry_for_turn(skill_state, token)
@@ -513,12 +515,15 @@ class CodingKidApp(App[None]):
 
     def _show_context(self) -> None:
         definitions = tool_definitions()
+        overlays: tuple[str, ...] = ()
         if self.capability_runtime is not None:
             definitions = self.capability_runtime.registry_for_turn(
                 SkillTurnState(self.capability_runtime.snapshot.skills)
             ).definitions()
+            metadata = self.capability_runtime.skill_metadata()
+            overlays = (metadata,) if metadata else ()
         status = self.manager.status_text(
-            current_instructions(self.session_context), definitions
+            current_instructions(self.session_context, overlays), definitions
         )
         self._append_cell(
             Static(
@@ -717,16 +722,19 @@ class CodingKidApp(App[None]):
     def _run_manual_compaction(self) -> None:
         snapshot = self.manager.clone()
         definitions = tool_definitions()
+        overlays: tuple[str, ...] = ()
         if self.capability_runtime is not None:
             definitions = self.capability_runtime.registry_for_turn(
                 SkillTurnState(self.capability_runtime.snapshot.skills),
                 self.cancellation_token,
             ).definitions()
+            metadata = self.capability_runtime.skill_metadata()
+            overlays = (metadata,) if metadata else ()
         try:
             compact_context(
                 self.manager,
                 self.provider,
-                instructions=current_instructions(self.session_context),
+                instructions=current_instructions(self.session_context, overlays),
                 tools=definitions,
                 trigger="manual",
                 event_sink=self._thread_event_sink(),

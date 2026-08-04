@@ -137,13 +137,16 @@ def chat(
             continue
         if user_input == "/context":
             definitions = tool_definitions()
+            context_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
                 definitions = capability_runtime.registry_for_turn(
                     SkillTurnState(capability_runtime.snapshot.skills)
                 ).definitions()
+                metadata = capability_runtime.skill_metadata()
+                context_overlays = (metadata,) if metadata else ()
             output_function(
                 manager.status_text(
-                    current_instructions(session_context),
+                    current_instructions(session_context, context_overlays),
                     definitions,
                 )
             )
@@ -248,15 +251,20 @@ def chat(
         if user_input == "/compact":
             snapshot = manager.clone()
             definitions = tool_definitions()
+            compact_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
                 definitions = capability_runtime.registry_for_turn(
                     SkillTurnState(capability_runtime.snapshot.skills)
                 ).definitions()
+                metadata = capability_runtime.skill_metadata()
+                compact_overlays = (metadata,) if metadata else ()
             try:
                 compact_context(
                     manager,
                     generate,
-                    instructions=current_instructions(session_context),
+                    instructions=current_instructions(
+                        session_context, compact_overlays
+                    ),
                     tools=definitions,
                     trigger="manual",
                     on_context=show_context,
@@ -294,7 +302,9 @@ def chat(
                 request_context.append(
                     {
                         "role": "user",
-                        "content": skill_state.load(skill_name, explicit=True),
+                        "content": capability_runtime.load_skill(
+                            skill_state, skill_name, explicit=True
+                        ),
                     }
                 )
             registry = capability_runtime.registry_for_turn(skill_state)

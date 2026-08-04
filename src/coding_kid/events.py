@@ -93,6 +93,24 @@ class ContextWarning:
 
 
 @dataclass(frozen=True)
+class SkillLoaded:
+    name: str
+    source: str
+
+
+@dataclass(frozen=True)
+class MCPServerChanged:
+    name: str
+    state: str
+    tool_count: int = 0
+
+
+@dataclass(frozen=True)
+class CapabilityWarning:
+    message: str
+
+
+@dataclass(frozen=True)
 class TurnCompleted:
     answer: str
 
@@ -117,6 +135,9 @@ TurnEvent: TypeAlias = (
     | CompactionStarted
     | CompactionCompleted
     | ContextWarning
+    | SkillLoaded
+    | MCPServerChanged
+    | CapabilityWarning
     | TurnCompleted
     | TurnInterrupted
     | TurnFailed
