@@ -187,8 +187,9 @@ class CapabilityRuntime:
         self,
         skill_state: SkillTurnState,
         cancellation_token: CancellationToken | None = None,
+        base_registry: ToolRegistry | None = None,
     ) -> ToolRegistry:
-        registry = DEFAULT_TOOL_REGISTRY.with_tool(
+        registry = (base_registry or DEFAULT_TOOL_REGISTRY).with_tool(
             "skill",
             {
                 "description": (

@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from coding_kid.background_tasks import BackgroundTaskManager
+from coding_kid.events import CancellationToken
 from coding_kid.terminal import run_command
 
 ToolFunction = Callable[..., str]
@@ -25,9 +27,47 @@ SKIPPED_SEARCH_DIRECTORIES = {
 }
 
 
-def execute(command: str) -> str:
-    """Run one foreground shell command and return all useful output."""
+def execute(
+    command: str,
+    background: bool = False,
+    *,
+    task_manager: BackgroundTaskManager | None = None,
+) -> str:
+    """Run one foreground command or explicitly start a background task."""
+    if background:
+        if task_manager is None:
+            raise RuntimeError("Background task runtime is not active")
+        return task_manager.start(command).model_text()
     return run_command(command).model_text()
+
+
+def task(
+    action: str,
+    task_id: str | None = None,
+    timeout_seconds: float = 10,
+    *,
+    task_manager: BackgroundTaskManager | None = None,
+    cancellation_token: CancellationToken | None = None,
+) -> str:
+    """Inspect, wait for, or stop one process-local background task."""
+    if task_manager is None:
+        raise RuntimeError("Background task runtime is not active")
+    if action == "list":
+        return task_manager.status_text()
+    if action not in {"poll", "wait", "stop"}:
+        raise ValueError("action must be list, poll, wait, or stop")
+    if not task_id:
+        raise ValueError(f"task_id is required for {action}")
+    if action == "poll":
+        return task_manager.poll(task_id).model_text()
+    if action == "stop":
+        return task_manager.stop(task_id).model_text()
+    snapshot, timed_out = task_manager.wait(
+        task_id,
+        timeout_seconds,
+        cancellation_token,
+    )
+    return snapshot.model_text(wait_timed_out=timed_out)
 
 
 def read(path: str) -> str:
@@ -200,13 +240,17 @@ def todo(todos: list[dict[str, Any]]) -> str:
 TOOLS: dict[str, ToolEntry] = {
     "execute": {
         "description": (
-            "Run one non-interactive foreground Windows PowerShell command in the "
-            "current directory. Output is bounded and the process tree is terminated "
-            "after 2 minutes."
+            "Run one non-interactive Windows PowerShell command in the current "
+            "directory. Set background=true only when its result is not needed "
+            "immediately. Foreground output is bounded and its process tree is "
+            "terminated after 2 minutes. Background execution returns a task ID."
         ),
         "parameters": {
             "type": "object",
-            "properties": {"command": {"type": "string", "minLength": 1}},
+            "properties": {
+                "command": {"type": "string", "minLength": 1},
+                "background": {"type": "boolean", "default": False},
+            },
             "required": ["command"],
             "additionalProperties": False,
         },
@@ -315,6 +359,33 @@ TOOLS: dict[str, ToolEntry] = {
         },
         "function": todo,
     },
+    "task": {
+        "description": (
+            "Manage process-local background shell tasks. list and poll return "
+            "immediately; wait blocks for completion for at most 30 seconds; stop "
+            "terminates the process tree. Waiting for completion does not prove a "
+            "server is ready—inspect logs or run a concrete health probe."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["list", "poll", "wait", "stop"],
+                },
+                "task_id": {"type": "string", "minLength": 1},
+                "timeout_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 30,
+                    "default": 10,
+                },
+            },
+            "required": ["action"],
+            "additionalProperties": False,
+        },
+        "function": task,
+    },
 }
 
 
@@ -360,6 +431,29 @@ class ToolRegistry:
 
 
 DEFAULT_TOOL_REGISTRY = ToolRegistry()
+
+
+def build_tool_registry(
+    task_manager: BackgroundTaskManager | None = None,
+    cancellation_token: CancellationToken | None = None,
+) -> ToolRegistry:
+    """Bind process-local task state to one immutable per-turn registry."""
+    if task_manager is None:
+        return DEFAULT_TOOL_REGISTRY
+    entries = {name: dict(entry) for name, entry in TOOLS.items()}
+    entries["execute"]["function"] = lambda command, background=False: execute(
+        command,
+        background,
+        task_manager=task_manager,
+    )
+    entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: task(
+        action,
+        task_id,
+        timeout_seconds,
+        task_manager=task_manager,
+        cancellation_token=cancellation_token,
+    )
+    return ToolRegistry(entries)
 
 
 def tool_definitions() -> list[dict[str, Any]]:

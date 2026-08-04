@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 import coding_kid.agent as agent_module
+from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.agent import (
     MAX_TOOL_CALLS_PER_TURN,
     SYSTEM_PROMPT,
@@ -26,7 +28,7 @@ from coding_kid.events import (
     TurnInterrupted,
     TurnStarted,
 )
-from coding_kid.tools import get_todos
+from coding_kid.tools import build_tool_registry, get_todos
 
 
 def tool_call(call_id: str, name: str, arguments: dict[str, Any]) -> SimpleNamespace:
@@ -194,6 +196,129 @@ def test_run_turn_executes_multiple_tools_in_order(
     second_request = provider_calls[1][1]
     assert second_request[-2]["call_id"] == "call-1"
     assert second_request[-1]["call_id"] == "call-2"
+
+
+def test_run_turn_completes_background_work_protocol(tmp_path: Path) -> None:
+    worker = tmp_path / "worker.py"
+    evidence = tmp_path / "evidence.txt"
+    worker.write_text(
+        "import time\nprint('ready', flush=True)\ntime.sleep(0.2)\nprint('done')\n",
+        encoding="utf-8",
+    )
+    evidence.write_text("independent", encoding="utf-8")
+    manager = BackgroundTaskManager(id_factory=lambda: "task_agent")
+    registry = build_tool_registry(manager)
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "launch",
+                        "execute",
+                        {
+                            "command": f'& "{sys.executable}" "{worker}"',
+                            "background": True,
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                output=[tool_call("read", "read", {"path": str(evidence)})]
+            ),
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "wait",
+                        "task",
+                        {
+                            "action": "wait",
+                            "task_id": "task_agent",
+                            "timeout_seconds": 10,
+                        },
+                    )
+                ]
+            ),
+            SimpleNamespace(output=[text_message("Used the completed result.")]),
+        ]
+    )
+    instructions: list[str] = []
+
+    def provider(prompt: str, messages: list[Any], tools: list[Any]) -> Any:
+        instructions.append(prompt)
+        return next(responses)
+
+    try:
+        answer = run_turn(
+            [],
+            provider,
+            tool_registry=registry,
+            background_tasks=manager,
+        )
+    finally:
+        manager.close()
+
+    assert answer == "Used the completed result."
+    assert any("task_agent: running" in prompt for prompt in instructions[1:])
+    assert any("task_agent: completed" in prompt for prompt in instructions[1:])
+
+
+def test_failed_turn_keeps_launched_background_task_discoverable(
+    tmp_path: Path,
+) -> None:
+    worker = tmp_path / "slow.py"
+    worker.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    manager = BackgroundTaskManager(id_factory=lambda: "task_survives")
+    registry = build_tool_registry(manager)
+    responses = iter(
+        [
+            SimpleNamespace(
+                output=[
+                    tool_call(
+                        "launch",
+                        "execute",
+                        {
+                            "command": f'& "{sys.executable}" "{worker}"',
+                            "background": True,
+                        },
+                    )
+                ]
+            ),
+            RuntimeError("provider failed"),
+        ]
+    )
+
+    def failing_provider(*args: Any) -> Any:
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    conversation: list[Any] = []
+    try:
+        with pytest.raises(RuntimeError, match="provider failed"):
+            run_turn(
+                conversation,
+                failing_provider,
+                tool_registry=registry,
+                background_tasks=manager,
+            )
+        assert conversation == []
+        assert manager.poll("task_survives").status == "running"
+
+        prompts: list[str] = []
+        answer = run_turn(
+            conversation,
+            lambda prompt, *args: (
+                prompts.append(prompt)
+                or SimpleNamespace(output=[text_message("Recovered.")])
+            ),
+            tool_registry=build_tool_registry(manager),
+            background_tasks=manager,
+        )
+        assert answer == "Recovered."
+        assert "task_survives: running" in prompts[0]
+    finally:
+        manager.close()
 
 
 def test_run_turn_streams_text_and_emits_typed_tool_and_todo_events() -> None:

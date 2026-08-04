@@ -24,6 +24,7 @@ from coding_kid.capability_config import load_capability_config
 from coding_kid.plugins import load_plugins
 from coding_kid.skills import discover_skills
 from coding_kid.skills import SkillTurnState
+from coding_kid.tools import ToolRegistry
 
 
 def _context(tmp_path: Path) -> SessionContext:
@@ -80,6 +81,30 @@ def test_stdio_discovery_call_and_cleanup(tmp_path: Path) -> None:
         runtime.close()
 
     assert not runtime._thread.is_alive()
+
+
+def test_capabilities_compose_on_a_caller_owned_base_registry(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _write_config(home, {"local": _stdio_server(enabledTools=["echo"])})
+    base = ToolRegistry(
+        {
+            "base": {
+                "description": "Base tool",
+                "parameters": {"type": "object", "properties": {}},
+                "function": lambda: "base",
+            }
+        }
+    )
+    runtime = CapabilityRuntime.capture(_context(tmp_path), home=home)
+    try:
+        registry = runtime.registry_for_turn(
+            SkillTurnState(runtime.snapshot.skills),
+            base_registry=base,
+        )
+        assert registry.names == ("base", "skill", "mcp__local__echo")
+        assert registry.dispatch("base", {}) == "base"
+    finally:
+        runtime.close()
 
 
 def test_optional_failure_warns_but_required_failure_aborts(tmp_path: Path) -> None:

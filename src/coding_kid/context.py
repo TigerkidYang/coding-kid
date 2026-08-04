@@ -34,6 +34,10 @@ before making changes. Keep at most one item in_progress. Update the list as you
 finish each step. Skip the todo tool for simple one-step requests.
 After using tools, always answer the user with the useful result. Never finish
 with only internal reasoning or an empty response.
+Use execute with background=true only when its result is not needed immediately.
+Use the task tool to list, poll, wait for, or stop background work. A started
+process is not proof that a server is ready: inspect its output or run a concrete
+health probe. Do not busy-poll or use repeated sleep commands while waiting.
 When the task is complete, explain the result clearly and briefly."""
 
 

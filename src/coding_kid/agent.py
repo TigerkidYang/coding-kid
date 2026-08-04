@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.compaction import compact_context
 from coding_kid.context import BASE_INSTRUCTIONS, SessionContext, build_instructions
 from coding_kid.context_manager import (
@@ -115,6 +116,7 @@ def run_turn(
     on_memory_citations: MemoryCitationObserver | None = None,
     tool_registry: ToolRegistry | None = None,
     instruction_overlays: tuple[str, ...] = (),
+    background_tasks: BackgroundTaskManager | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     registry = tool_registry or DEFAULT_TOOL_REGISTRY
@@ -137,8 +139,15 @@ def run_turn(
         for _ in range(max_steps):
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()
+            task_summary = (
+                background_tasks.prompt_summary()
+                if background_tasks is not None
+                else ""
+            )
+            task_overlay = (task_summary,) if task_summary else ()
             instructions = current_instructions(
-                context, instruction_overlays + recovery_overlays
+                context,
+                instruction_overlays + task_overlay + recovery_overlays,
             )
 
             if manager.should_auto_compact(instructions, tools):

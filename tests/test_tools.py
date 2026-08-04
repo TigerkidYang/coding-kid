@@ -1,11 +1,14 @@
 from pathlib import Path
+import sys
 from typing import Any
 
+from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.tools import (
     MAX_TODO_CONTENT_CHARS,
     MAX_TODO_ITEMS,
     MAX_TOOL_OUTPUT_CHARS,
     TOOLS,
+    build_tool_registry,
     dispatch_tool,
     get_todos,
 )
@@ -177,6 +180,7 @@ def test_every_tool_has_model_visible_metadata() -> None:
         "patch",
         "delete",
         "todo",
+        "task",
     }
     for name, tool in TOOLS.items():
         assert tool["description"]
@@ -186,6 +190,9 @@ def test_every_tool_has_model_visible_metadata() -> None:
     assert "literal" in TOOLS["search"]["description"]
     assert "not a glob" in TOOLS["search"]["description"]
     assert TOOLS["execute"]["parameters"]["properties"]["command"]["minLength"] == 1
+    assert (
+        TOOLS["execute"]["parameters"]["properties"]["background"]["default"] is False
+    )
     for name in {"read", "write", "search", "patch", "delete"}:
         assert TOOLS[name]["parameters"]["properties"]["path"]["minLength"] == 1
     assert TOOLS["todo"]["parameters"]["required"] == ["todos"]
@@ -195,6 +202,42 @@ def test_every_tool_has_model_visible_metadata() -> None:
         todo_items["items"]["properties"]["content"]["maxLength"]
         == MAX_TODO_CONTENT_CHARS
     )
+
+
+def test_background_execute_and_task_actions(tmp_path: Path) -> None:
+    script = tmp_path / "worker.py"
+    script.write_text("print('background result')\n", encoding="utf-8")
+    manager = BackgroundTaskManager(id_factory=lambda: "task_bound")
+    registry = build_tool_registry(manager)
+    try:
+        launched = registry.dispatch(
+            "execute",
+            {
+                "command": f'& "{sys.executable}" "{script}"',
+                "background": True,
+            },
+        )
+        waited = registry.dispatch(
+            "task",
+            {"action": "wait", "task_id": "task_bound", "timeout_seconds": 10},
+        )
+        listed = registry.dispatch("task", {"action": "list"})
+        stopped = registry.dispatch("task", {"action": "stop", "task_id": "task_bound"})
+    finally:
+        manager.close()
+
+    assert "task_id: task_bound" in launched
+    assert "status: completed" in waited
+    assert "background result" in waited
+    assert "task_bound  completed" in listed
+    assert "status: completed" in stopped
+
+
+def test_background_tools_require_a_bound_runtime() -> None:
+    assert dispatch_tool(
+        "execute", {"command": "Write-Output hi", "background": True}
+    ).startswith("ERROR: RuntimeError:")
+    assert dispatch_tool("task", {"action": "list"}).startswith("ERROR: RuntimeError:")
 
 
 def test_todo_replaces_the_full_checklist() -> None:
