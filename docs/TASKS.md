@@ -2,8 +2,8 @@
 
 ## Current Core Version: 07 — Pluggable Capabilities
 
-Completion status: in progress. The user explicitly delegated implementation
-and verification to the assistant.
+Completion status: complete and ready for archive. The user explicitly
+delegated implementation and verification to the assistant.
 
 ### Goal
 
@@ -50,6 +50,25 @@ Plugins package namespaced Skills and MCP configuration.
   resume use one consistent capability snapshot without persisting credentials.
 - Deterministic tests, maintained-source Ruff checks, wheel inspection, and
   fresh-install V1-V7 launches pass before one bounded live verification.
+
+### Verification
+
+- Deterministic suite: **213 passed**, including Skill discovery/loading,
+  Plugin containment and namespaces, strict configuration, stdio and
+  Streamable HTTP MCP, filtering, collision rejection, result normalization,
+  timeout, cancellation, optional/required failure, cleanup, and the complete
+  Skill → MCP → final-answer protocol.
+- Ruff lint and formatting checks for maintained `src/` and `tests/`: passed.
+- Fresh wheel: **79 files / 75 Python files**, including frozen V01–V06
+  runtimes and the living V07 capability modules; no tests, evaluations,
+  caches, bytecode, or logs entered the wheel.
+- Fresh temporary installation launched explicit V1–V7 and default V07 from an
+  unrelated directory without a provider request.
+- One real `openai/gpt-5.6-luna` session explicitly loaded the bundled example
+  Plugin Skill, called its read-only namespaced MCP tool, and returned the
+  independently verified README measurements (348 lines / 14,456 characters).
+  It stayed well below the USD 1.00 task cap.
+- No SWE-bench or paid batch evaluation was run.
 
 ## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
 

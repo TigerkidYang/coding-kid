@@ -220,6 +220,13 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
+- Version 07 implementation and verification are complete: session-scoped
+  Skills, explicitly enabled local Plugins, and stdio/Streamable HTTP MCP tools
+  share one bounded per-turn registry without changing the synchronous Agent
+  loop. It passed 213 deterministic tests, Ruff, wheel inspection,
+  fresh-install V1–V7 launches, and one minimal real Skill-to-MCP verification.
+  The user explicitly delegated implementation and verification to the
+  assistant. Archive and tag are the remaining delivery steps.
 - Version 06 is complete: persistent multi-session state plus layered long-term
   memory. The corrective checkpoint normalizes replayed provider protocol
   items, rejects ineffective or tool-contradicting compaction, and fixes

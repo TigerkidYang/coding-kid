@@ -173,7 +173,7 @@ historical runtime source inside the distribution and execute it in an isolated
 child Python process; execute the latest living runtime directly.
 
 Consequence:
-`coding-kid v1` through `v6` work from any project directory without
+`coding-kid v1` through `v7` work from any project directory without
 installing separate conflicting distributions or duplicating dependencies. The
 teaching labels are separate from the distribution's package release number.
 Completed archives remain read-only provenance and are not imported at runtime;

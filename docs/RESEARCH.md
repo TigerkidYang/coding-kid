@@ -34,12 +34,12 @@ Research notes should support two outcomes:
 - How to implement long-term memory. (Implemented in Version 06.)
 - How to implement multi-agent workflows.
 - How to manage background tasks.
-- How to implement skills and plugins as pluggable context. (In progress in
+- How to implement skills and plugins as pluggable context. (Implemented in
   Version 07.)
 - How to implement context auto-compression.
 - How to better control the whole loop and workflow.
 - How to control the sandbox environment.
-- How to design freely configurable MCP support. (In progress in Version 07.)
+- How to design freely configurable MCP support. (Implemented in Version 07.)
 - How to initially implement visualization and observability:
   - What should be shown to users.
   - How to design a more suitable terminal UI.

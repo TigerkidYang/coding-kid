@@ -66,12 +66,14 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 07 is in progress: a user-configured, session-scoped pluggable
-  capability runtime combining on-demand Skills, namespaced local Plugins, and
+- Version 07 is complete and ready for archive: a user-configured,
+  session-scoped pluggable capability runtime combining on-demand Skills,
+  namespaced local Plugins, and
   stdio/Streamable HTTP MCP tools. The user explicitly delegated implementation
   and verification to the assistant. Sandbox, approvals, marketplaces, OAuth,
   non-tool MCP primitives, multi-agent work, and generic background tasks are
-  excluded.
+  excluded. It passed 213 deterministic tests, Ruff, wheel inspection,
+  fresh-install V1–V7 launches, and one minimal real Skill-to-MCP verification.
 - Version 06 is complete and archived under `versions/06-persistent-memory/`.
   Its corrected checkpoint, tagged `version-06-persistent-memory-fix1`, keeps
   restored tool history provider-safe, refuses ineffective or contradictory
