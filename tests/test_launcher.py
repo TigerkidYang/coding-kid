@@ -40,7 +40,9 @@ def test_normalize_version_rejects_unknown_values(value: str) -> None:
 def test_main_defaults_to_latest(monkeypatch: pytest.MonkeyPatch) -> None:
     selected: list[str] = []
     monkeypatch.setattr(
-        launcher, "launch_version", lambda version: selected.append(version) or 0
+        launcher,
+        "launch_version",
+        lambda version, options: selected.append(version) or 0,
     )
 
     assert launcher.main([]) == 0
@@ -50,11 +52,37 @@ def test_main_defaults_to_latest(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_main_selects_explicit_version(monkeypatch: pytest.MonkeyPatch) -> None:
     selected: list[str] = []
     monkeypatch.setattr(
-        launcher, "launch_version", lambda version: selected.append(version) or 0
+        launcher,
+        "launch_version",
+        lambda version, options: selected.append(version) or 0,
     )
 
     assert launcher.main(["V02"]) == 0
     assert selected == ["v2"]
+
+
+def test_main_passes_resume_selection_to_latest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected: list[tuple[str, launcher.cli.SessionOptions]] = []
+    monkeypatch.setattr(
+        launcher,
+        "launch_version",
+        lambda version, options: selected.append((version, options)) or 0,
+    )
+
+    assert launcher.main(["v6", "--resume", "abc123"]) == 0
+    assert selected == [
+        (
+            "v6",
+            launcher.cli.SessionOptions(mode="resume", session_id="abc123"),
+        )
+    ]
+
+
+def test_main_rejects_session_options_for_historical_version() -> None:
+    with pytest.raises(SystemExit, match="2"):
+        launcher.main(["v5", "--continue"])
 
 
 def test_main_lists_versions_without_launching(
@@ -94,7 +122,7 @@ def test_main_rejects_unknown_version_before_launch(
 
 def test_latest_version_runs_in_process(monkeypatch: pytest.MonkeyPatch) -> None:
     called: list[bool] = []
-    monkeypatch.setattr(launcher.cli, "main", lambda: called.append(True))
+    monkeypatch.setattr(launcher.cli, "main", lambda options=None: called.append(True))
 
     assert launcher.launch_version("v6") == 0
     assert called == [True]

@@ -12,6 +12,7 @@ from textual.widgets import Static
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import ToolCompleted
+from coding_kid.sessions import SessionStore
 from coding_kid.tui import AssistantCell, CodingKidApp, Composer
 
 
@@ -60,6 +61,27 @@ def make_app(
     )
 
 
+def make_persistent_app(tmp_path: Path, streaming_provider: Any) -> CodingKidApp:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(100_000, "test"))
+    store = SessionStore(tmp_path, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    return CodingKidApp(
+        context,
+        manager,
+        streaming_provider=streaming_provider,
+        session_handle=handle,
+    )
+
+
 def content(widget: Static) -> str:
     return str(widget.content)
 
@@ -100,6 +122,31 @@ def test_tui_submits_and_consolidates_streaming_answer_once(tmp_path: Path) -> N
             users = list(app.query(".user-cell"))
             assert len(users) == 1
             assert "Say hello" in content(users[0])
+
+    asyncio.run(exercise())
+
+
+def test_tui_commits_successful_turn_to_persistent_session(tmp_path: Path) -> None:
+    def stream_provider(*args: Any, on_text_delta: Any, **kwargs: Any) -> Any:
+        on_text_delta("Durable")
+        return response(text_message("Durable"))
+
+    async def exercise() -> None:
+        app = make_persistent_app(tmp_path, stream_provider)
+        async with app.run_test(size=(80, 24)) as pilot:
+            app.query_one(Composer).load_text("Persist me")
+            await pilot.press("enter")
+            await pilot.pause(0.25)
+
+            handle = app.session_handle
+            assert handle is not None
+            session_id = handle.info.session_id
+            handle.close()
+            resumed = handle.store.resume(session_id)
+            assert (
+                resumed.manager.conversation.active_items()[0]["content"]
+                == "Persist me"
+            )
 
     asyncio.run(exercise())
 

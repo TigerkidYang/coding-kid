@@ -49,10 +49,10 @@ def bundled_runtime_root(version: str) -> Path:
     return root
 
 
-def launch_version(version: str) -> int:
+def launch_version(version: str, options: cli.SessionOptions | None = None) -> int:
     """Start a selected runtime while preserving the caller's project directory."""
     if version == LATEST_VERSION:
-        cli.main()
+        cli.main(options)
         return 0
 
     runtime_root = bundled_runtime_root(version)
@@ -82,6 +82,29 @@ def build_parser() -> argparse.ArgumentParser:
         "version",
         nargs="?",
         help=f"teaching version ({', '.join(AVAILABLE_VERSIONS)}; default: {LATEST_VERSION})",
+    )
+    sessions = parser.add_mutually_exclusive_group()
+    sessions.add_argument(
+        "--new", action="store_true", help="start a new Version 06 session"
+    )
+    sessions.add_argument(
+        "--continue",
+        dest="continue_session",
+        action="store_true",
+        help="resume the most recently active project session",
+    )
+    sessions.add_argument(
+        "--resume", metavar="SESSION", help="resume a session ID or unique prefix"
+    )
+    sessions.add_argument(
+        "--list-sessions",
+        action="store_true",
+        help="list Version 06 sessions for the current project",
+    )
+    sessions.add_argument(
+        "--delete-session",
+        metavar="SESSION",
+        help="soft-delete a Version 06 session while retaining evidence",
     )
     parser.add_argument(
         "--list-versions",
@@ -114,4 +137,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"available versions: {', '.join(AVAILABLE_VERSIONS)}"
         )
 
-    return launch_version(selected_version)
+    uses_session_options = any(
+        (
+            arguments.new,
+            arguments.continue_session,
+            arguments.resume,
+            arguments.list_sessions,
+            arguments.delete_session,
+        )
+    )
+    if selected_version != LATEST_VERSION and uses_session_options:
+        parser.error("session options are available only for Version 06")
+    options = cli.SessionOptions(
+        mode=(
+            "continue"
+            if arguments.continue_session
+            else "resume"
+            if arguments.resume
+            else "new"
+        ),
+        session_id=arguments.resume,
+        list_only=arguments.list_sessions,
+        delete_session=arguments.delete_session,
+    )
+    return launch_version(selected_version, options)

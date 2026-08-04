@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 import sys
 from typing import Any
 
@@ -11,11 +12,22 @@ from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
 from coding_kid.provider import generate
+from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
 from coding_kid.tools import clear_todos, get_todos, set_todos, tool_definitions
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
 MAX_TOOL_DISPLAY_CHARS = 140
+
+
+@dataclass(frozen=True)
+class SessionOptions:
+    """Session lifecycle choice parsed by the version-selecting launcher."""
+
+    mode: str = "new"
+    session_id: str | None = None
+    list_only: bool = False
+    delete_session: str | None = None
 
 
 def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
@@ -59,17 +71,28 @@ def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
 def chat(
     input_function: InputFunction = input,
     output_function: OutputFunction = print,
+    *,
+    session_handle: SessionHandle | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
-    try:
-        session_context = SessionContext.capture()
-        manager = ContextManager.capture(session_context)
-    except RuntimeError as error:
-        output_function(f"Error: {error}")
-        return
-
-    clear_todos()
-    output_function("Coding Kid is ready. Type /exit to quit.")
+    if session_handle is None:
+        try:
+            session_context = SessionContext.capture()
+            manager = ContextManager.capture(session_context)
+        except RuntimeError as error:
+            output_function(f"Error: {error}")
+            return
+        clear_todos()
+        ready = "Coding Kid is ready. Type /exit to quit."
+    else:
+        session_context = session_handle.context
+        manager = session_handle.manager
+        set_todos(session_handle.todos)
+        ready = (
+            f"Coding Kid is ready. Session {session_handle.info.session_id[:8]}. "
+            "Type /exit to quit."
+        )
+    output_function(ready)
 
     def show_tool(name: str, arguments: dict[str, Any], result: str) -> None:
         output_function(format_tool_call(name, arguments))
@@ -99,6 +122,18 @@ def chat(
                 )
             )
             continue
+        if user_input == "/session":
+            if session_handle is None:
+                output_function("Session: ephemeral")
+            else:
+                output_function(_format_session(session_handle.info))
+            continue
+        if user_input == "/sessions":
+            if session_handle is None:
+                output_function("Session persistence is not active.")
+            else:
+                output_function(_format_sessions(session_handle.store.list_sessions()))
+            continue
         if user_input == "/compact":
             snapshot = manager.clone()
             try:
@@ -116,6 +151,14 @@ def chat(
             except Exception as error:
                 manager.restore(snapshot)
                 output_function(f"Error: {error}")
+            else:
+                if session_handle is not None:
+                    session_handle.todos = get_todos()
+                    try:
+                        session_handle.commit_state(kind="context_committed")
+                    except Exception as error:
+                        output_function(f"Fatal persistence error: {error}")
+                        return
             continue
 
         turn_start = manager.clone()
@@ -133,25 +176,91 @@ def chat(
         except KeyboardInterrupt:
             manager.restore(turn_start)
             set_todos(todos_start)
+            if session_handle is not None:
+                session_handle.record_aborted(user_input, "interrupted")
             output_function("\nTask interrupted. You can enter another request.")
             continue
         except Exception as error:
             manager.restore(turn_start)
             set_todos(todos_start)
+            if session_handle is not None:
+                session_handle.record_aborted(user_input, str(error))
             output_function(f"Error: {error}")
             continue
+
+        if session_handle is not None:
+            session_handle.todos = get_todos()
+            try:
+                session_handle.commit_state()
+            except Exception as error:
+                output_function(
+                    "Fatal persistence error: the completed turn remains in memory "
+                    f"but is not durable: {error}"
+                )
+                return
 
         output_function(f"Coding Kid> {answer}")
 
 
-def main() -> None:
-    """Start the terminal chat."""
-    if sys.stdin.isatty() and sys.stdout.isatty():
-        from coding_kid.tui import run_tui
+def _format_session(info: SessionInfo) -> str:
+    marker = " damaged" if info.damaged else ""
+    return (
+        f"{info.session_id[:8]}  {info.status}{marker}  {info.model}  "
+        f"{info.updated_at}  {info.title}"
+    )
 
-        try:
-            run_tui()
-        except RuntimeError as error:
-            print(f"Error: {error}")
+
+def _format_sessions(items: list[SessionInfo]) -> str:
+    if not items:
+        return "No sessions for this project."
+    return "\n".join(_format_session(item) for item in items)
+
+
+def _open_session(options: SessionOptions) -> SessionHandle:
+    current_context = SessionContext.capture()
+    store = SessionStore(current_context.project_root)
+    if options.mode == "continue":
+        handle = store.continue_latest()
+    elif options.mode == "resume" and options.session_id:
+        handle = store.resume(options.session_id)
     else:
-        chat()
+        manager = ContextManager.capture(current_context)
+        clear_todos()
+        handle = store.create(current_context, manager, [])
+    if handle.context.cwd != current_context.cwd:
+        handle.close()
+        raise SessionError(
+            f"Resume from the session's original directory: {handle.context.cwd}"
+        )
+    return handle
+
+
+def main(options: SessionOptions | None = None) -> None:
+    """Start the terminal chat."""
+    selection = options or SessionOptions()
+    try:
+        current_context = SessionContext.capture()
+        store = SessionStore(current_context.project_root)
+        if selection.list_only:
+            print(_format_sessions(store.list_sessions()))
+            return
+        if selection.delete_session:
+            deleted = store.soft_delete(selection.delete_session)
+            print(f"Deleted session {deleted.session_id[:8]} (evidence retained).")
+            return
+        handle = _open_session(selection)
+    except RuntimeError as error:
+        print(f"Error: {error}")
+        return
+
+    try:
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            from coding_kid.tui import run_tui
+
+            run_tui(handle.context, handle.manager, session_handle=handle)
+        else:
+            chat(session_handle=handle)
+    except RuntimeError as error:
+        print(f"Error: {error}")
+    finally:
+        handle.close()

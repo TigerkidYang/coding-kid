@@ -36,6 +36,7 @@ from coding_kid.events import (
     TurnInterrupted,
 )
 from coding_kid.provider import generate, generate_streaming
+from coding_kid.sessions import SessionHandle
 from coding_kid.tools import get_todos, set_todos, tool_definitions
 
 Provider = Callable[..., Any]
@@ -183,12 +184,14 @@ class CodingKidApp(App[None]):
         *,
         provider: Provider = generate,
         streaming_provider: Provider = generate_streaming,
+        session_handle: SessionHandle | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
         self.manager = manager
         self.provider = provider
         self.streaming_provider = streaming_provider
+        self.session_handle = session_handle
         self.active_turn = False
         self.cancellation_token: CancellationToken | None = None
         self._active_assistant: AssistantCell | None = None
@@ -224,15 +227,17 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v05)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v06)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
-                f"[dim]directory: [/]{cwd}",
+                f"[dim]directory: [/]{cwd}\n"
+                f"[dim]session:   [/]{self._session_label()}",
                 classes="session-card",
             )
         )
         self._append_cell(
             Static(
-                "[dim]  Describe a task, or use /context, /compact, or /exit.[/]",
+                "[dim]  Describe a task, or use /session, /sessions, /context, "
+                "/compact, or /exit.[/]",
                 classes="help-cell",
             )
         )
@@ -249,6 +254,12 @@ class CodingKidApp(App[None]):
             return
         if text == "/context":
             self._show_context()
+            return
+        if text == "/session":
+            self._show_session()
+            return
+        if text == "/sessions":
+            self._show_sessions()
             return
         if text == "/compact":
             self._start_manual_compaction()
@@ -282,9 +293,18 @@ class CodingKidApp(App[None]):
                 event_sink=self._thread_event_sink(),
                 cancellation_token=token,
             )
-        except BaseException:
+        except BaseException as error:
             self.manager.restore(turn_start)
             set_todos(todos_start)
+            if self.session_handle is not None:
+                self.session_handle.record_aborted(user_text, str(error))
+        else:
+            if self.session_handle is not None:
+                self.session_handle.todos = get_todos()
+                try:
+                    self.session_handle.commit_state()
+                except BaseException as error:
+                    self.call_from_thread(self._show_persistence_error, str(error))
         finally:
             self.call_from_thread(self._finish_activity)
 
@@ -418,6 +438,48 @@ class CodingKidApp(App[None]):
             )
         )
 
+    def _session_label(self) -> str:
+        if self.session_handle is None:
+            return "ephemeral"
+        return f"{self.session_handle.info.session_id[:8]} ({self.session_handle.info.status})"
+
+    def _show_session(self) -> None:
+        self._append_cell(
+            Static(
+                f"[b]• Session[/]\n  {escape(self._session_label())}",
+                classes="context-cell",
+            )
+        )
+
+    def _show_sessions(self) -> None:
+        if self.session_handle is None:
+            rendered = "Session persistence is not active."
+        else:
+            items = self.session_handle.store.list_sessions()
+            rendered = (
+                "\n".join(
+                    f"{item.session_id[:8]}  {item.status}  {item.title}"
+                    for item in items
+                )
+                or "No sessions for this project."
+            )
+        self._append_cell(
+            Static(
+                f"[b]• Sessions[/]\n  "
+                f"{escape(rendered).replace(chr(10), chr(10) + '  ')}",
+                classes="context-cell",
+            )
+        )
+
+    def _show_persistence_error(self, message: str) -> None:
+        self._append_cell(
+            Static(
+                "■ Persistence failed; the completed turn remains in memory but "
+                f"is not durable.\n  {escape(message)}",
+                classes="error-cell",
+            )
+        )
+
     def _start_manual_compaction(self) -> None:
         if self.active_turn:
             return
@@ -455,6 +517,13 @@ class CodingKidApp(App[None]):
                 self.handle_turn_event,
                 ContextWarning(f"Compaction failed: {error}"),
             )
+        else:
+            if self.session_handle is not None:
+                self.session_handle.todos = get_todos()
+                try:
+                    self.session_handle.commit_state(kind="context_committed")
+                except BaseException as error:
+                    self.call_from_thread(self._show_persistence_error, str(error))
         finally:
             self.call_from_thread(self._finish_activity)
 
@@ -538,8 +607,14 @@ def _bounded(value: Any, limit: int = 120) -> str:
 def run_tui(
     session_context: SessionContext | None = None,
     manager: ContextManager | None = None,
+    *,
+    session_handle: SessionHandle | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
     context_manager = manager or ContextManager.capture(context)
-    CodingKidApp(context, context_manager).run()
+    CodingKidApp(
+        context,
+        context_manager,
+        session_handle=session_handle,
+    ).run()

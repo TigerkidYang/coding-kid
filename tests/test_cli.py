@@ -5,6 +5,7 @@ import pytest
 import coding_kid.cli as cli
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.sessions import SessionStore
 
 
 def test_chat_accepts_input_shows_tool_activity_and_exits(monkeypatch: Any) -> None:
@@ -346,7 +347,7 @@ def test_main_uses_plain_chat_when_terminal_is_not_interactive(
 
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
-    monkeypatch.setattr(cli, "chat", lambda: calls.append("plain"))
+    monkeypatch.setattr(cli, "chat", lambda *, session_handle: calls.append("plain"))
 
     cli.main()
 
@@ -359,7 +360,11 @@ def test_main_uses_tui_when_terminal_is_interactive(monkeypatch: Any) -> None:
     calls: list[str] = []
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
-    monkeypatch.setattr(tui, "run_tui", lambda: calls.append("tui"))
+    monkeypatch.setattr(
+        tui,
+        "run_tui",
+        lambda context, manager, *, session_handle: calls.append("tui"),
+    )
 
     cli.main()
 
@@ -429,3 +434,76 @@ def test_compact_command_uses_manual_trigger_and_keeps_chat_running(
 
     assert triggers == ["manual"]
     assert "[context] compacting: manual" in outputs
+
+
+def test_persistent_chat_commits_success_and_restores_it(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(32_768, "test"))
+    store = SessionStore(tmp_path, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+
+    def fake_turn(manager: Any, **kwargs: Any) -> str:
+        manager.conversation.append_model_round(
+            [{"role": "assistant", "content": "persisted"}]
+        )
+        return "persisted"
+
+    monkeypatch.setattr(cli, "run_turn", fake_turn)
+    inputs = iter(["Remember this", "/exit"])
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=lambda text: None,
+        session_handle=handle,
+    )
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id)
+    assert resumed.manager.conversation.active_items() == [
+        {"role": "user", "content": "Remember this"},
+        {"role": "assistant", "content": "persisted"},
+    ]
+
+
+def test_persistent_chat_audits_failure_without_resuming_failed_state(
+    monkeypatch: Any, tmp_path: Any
+) -> None:
+    context = SessionContext(
+        cwd=tmp_path,
+        operating_system="Windows 11",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=tmp_path,
+        project_instructions=(),
+    )
+    manager = ContextManager(context, ContextBudget(32_768, "test"))
+    store = SessionStore(tmp_path, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    monkeypatch.setattr(
+        cli,
+        "run_turn",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("failed")),
+    )
+    inputs = iter(["Do not retain", "/exit"])
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=lambda text: None,
+        session_handle=handle,
+    )
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id)
+    assert resumed.manager.conversation.transcript == []
