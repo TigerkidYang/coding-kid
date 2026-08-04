@@ -72,6 +72,21 @@ Plugins package namespaced Skills and MCP configuration.
   It stayed well below the USD 1.00 task cap.
 - No SWE-bench or paid batch evaluation was run.
 
+### Corrective Checkpoint: Terminal Boundary
+
+- A real Skill A/B run exposed a Windows GBK crash while displaying `✳`.
+- Source comparison with Codex and Claude Code led to a boundary-wide fix:
+  Unicode-safe PowerShell input/UTF-8 output, bounded byte-first capture,
+  deterministic decode fallback, CLIXML error normalization, non-interactive
+  stdin, partial timeout evidence, process-tree cleanup, and codec-safe CLI
+  rendering.
+- The corrected root suite passes **223 tests** and Ruff checks. The corrected
+  standalone V07 archive passes **187 tests** and Ruff checks.
+- The fresh wheel contains `coding_kid/terminal.py`; a fresh unrelated-directory
+  V07 launch and installed-wheel `✳` round trip pass without a provider request.
+- The original tag remains unchanged; the correction is tagged
+  `version-07-pluggable-capabilities-fix1`.
+
 ## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
 
 Completion status: complete and archived under

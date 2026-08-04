@@ -76,6 +76,11 @@ without explicit permission.
   non-tool MCP primitives, multi-agent work, and generic background tasks are
   excluded. It passed 213 deterministic tests, Ruff, wheel inspection,
   fresh-install V1–V7 launches, and one minimal real Skill-to-MCP verification.
+  A corrective checkpoint hardens the Windows foreground terminal boundary
+  after a real Skill A/B run exposed a GBK display crash. It passes 223 root
+  tests, 187 standalone-archive tests, Ruff, fresh-wheel V07 launch, and an
+  installed-wheel Unicode round trip, and is tagged
+  `version-07-pluggable-capabilities-fix1` without moving the original tag.
 - Version 06 is complete and archived under `versions/06-persistent-memory/`.
   Its corrected checkpoint, tagged `version-06-persistent-memory-fix1`, keeps
   restored tool history provider-safe, refuses ineffective or contradictory

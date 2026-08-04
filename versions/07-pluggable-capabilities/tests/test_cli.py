@@ -335,6 +335,31 @@ def test_format_tool_call_bounds_and_flattens_model_arguments() -> None:
     assert rendered.endswith("...")
 
 
+def test_chat_recovers_when_the_display_codec_rejects_tool_text(
+    monkeypatch: Any,
+) -> None:
+    inputs = iter(["verify unicode", "/exit"])
+    outputs: list[str] = []
+
+    def gbk_only_output(text: str) -> None:
+        text.encode("gbk")
+        outputs.append(text)
+
+    def fake_run_turn(manager: Any, on_tool: Any, **kwargs: Any) -> str:
+        on_tool("execute", {"command": "Write-Output ✳"}, "exit_code: 0")
+        return "Verified."
+
+    monkeypatch.setattr(cli, "run_turn", fake_run_turn)
+
+    cli.chat(
+        input_function=lambda prompt: next(inputs),
+        output_function=gbk_only_output,
+    )
+
+    assert any(r"\u2733" in output for output in outputs)
+    assert any("Verified." in output for output in outputs)
+
+
 def test_format_search_call_displays_an_empty_path_as_current_directory() -> None:
     rendered = cli.format_tool_call("search", {"query": "def ", "path": ""})
 

@@ -22,11 +22,19 @@ and namespace both.
 - Reports capability summaries and redacted failures in the plain CLI and TUI
   through `/capabilities` and source-aware activity records.
 
-The checkpoint passed 213 deterministic tests, Ruff lint and format checks,
+The original checkpoint passed 213 deterministic tests, Ruff lint and format checks,
 wheel inspection, and fresh-install V1–V7 launches. One minimal real
 `openai/gpt-5.6-luna` session loaded the example Plugin Skill, called its
 read-only MCP tool, and returned independently verified file measurements. No
 SWE-bench or paid batch evaluation was run.
+
+The `fix1` checkpoint hardens the foreground Windows terminal boundary after a
+real Skill A/B run exposed a GBK display failure on `✳`. It uses Unicode-safe
+PowerShell input and UTF-8 output, bounded byte-first stdout/stderr capture,
+legacy/lossy decode fallback, normalized PowerShell error output, partial
+timeout results, descendant cleanup, closed stdin, and codec-safe CLI output.
+The corrected deterministic suite passes 223 tests plus Ruff checks. It does
+not add background tasks, PTY input, sandboxing, or approvals.
 
 ## Setup
 
@@ -78,4 +86,6 @@ archive does not recursively carry the V1–V6 bundled runtimes.
 
 ## Git Checkpoint
 
-Annotated tag: `version-07-pluggable-capabilities`.
+Original annotated tag: `version-07-pluggable-capabilities`.
+
+Corrective annotated tag: `version-07-pluggable-capabilities-fix1`.

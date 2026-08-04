@@ -1,4 +1,3 @@
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +9,7 @@ from coding_kid.tools import (
     dispatch_tool,
     get_todos,
 )
+from coding_kid.terminal import CommandResult
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -148,16 +148,19 @@ def test_execute_returns_exit_code_stdout_and_stderr() -> None:
     assert "stderr:\nproblem" in result
 
 
-def test_execute_timeout_becomes_a_tool_error(monkeypatch: Any) -> None:
-    def time_out(*args: Any, **kwargs: Any) -> None:
-        assert kwargs["timeout"] == 120
-        raise subprocess.TimeoutExpired("slow command", 120)
-
-    monkeypatch.setattr(subprocess, "run", time_out)
+def test_execute_timeout_returns_partial_model_readable_output(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        "coding_kid.tools.run_command",
+        lambda command: CommandResult(124, "partial", "", True, 120.0),
+    )
 
     result = dispatch_tool("execute", {"command": "slow command"})
 
-    assert result.startswith("ERROR: TimeoutExpired:")
+    assert "exit_code: 124" in result
+    assert "timed_out: true" in result
+    assert "stdout:\npartial" in result
 
 
 def test_unknown_tool_and_bad_arguments_become_errors() -> None:

@@ -24,6 +24,29 @@ OutputFunction = Callable[[str], None]
 MAX_TOOL_DISPLAY_CHARS = 140
 
 
+def _safe_output_function(output_function: OutputFunction) -> OutputFunction:
+    """Keep display encoding failures from aborting an Agent turn."""
+
+    def output(text: str) -> None:
+        try:
+            output_function(text)
+        except UnicodeEncodeError as error:
+            safe_text = text.encode(error.encoding, errors="backslashreplace").decode(
+                error.encoding
+            )
+            output_function(safe_text)
+
+    return output
+
+
+def _configure_standard_output() -> None:
+    """Use UTF-8 for redirected Windows output as well as real consoles."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 @dataclass(frozen=True)
 class SessionOptions:
     """Session lifecycle choice parsed by the version-selecting launcher."""
@@ -81,6 +104,7 @@ def chat(
     capability_runtime: CapabilityRuntime | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
+    output_function = _safe_output_function(output_function)
     if session_handle is None:
         try:
             session_context = SessionContext.capture()
@@ -436,6 +460,7 @@ def _open_session(
 
 def main(options: SessionOptions | None = None) -> None:
     """Start the terminal chat."""
+    _configure_standard_output()
     selection = options or SessionOptions()
     try:
         current_context = SessionContext.capture()

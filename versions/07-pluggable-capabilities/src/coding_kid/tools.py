@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 from typing import Any, Callable, Mapping
+
+from coding_kid.terminal import run_command
 
 ToolFunction = Callable[..., str]
 ToolEntry = dict[str, Any]
@@ -26,19 +27,7 @@ SKIPPED_SEARCH_DIRECTORIES = {
 
 def execute(command: str) -> str:
     """Run one foreground shell command and return all useful output."""
-    completed = subprocess.run(
-        command,
-        shell=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=120,
-        check=False,
-    )
-    stdout = completed.stdout.rstrip()
-    stderr = completed.stderr.rstrip()
-    return f"exit_code: {completed.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    return run_command(command).model_text()
 
 
 def read(path: str) -> str:
@@ -211,7 +200,9 @@ def todo(todos: list[dict[str, Any]]) -> str:
 TOOLS: dict[str, ToolEntry] = {
     "execute": {
         "description": (
-            "Run one foreground Windows cmd.exe command in the current directory."
+            "Run one non-interactive foreground Windows PowerShell command in the "
+            "current directory. Output is bounded and the process tree is terminated "
+            "after 2 minutes."
         ),
         "parameters": {
             "type": "object",
