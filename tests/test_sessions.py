@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from coding_kid.context import ProjectInstruction, SessionContext
+from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.sessions import (
+    SessionBusyError,
+    SessionCorruptError,
+    SessionStore,
+)
+
+
+def make_runtime(project: Path) -> tuple[SessionContext, ContextManager]:
+    context = SessionContext(
+        cwd=project,
+        operating_system="Test OS",
+        shell="cmd.exe",
+        model="test/model",
+        local_date="2026-08-04",
+        project_root=project,
+        project_instructions=(
+            ProjectInstruction(project / "AGENTS.md", "Keep it small."),
+        ),
+    )
+    return context, ContextManager(context, ContextBudget(32_768, "test"))
+
+
+def test_session_round_trip_restores_all_canonical_state(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+
+    manager.conversation.append_user("Implement ALPHA")
+    manager.conversation.append_model_round(
+        [{"type": "message", "content": [{"type": "text", "text": "Done"}]}]
+    )
+    manager.calibration_factor = 1.25
+    manager.last_actual_input_tokens = 123
+    handle.todos = [{"content": "Keep ALPHA", "status": "in_progress"}]
+    handle.commit_state()
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id[:8])
+
+    assert resumed.context == context
+    assert (
+        resumed.manager.conversation.active_items()[0]["content"] == "Implement ALPHA"
+    )
+    assert len(resumed.manager.conversation.transcript) == 2
+    assert resumed.manager.calibration_factor == 1.25
+    assert resumed.manager.last_actual_input_tokens == 123
+    assert resumed.todos == [{"content": "Keep ALPHA", "status": "in_progress"}]
+    assert resumed.info.title == "Implement ALPHA"
+
+
+def test_sessions_are_independent_and_continue_uses_latest(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    store = SessionStore(project, home=tmp_path / "home")
+    context, first_manager = make_runtime(project)
+    first = store.create(context, first_manager, [])
+    first.close()
+    _, second_manager = make_runtime(project)
+    second = store.create(context, second_manager, [])
+    second.close()
+
+    listed = store.list_sessions()
+    assert {item.session_id for item in listed} == {
+        first.info.session_id,
+        second.info.session_id,
+    }
+    assert store.continue_latest().info.session_id == second.info.session_id
+
+
+def test_live_lease_prevents_concurrent_resume(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+
+    with pytest.raises(SessionBusyError):
+        store.resume(handle.info.session_id)
+
+
+def test_expired_lease_can_be_reclaimed(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    clock = [datetime(2026, 8, 4, tzinfo=UTC)]
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home", now=lambda: clock[0])
+    handle = store.create(context, manager, [])
+    clock[0] += timedelta(hours=2)
+
+    resumed = store.resume(handle.info.session_id)
+
+    assert resumed.info.session_id == handle.info.session_id
+
+
+def test_partial_final_line_is_ignored_and_index_is_repaired(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    manager.conversation.append_user("safe")
+    handle.commit_state()
+    handle.close()
+    log_path = store.sessions_dir / f"{handle.info.session_id}.jsonl"
+    with log_path.open("ab") as stream:
+        stream.write(b'{"seq":999')
+    with store._connect() as connection:
+        connection.execute(
+            "UPDATE sessions SET last_seq = 0, last_hash = 'stale' WHERE session_id = ?",
+            (handle.info.session_id,),
+        )
+
+    resumed = store.resume(handle.info.session_id)
+
+    assert resumed.manager.conversation.active_items()[0]["content"] == "safe"
+    assert resumed.info.last_seq == 2
+
+
+def test_middle_corruption_marks_session_damaged(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    manager.conversation.append_user("safe")
+    handle.commit_state()
+    handle.close()
+    log_path = store.sessions_dir / f"{handle.info.session_id}.jsonl"
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    record: dict[str, Any] = json.loads(lines[1])
+    record["todos"] = [{"content": "tampered", "status": "pending"}]
+    lines[1] = json.dumps(record)
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    with pytest.raises(SessionCorruptError):
+        store.resume(handle.info.session_id)
+
+    damaged = store.get_session(handle.info.session_id)
+    assert damaged.status == "damaged"
+    assert damaged.damaged is True
+
+
+def test_soft_deleted_session_is_hidden_but_evidence_remains(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    handle = store.create(context, manager, [])
+    handle.close()
+
+    deleted = store.soft_delete(handle.info.session_id)
+
+    assert deleted.status == "deleted"
+    assert store.list_sessions() == []
+    assert (store.sessions_dir / f"{handle.info.session_id}.jsonl").is_file()
