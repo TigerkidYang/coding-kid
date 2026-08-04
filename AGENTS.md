@@ -50,6 +50,28 @@ Keep the routine proportional for tiny tasks.
 
 Work on exactly one version at a time.
 
+### Research-topic gate for version discussions
+
+`docs/RESEARCH.md` -> `Research Topic List` is the sole starting point and
+scope framework for every new-version discussion. The agent must not invent a
+version theme or propose capabilities outside that list on its own.
+
+Whenever the user starts discussing a new version, the agent's first response
+must:
+
+1. Read the current `Research Topic List` from `docs/RESEARCH.md` rather than
+   relying on memory.
+2. Reproduce the complete list in both English and Chinese.
+3. Mark every topic with a checkbox showing whether it is already completed or
+   still incomplete, based on the repository's current implementation and
+   durable project records.
+4. Use that bilingual, status-marked list as the basis for the discussion. Do
+   not suggest or select the new version's contents before presenting it.
+
+The user chooses which incomplete research topic, if any, becomes the new
+version. The agent may explain the listed topics and their tradeoffs, but has no
+authority to choose a topic or introduce an unlisted one.
+
 Before implementing a version:
 
 1. Discuss that version with the user.
