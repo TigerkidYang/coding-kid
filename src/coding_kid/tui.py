@@ -32,6 +32,9 @@ from coding_kid.events import (
     CompactionStarted,
     ContextWarning,
     EventSink,
+    InputConsumed,
+    InputQueued,
+    InputRejected,
     TodoUpdated,
     ToolCompleted,
     ToolStarted,
@@ -259,7 +262,7 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v09)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v10)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}",
@@ -343,18 +346,14 @@ class CodingKidApp(App[None]):
             return
         if self.active_turn:
             if self.turn_controller.steer(text):
-                self._append_cell(
-                    Static(f"[b cyan]↪[/] {escape(text)}", classes="user-cell")
-                )
-                self._set_status(
-                    f"Steering ({self.turn_controller.pending_count} queued)"
+                self.handle_turn_event(
+                    InputQueued(text, self.turn_controller.pending_count)
                 )
             else:
                 self.query_one(Composer).load_text(text)
-                self._append_cell(
-                    Static(
-                        "[yellow]▲ Steer queue is full; input was kept in the composer.[/]",
-                        classes="notice-cell",
+                self.handle_turn_event(
+                    InputRejected(
+                        "Steer queue is full; input was kept in the composer."
                     )
                 )
             return
@@ -392,6 +391,11 @@ class CodingKidApp(App[None]):
                     queued = self.turn_controller.take_pending()
                     if queued:
                         pending_texts = [item.text for item in queued]
+                        for item in queued:
+                            self.call_from_thread(
+                                self.handle_turn_event,
+                                InputConsumed(item.text),
+                            )
                         self.cancellation_token = self.turn_controller.next_step_token()
                         should_continue = True
             if self.session_handle is not None:
@@ -504,6 +508,20 @@ class CodingKidApp(App[None]):
             )
             if self.active_turn:
                 self._set_status("Working")
+        elif isinstance(event, InputQueued):
+            self._append_cell(
+                Static(f"[b cyan]↪[/] {escape(event.text)}", classes="user-cell")
+            )
+            self._set_status(f"Steering ({event.position} queued)")
+        elif isinstance(event, InputConsumed):
+            self._set_status("Applying queued input")
+        elif isinstance(event, InputRejected):
+            self._append_cell(
+                Static(
+                    f"[yellow]▲ {escape(event.message)}[/]",
+                    classes="notice-cell",
+                )
+            )
         elif isinstance(event, TurnCompleted):
             self._refresh_footer()
         elif isinstance(event, TurnInterrupted):
