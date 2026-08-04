@@ -34,14 +34,49 @@ Research notes should support two outcomes:
 - How to implement long-term memory. (Implemented in Version 06.)
 - How to implement multi-agent workflows.
 - How to manage background tasks.
-- How to implement skills and plugins as pluggable context.
+- How to implement skills and plugins as pluggable context. (In progress in
+  Version 07.)
 - How to implement context auto-compression.
 - How to better control the whole loop and workflow.
 - How to control the sandbox environment.
-- How to design freely configurable MCP support.
+- How to design freely configurable MCP support. (In progress in Version 07.)
 - How to initially implement visualization and observability:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
+
+## Version 07 Skills, Plugins, and MCP Source Reading
+
+Version 07 was designed from current source snapshots of Claude Code and Codex,
+plus the stable Version 2 MCP Python SDK.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/skills/loadSkillsDir.ts`
+- `research/repos/claude-code/src/tools/SkillTool/SkillTool.ts`
+- `research/repos/claude-code/src/utils/plugins/pluginLoader.ts`
+- `research/repos/claude-code/src/utils/plugins/mcpPluginIntegration.ts`
+- `research/repos/claude-code/src/services/mcp/client.ts`
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/core-skills/src/`
+- `research/repos/codex/codex-rs/plugin/src/manifest.rs`
+- `research/repos/codex/codex-rs/core-plugins/src/`
+- `research/repos/codex/codex-rs/codex-mcp/src/connection_manager.rs`
+- `research/repos/codex/codex-rs/rmcp-client/src/`
+
+Useful invariants:
+
+- Keep bounded Skill metadata model-visible and load complete Skill bodies only
+  after explicit or model-selected invocation.
+- Treat Plugin as an inert package manifest whose Skills and MCP servers retain
+  source identity and a collision-resistant namespace.
+- Normalize and bound external tool names, descriptions, schemas, results,
+  timeouts, failures, and lifecycle before merging them with built-in tools.
+- Executable MCP configuration requires explicit user intent; repository Skill
+  discovery alone must never start a process.
+- Long-lived async MCP connections need a session-owned lifecycle boundary when
+  the surrounding Agent loop remains synchronous.
 
 ## Version 06 Persistent-Memory Source Reading
 

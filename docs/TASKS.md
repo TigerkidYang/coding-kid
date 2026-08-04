@@ -1,5 +1,56 @@
 # Tasks
 
+## Current Core Version: 07 — Pluggable Capabilities
+
+Completion status: in progress. The user explicitly delegated implementation
+and verification to the assistant.
+
+### Goal
+
+Add a session-scoped capability runtime in which Skills provide on-demand
+instructions, MCP servers provide structured tools, and explicitly enabled
+Plugins package namespaced Skills and MCP configuration.
+
+### Included Scope
+
+- User and hierarchical project `SKILL.md` discovery with bounded metadata,
+  deterministic precedence, explicit `$skill` mentions, and an implicit
+  `skill` loading tool.
+- Strict user-owned `capabilities.json` configuration for explicitly enabled
+  local Plugins and standalone MCP servers.
+- A minimal Plugin manifest that contributes contained, namespaced Skill roots
+  and MCP server configuration.
+- Session-owned stdio and Streamable HTTP MCP clients, bounded tool discovery,
+  synchronous dispatch bridging, cancellation, timeout, and cleanup.
+- Capability status in the plain CLI and Streaming TUI, plus a local example
+  Plugin and deterministic end-to-end tests.
+- Installed teaching-version selection for V1-V7, with V06 frozen before V07
+  changes.
+
+### Excluded Scope
+
+- Sandboxing, approvals, isolation, marketplaces, download/update, signing,
+  OAuth, or credential storage.
+- MCP Resources, Prompts, SSE, WebSocket, Sampling, Elicitation, Roots,
+  subscriptions, dynamic refresh, deferred tool search, or background reconnect.
+- Hooks, Apps, LSP, multi-agent workflows, or generic background tasks.
+- SWE-bench or paid batch evaluation.
+
+### Completion Criteria
+
+- Skills are discovered with the recorded precedence and budgets; explicit and
+  model-selected Skills load complete source-labeled content without entering
+  durable history unless invoked through the tool protocol.
+- Explicitly configured Plugins safely contribute namespaced Skills and MCP
+  servers without allowing manifest paths to escape their roots.
+- Optional MCP failures degrade visibly, required failures stop startup, and
+  stdio/Streamable HTTP tools can be discovered, filtered, called, cancelled,
+  bounded, and closed.
+- Agent requests, compaction, context accounting, CLI/TUI rendering, and session
+  resume use one consistent capability snapshot without persisting credentials.
+- Deterministic tests, maintained-source Ruff checks, wheel inspection, and
+  fresh-install V1-V7 launches pass before one bounded live verification.
+
 ## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
 
 Completion status: complete and archived under

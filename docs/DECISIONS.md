@@ -44,9 +44,26 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 05 are complete. Version 06 is the current persistent
-sessions and long-term-memory implementation. Do not define a later version
-until Version 06 is complete.
+Versions 01 through 06 are complete. Version 07 is the current pluggable
+capability implementation. Do not define a later version until Version 07 is
+complete.
+
+## Compose Version 07 capabilities at session startup
+
+Decision:
+Capture Skill and Plugin metadata at process startup, connect only MCP servers
+explicitly listed in the user-owned capability configuration, and expose all
+selected capabilities through one session-owned runtime and tool registry.
+Keep Skill bodies lazy and reload capabilities on process resume rather than
+persisting executable configuration or credentials in session logs.
+
+Consequence:
+Project Skills can provide inert instructions without causing startup code
+execution. Plugins package namespaced Skill roots and MCP configuration but do
+not create a separate execution mechanism. The synchronous teaching loop stays
+intact while one dedicated async runtime owns MCP clients and subprocesses.
+Sandboxing, approval workflows, remote installation, OAuth, MCP resources and
+prompts, and background reconnect remain outside Version 07.
 
 ## Make JSONL canonical and SQLite queryable for Version 06 sessions
 
