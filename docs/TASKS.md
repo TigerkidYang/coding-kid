@@ -1,5 +1,54 @@
 # Tasks
 
+## Current Core Version: 06 — Persistent Sessions and Long-Term Memory
+
+Completion status: implementation in progress.
+
+### Goal
+
+Add deterministic project-scoped multi-session persistence and a layered
+long-term-memory pipeline so Coding Kid can resume exact working state and
+selectively carry useful knowledge into later sessions.
+
+### Included Scope
+
+- Hash-chained append-only JSONL session logs with SQLite metadata, leases,
+  crash recovery, replay, listing, resumption, and soft deletion.
+- Persistence of the canonical transcript, bounded active context, compaction
+  checkpoints, todo state, model/context configuration, and accounting.
+- Raw-session, per-session extraction, consolidated-memory, and bounded-recall
+  layers with provenance and usage tracking.
+- Project memories generated from eligible prior sessions and explicit global
+  user memories only when the user requests them.
+- Request-only memory retrieval, model-visible provenance, citation parsing,
+  manual memory controls, and bounded automatic maintenance.
+- Plain terminal, Streaming TUI, launcher, packaging, documentation, and
+  deterministic verification updates for Version 06.
+
+### Excluded Scope
+
+- Generic background-task APIs, multi-agent workflows, skills/plugins, MCP,
+  vector databases, remote synchronization, or encryption at rest.
+- Automatic cross-project extraction, silent deletion of raw sessions, or
+  memory facts treated as authoritative without freshness checks.
+- SWE-bench, paid benchmarks, or live provider calls without separate explicit
+  authorization.
+
+### Completion Criteria
+
+- Multiple sessions in one project can be created, listed, resumed, and kept
+  independent across process restarts.
+- Resume deterministically restores transcript, active context, todos,
+  compaction checkpoints, and context accounting from validated durable state.
+- Partial writes, stale indexes, concurrent resumes, persistence failures, and
+  corrupt records fail safely without silently damaging recoverable history.
+- Eligible prior sessions can produce validated, provenance-linked memories;
+  relevant memories are bounded and injected only into request context.
+- Users can inspect, add, search, forget, synchronize, and disable memory, with
+  automatic cross-project memory prohibited.
+- Existing behavior and V1–V5 launch selection remain covered; pytest, Ruff,
+  wheel inspection, and fresh-install V1–V6 launches pass without a paid call.
+
 ## Current Core Version: 05 — Streaming TUI
 
 Completion status: complete and archived under `versions/05-streaming-tui/`

@@ -66,6 +66,9 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
+- Version 06 is the current implementation target. It combines deterministic
+  persistent multi-session state with layered long-term memory, following the
+  approved `06-persistent-memory` plan.
 - The canonical repository is
   `https://github.com/TigerkidYang/coding-kid`.
 - Version 01 is complete and archived under `versions/01-minimal-agent/` with

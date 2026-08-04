@@ -11,13 +11,14 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v5"
-AVAILABLE_VERSIONS = ("v1", "v2", "v3", "v4", LATEST_VERSION)
+LATEST_VERSION = "v6"
+AVAILABLE_VERSIONS = ("v1", "v2", "v3", "v4", "v5", LATEST_VERSION)
 BUNDLED_RUNTIME_DIRS = {
     "v1": "v01",
     "v2": "v02",
     "v3": "v03",
     "v4": "v04",
+    "v5": "v05",
 }
 RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 

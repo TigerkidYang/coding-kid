@@ -206,6 +206,10 @@ In particular:
 ## Current State
 
 - The project is named Coding Kid.
+- Version 06 is in progress. Its approved scope combines persistent
+  multi-session state and layered long-term memory in one teaching version.
+- The user explicitly delegated implementation and deterministic verification
+  of Version 06 to the assistant.
 - Version 01 is complete as a minimal terminal coding agent and is archived
   under `versions/01-minimal-agent/` (`version-01-minimal-agent`,
   `version-01-minimal-agent-fix2`).

@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
         (" v3 ", "v3"),
         ("v4", "v4"),
         ("05", "v5"),
+        ("v6", "v6"),
     ],
 )
 def test_normalize_version_accepts_documented_aliases(
@@ -30,7 +31,7 @@ def test_normalize_version_accepts_documented_aliases(
     assert launcher.normalize_version(value) == expected
 
 
-@pytest.mark.parametrize("value", ["", "latest", "v0", "v6", "one"])
+@pytest.mark.parametrize("value", ["", "latest", "v0", "v7", "one"])
 def test_normalize_version_rejects_unknown_values(value: str) -> None:
     with pytest.raises(ValueError):
         launcher.normalize_version(value)
@@ -71,7 +72,8 @@ def test_main_lists_versions_without_launching(
         "v2",
         "v3",
         "v4",
-        "v5 (latest, default)",
+        "v5",
+        "v6 (latest, default)",
     ]
 
 
@@ -87,14 +89,14 @@ def test_main_rejects_unknown_version_before_launch(
     with pytest.raises(SystemExit, match="2"):
         launcher.main(["v99"])
 
-    assert "available versions: v1, v2, v3, v4, v5" in capsys.readouterr().err
+    assert "available versions: v1, v2, v3, v4, v5, v6" in capsys.readouterr().err
 
 
 def test_latest_version_runs_in_process(monkeypatch: pytest.MonkeyPatch) -> None:
     called: list[bool] = []
     monkeypatch.setattr(launcher.cli, "main", lambda: called.append(True))
 
-    assert launcher.launch_version("v5") == 0
+    assert launcher.launch_version("v6") == 0
     assert called == [True]
 
 
@@ -131,12 +133,13 @@ def test_historical_version_runs_isolated_and_preserves_cwd(
         ("v02", "02-task-decomposition"),
         ("v03", "03-context-assembly"),
         ("v04", "04-context-management"),
+        ("v05", "05-streaming-tui"),
     ],
 )
 def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     archived_root = ROOT / "versions" / archive / "src" / "coding_kid"
     bundled_root = ROOT / "src" / "coding_kid" / "_runtimes" / version / "coding_kid"
-    excluded = {"__main__.py", "launcher.py"} if version == "v04" else set()
+    excluded = {"__main__.py", "launcher.py"} if version in {"v04", "v05"} else set()
     archived_files = {
         path.name: path.read_bytes()
         for path in archived_root.glob("*.py")
@@ -147,7 +150,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     assert bundled_files == archived_files
 
 
-@pytest.mark.parametrize("version", [None, "v1", "v2", "v3", "v4", "v5"])
+@pytest.mark.parametrize("version", [None, "v1", "v2", "v3", "v4", "v5", "v6"])
 def test_module_launcher_starts_from_unrelated_project(
     version: str | None, tmp_path: Path
 ) -> None:
