@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import inspect
 import sys
 from typing import Any
 
 from coding_kid.agent import current_instructions, run_turn
+from coding_kid.capabilities import CapabilityRuntime
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
 from coding_kid.memory import MemoryManager
 from coding_kid.provider import generate
 from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
+from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import clear_todos, get_todos, set_todos, tool_definitions
 
 InputFunction = Callable[[str], str]
@@ -75,6 +78,7 @@ def chat(
     *,
     session_handle: SessionHandle | None = None,
     memory_manager: MemoryManager | None = None,
+    capability_runtime: CapabilityRuntime | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     if session_handle is None:
@@ -95,6 +99,10 @@ def chat(
             "Type /exit to quit."
         )
     output_function(ready)
+    if capability_runtime is not None:
+        output_function(capability_runtime.summary())
+        for warning in capability_runtime.warnings:
+            output_function(f"[capability] warning: {warning}")
     if (
         memory_manager is not None
         and memory_manager.mode == "auto"
@@ -128,11 +136,23 @@ def chat(
         if not user_input:
             continue
         if user_input == "/context":
+            definitions = tool_definitions()
+            if capability_runtime is not None:
+                definitions = capability_runtime.registry_for_turn(
+                    SkillTurnState(capability_runtime.snapshot.skills)
+                ).definitions()
             output_function(
                 manager.status_text(
                     current_instructions(session_context),
-                    tool_definitions(),
+                    definitions,
                 )
+            )
+            continue
+        if user_input == "/capabilities":
+            output_function(
+                capability_runtime.status_text()
+                if capability_runtime is not None
+                else "Pluggable capabilities are not active."
             )
             continue
         if user_input == "/session":
@@ -227,12 +247,17 @@ def chat(
             continue
         if user_input == "/compact":
             snapshot = manager.clone()
+            definitions = tool_definitions()
+            if capability_runtime is not None:
+                definitions = capability_runtime.registry_for_turn(
+                    SkillTurnState(capability_runtime.snapshot.skills)
+                ).definitions()
             try:
                 compact_context(
                     manager,
                     generate,
                     instructions=current_instructions(session_context),
-                    tools=tool_definitions(),
+                    tools=definitions,
                     trigger="manual",
                     on_context=show_context,
                 )
@@ -258,6 +283,23 @@ def chat(
         recalled_ids: tuple[str, ...] = ()
         if memory_manager is not None:
             request_context, recalled_ids = memory_manager.recall_context(user_input)
+        skill_state: SkillTurnState | None = None
+        registry = None
+        overlays: tuple[str, ...] = ()
+        if capability_runtime is not None:
+            skill_state = SkillTurnState(capability_runtime.snapshot.skills)
+            for skill_name in explicit_skill_names(
+                user_input, capability_runtime.snapshot.skills
+            ):
+                request_context.append(
+                    {
+                        "role": "user",
+                        "content": skill_state.load(skill_name, explicit=True),
+                    }
+                )
+            registry = capability_runtime.registry_for_turn(skill_state)
+            metadata = capability_runtime.skill_metadata()
+            overlays = (metadata,) if metadata else ()
         manager.conversation.append_user(user_input)
         try:
             turn_options: dict[str, Any] = {}
@@ -273,7 +315,15 @@ def chat(
                 on_tool=show_tool,
                 on_context=show_context,
                 session_context=session_context,
-                **turn_options,
+                **(
+                    {
+                        **turn_options,
+                        "tool_registry": registry,
+                        "instruction_overlays": overlays,
+                    }
+                    if capability_runtime is not None
+                    else turn_options
+                ),
             )
             if not answer.strip():
                 raise RuntimeError("Model returned an empty answer")
@@ -394,20 +444,33 @@ def main(options: SessionOptions | None = None) -> None:
 
     try:
         memory_manager = MemoryManager(handle.store)
+        capability_runtime = CapabilityRuntime.capture(
+            handle.context,
+            context_window=handle.manager.budget.context_length,
+        )
         if sys.stdin.isatty() and sys.stdout.isatty():
             from coding_kid.tui import run_tui
 
-            run_tui(
-                handle.context,
-                handle.manager,
-                session_handle=handle,
-                memory_manager=memory_manager,
-            )
+            tui_options: dict[str, Any] = {
+                "session_handle": handle,
+                "memory_manager": memory_manager,
+            }
+            if "capability_runtime" in inspect.signature(run_tui).parameters:
+                tui_options["capability_runtime"] = capability_runtime
+            run_tui(handle.context, handle.manager, **tui_options)
         else:
-            chat(session_handle=handle, memory_manager=memory_manager)
+            chat_options: dict[str, Any] = {
+                "session_handle": handle,
+                "memory_manager": memory_manager,
+            }
+            if "capability_runtime" in inspect.signature(chat).parameters:
+                chat_options["capability_runtime"] = capability_runtime
+            chat(**chat_options)
     except RuntimeError as error:
         print(f"Error: {error}")
     finally:
+        if "capability_runtime" in locals():
+            capability_runtime.close()
         try:
             handle.close()
         except Exception as error:

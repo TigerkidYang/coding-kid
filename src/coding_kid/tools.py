@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 ToolFunction = Callable[..., str]
 ToolEntry = dict[str, Any]
@@ -327,32 +327,58 @@ TOOLS: dict[str, ToolEntry] = {
 }
 
 
+class ToolRegistry:
+    """An immutable-at-call-sites session-owned tool snapshot."""
+
+    def __init__(self, entries: Mapping[str, ToolEntry] | None = None) -> None:
+        self._entries = dict(TOOLS if entries is None else entries)
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        return tuple(self._entries)
+
+    def with_tool(self, name: str, entry: ToolEntry) -> ToolRegistry:
+        if name in self._entries:
+            raise ValueError(f"Duplicate tool name: {name}")
+        entries = dict(self._entries)
+        entries[name] = entry
+        return ToolRegistry(entries)
+
+    def definitions(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "name": name,
+                "description": entry["description"],
+                "parameters": entry["parameters"],
+                "strict": entry.get("strict", True),
+            }
+            for name, entry in self._entries.items()
+        ]
+
+    def dispatch(self, name: str, arguments: dict[str, Any]) -> str:
+        entry = self._entries.get(name)
+        if entry is None:
+            return f"ERROR: Unknown tool: {name}"
+        function: ToolFunction = entry["function"]
+        try:
+            result = function(**arguments)
+        except Exception as error:  # The model needs the error so it can recover.
+            result = f"ERROR: {type(error).__name__}: {error}"
+        return _bounded_tool_output(result)
+
+
+DEFAULT_TOOL_REGISTRY = ToolRegistry()
+
+
 def tool_definitions() -> list[dict[str, Any]]:
     """Build the tool definitions sent to the model."""
-    return [
-        {
-            "type": "function",
-            "name": name,
-            "description": entry["description"],
-            "parameters": entry["parameters"],
-            "strict": True,
-        }
-        for name, entry in TOOLS.items()
-    ]
+    return DEFAULT_TOOL_REGISTRY.definitions()
 
 
 def dispatch_tool(name: str, arguments: dict[str, Any]) -> str:
     """Call a registered tool and turn failures into model-readable text."""
-    entry = TOOLS.get(name)
-    if entry is None:
-        return f"ERROR: Unknown tool: {name}"
-
-    function: ToolFunction = entry["function"]
-    try:
-        result = function(**arguments)
-    except Exception as error:  # The model needs the error so it can recover.
-        result = f"ERROR: {type(error).__name__}: {error}"
-    return _bounded_tool_output(result)
+    return DEFAULT_TOOL_REGISTRY.dispatch(name, arguments)
 
 
 def _bounded_tool_output(result: str) -> str:

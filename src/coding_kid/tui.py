@@ -15,6 +15,7 @@ from textual.message import Message
 from textual.widgets import Markdown, Static, TextArea
 
 from coding_kid.agent import current_instructions, run_turn
+from coding_kid.capabilities import CapabilityRuntime
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
@@ -38,6 +39,7 @@ from coding_kid.events import (
 from coding_kid.memory import MemoryManager, MemorySyncResult
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.sessions import SessionError, SessionHandle
+from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import get_todos, set_todos, tool_definitions
 
 Provider = Callable[..., Any]
@@ -187,6 +189,7 @@ class CodingKidApp(App[None]):
         streaming_provider: Provider = generate_streaming,
         session_handle: SessionHandle | None = None,
         memory_manager: MemoryManager | None = None,
+        capability_runtime: CapabilityRuntime | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -195,6 +198,7 @@ class CodingKidApp(App[None]):
         self.streaming_provider = streaming_provider
         self.session_handle = session_handle
         self.memory_manager = memory_manager
+        self.capability_runtime = capability_runtime
         self.active_turn = False
         self.cancellation_token: CancellationToken | None = None
         self._active_assistant: AssistantCell | None = None
@@ -232,7 +236,7 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v06)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v07)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}",
@@ -246,6 +250,13 @@ class CodingKidApp(App[None]):
                 classes="help-cell",
             )
         )
+        if self.capability_runtime is not None:
+            self._append_cell(
+                Static(
+                    f"[dim]• {escape(self.capability_runtime.summary())}[/]",
+                    classes="context-cell",
+                )
+            )
 
     def _append_cell(self, widget: Static | Markdown | Horizontal) -> None:
         transcript = self.query_one("#transcript", VerticalScroll)
@@ -259,6 +270,9 @@ class CodingKidApp(App[None]):
             return
         if text == "/context":
             self._show_context()
+            return
+        if text == "/capabilities":
+            self._show_capabilities()
             return
         if text == "/session":
             self._show_session()
@@ -316,6 +330,23 @@ class CodingKidApp(App[None]):
             request_context, recalled_ids = self.memory_manager.recall_context(
                 user_text
             )
+        skill_state: SkillTurnState | None = None
+        registry = None
+        overlays: tuple[str, ...] = ()
+        if self.capability_runtime is not None:
+            skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
+            for skill_name in explicit_skill_names(
+                user_text, self.capability_runtime.snapshot.skills
+            ):
+                request_context.append(
+                    {
+                        "role": "user",
+                        "content": skill_state.load(skill_name, explicit=True),
+                    }
+                )
+            registry = self.capability_runtime.registry_for_turn(skill_state, token)
+            metadata = self.capability_runtime.skill_metadata()
+            overlays = (metadata,) if metadata else ()
         self.manager.conversation.append_user(user_text)
         try:
             run_turn(
@@ -334,6 +365,8 @@ class CodingKidApp(App[None]):
                         else None
                     )
                 ),
+                tool_registry=registry,
+                instruction_overlays=overlays,
             )
         except BaseException as error:
             self.manager.restore(turn_start)
@@ -479,12 +512,31 @@ class CodingKidApp(App[None]):
         )
 
     def _show_context(self) -> None:
+        definitions = tool_definitions()
+        if self.capability_runtime is not None:
+            definitions = self.capability_runtime.registry_for_turn(
+                SkillTurnState(self.capability_runtime.snapshot.skills)
+            ).definitions()
         status = self.manager.status_text(
-            current_instructions(self.session_context), tool_definitions()
+            current_instructions(self.session_context), definitions
         )
         self._append_cell(
             Static(
                 f"[b]• Context[/]\n  {escape(status).replace(chr(10), chr(10) + '  ')}",
+                classes="context-cell",
+            )
+        )
+
+    def _show_capabilities(self) -> None:
+        status = (
+            self.capability_runtime.status_text()
+            if self.capability_runtime is not None
+            else "Pluggable capabilities are not active."
+        )
+        self._append_cell(
+            Static(
+                f"[b]• Capabilities[/]\n  "
+                f"{escape(status).replace(chr(10), chr(10) + '  ')}",
                 classes="context-cell",
             )
         )
@@ -664,12 +716,18 @@ class CodingKidApp(App[None]):
 
     def _run_manual_compaction(self) -> None:
         snapshot = self.manager.clone()
+        definitions = tool_definitions()
+        if self.capability_runtime is not None:
+            definitions = self.capability_runtime.registry_for_turn(
+                SkillTurnState(self.capability_runtime.snapshot.skills),
+                self.cancellation_token,
+            ).definitions()
         try:
             compact_context(
                 self.manager,
                 self.provider,
                 instructions=current_instructions(self.session_context),
-                tools=tool_definitions(),
+                tools=definitions,
                 trigger="manual",
                 event_sink=self._thread_event_sink(),
                 cancellation_token=self.cancellation_token,
@@ -755,6 +813,10 @@ def _tool_status(name: str, arguments: dict[str, Any]) -> str:
 
 
 def _tool_description(name: str, arguments: dict[str, Any]) -> str:
+    if name == "skill":
+        return f"• Loaded Skill\n  └ {_bounded(arguments.get('name', '?'))}"
+    if name.startswith("mcp__"):
+        return f"• Called MCP tool\n  └ {_bounded(name)}"
     if name == "execute":
         return f"• Ran {_bounded(arguments.get('command', '?'))}"
     if name == "search":
@@ -779,6 +841,7 @@ def run_tui(
     *,
     session_handle: SessionHandle | None = None,
     memory_manager: MemoryManager | None = None,
+    capability_runtime: CapabilityRuntime | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -788,4 +851,5 @@ def run_tui(
         context_manager,
         session_handle=session_handle,
         memory_manager=memory_manager,
+        capability_runtime=capability_runtime,
     ).run()

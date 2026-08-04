@@ -41,7 +41,8 @@ Return one JSON object with keys summary and memories. memories is a list of obj
 with type, title, content, and keywords. Valid types are user, feedback, project,
 and reference. Keep only facts, preferences, corrections, conventions, or external
 references that will help future sessions. Exclude current-task progress, facts
-readily derivable from the repository, secrets, credentials, and AGENTS.md rules.
+readily derivable from the repository, secrets, credentials, AGENTS.md rules,
+Skill instructions, Plugin manifests, and MCP tool definitions or schemas.
 Do not call tools and do not wrap the JSON in Markdown."""
 
 CONSOLIDATION_INSTRUCTIONS = """You consolidate candidate coding-agent memories.

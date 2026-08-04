@@ -33,6 +33,8 @@ from coding_kid.events import (
 from coding_kid.parser import parse_output
 from coding_kid.provider import generate, is_context_window_error
 from coding_kid.tools import (
+    DEFAULT_TOOL_REGISTRY,
+    ToolRegistry,
     clear_todos,
     dispatch_tool,
     get_todos,
@@ -111,9 +113,13 @@ def run_turn(
     cancellation_token: CancellationToken | None = None,
     request_context: list[Any] | None = None,
     on_memory_citations: MemoryCitationObserver | None = None,
+    tool_registry: ToolRegistry | None = None,
+    instruction_overlays: tuple[str, ...] = (),
 ) -> str:
     """Run model and tools until the model returns a final text response."""
-    tools = tool_definitions()
+    registry = tool_registry or DEFAULT_TOOL_REGISTRY
+    tools = registry.definitions() if tool_registry is not None else tool_definitions()
+    dispatch = registry.dispatch if tool_registry is not None else dispatch_tool
     manager, compatibility_messages = _manager_for_turn(
         conversation,
         session_context,
@@ -123,7 +129,7 @@ def run_turn(
     empty_responses = 0
     todo_reconciliation_requested = False
     tool_calls_executed = 0
-    instruction_overlays: tuple[str, ...] = ()
+    recovery_overlays: tuple[str, ...] = ()
     reactive_recovery_attempted = False
     emit(event_sink, TurnStarted())
 
@@ -131,7 +137,9 @@ def run_turn(
         for _ in range(max_steps):
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()
-            instructions = current_instructions(context, instruction_overlays)
+            instructions = current_instructions(
+                context, instruction_overlays + recovery_overlays
+            )
 
             if manager.should_auto_compact(instructions, tools):
                 try:
@@ -216,9 +224,9 @@ def run_turn(
                     )
                     if has_incomplete_todo and not todo_reconciliation_requested:
                         todo_reconciliation_requested = True
-                        instruction_overlays = (TODO_RECONCILIATION,)
+                        recovery_overlays = (TODO_RECONCILIATION,)
                         if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
-                            instruction_overlays += (TOOL_BUDGET_RECOVERY,)
+                            recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                         continue
                     if has_incomplete_todo:
                         raise RuntimeError(
@@ -244,9 +252,9 @@ def run_turn(
                 empty_responses += 1
                 if empty_responses >= MAX_EMPTY_RESPONSES:
                     raise RuntimeError("Model returned repeated empty responses")
-                instruction_overlays = (EMPTY_RESPONSE_RECOVERY,)
+                recovery_overlays = (EMPTY_RESPONSE_RECOVERY,)
                 if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
-                    instruction_overlays += (TOOL_BUDGET_RECOVERY,)
+                    recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                 continue
 
             empty_responses = 0
@@ -257,7 +265,7 @@ def run_turn(
                     cancellation_token.raise_if_cancelled()
                 if (
                     tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
-                    and tool_call.name != "todo"
+                    and tool_call.name not in {"todo", "skill"}
                 ):
                     result = (
                         "Tool call skipped: the per-turn tool-call budget was reached. "
@@ -269,8 +277,8 @@ def run_turn(
                         event_sink,
                         ToolStarted(tool_call.name, dict(tool_call.arguments)),
                     )
-                    result = dispatch_tool(tool_call.name, tool_call.arguments)
-                    if tool_call.name != "todo":
+                    result = dispatch(tool_call.name, tool_call.arguments)
+                    if tool_call.name not in {"todo", "skill"}:
                         tool_calls_executed += 1
                     if on_tool is not None:
                         on_tool(tool_call.name, tool_call.arguments, result)
@@ -305,9 +313,7 @@ def run_turn(
                 )
 
             manager.conversation.append_model_round(round_items)
-            instruction_overlays = (
-                (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
-            )
+            recovery_overlays = (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
 
         raise RuntimeError("Agent reached the maximum number of model/tool steps")
     except TurnCancelled as error:

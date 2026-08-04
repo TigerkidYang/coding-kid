@@ -171,9 +171,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     archived_root = ROOT / "versions" / archive / "src" / "coding_kid"
     bundled_root = ROOT / "src" / "coding_kid" / "_runtimes" / version / "coding_kid"
     excluded = (
-        {"__main__.py", "launcher.py"}
-        if version in {"v04", "v05", "v06"}
-        else set()
+        {"__main__.py", "launcher.py"} if version in {"v04", "v05", "v06"} else set()
     )
     archived_files = {
         path.name: path.read_bytes()
@@ -185,9 +183,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     assert bundled_files == archived_files
 
 
-@pytest.mark.parametrize(
-    "version", [None, "v1", "v2", "v3", "v4", "v5", "v6", "v7"]
-)
+@pytest.mark.parametrize("version", [None, "v1", "v2", "v3", "v4", "v5", "v6", "v7"])
 def test_module_launcher_starts_from_unrelated_project(
     version: str | None, tmp_path: Path
 ) -> None:
