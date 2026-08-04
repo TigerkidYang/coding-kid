@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 from typing import Any
 
 from coding_kid.background_tasks import BackgroundTaskManager
@@ -11,10 +12,12 @@ from coding_kid.tools import (
     TodoState,
     ToolRegistry,
     build_tool_registry,
+    build_child_tool_registry,
     dispatch_tool,
     get_todos,
 )
 from coding_kid.terminal import CommandResult
+from coding_kid.events import CancellationToken
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -183,6 +186,8 @@ def test_every_tool_has_model_visible_metadata() -> None:
         "delete",
         "todo",
         "task",
+        "spawn_agent",
+        "agent",
     }
     for name, tool in TOOLS.items():
         assert tool["description"]
@@ -297,6 +302,89 @@ def test_explicit_todo_states_are_isolated() -> None:
     assert root.items == [{"content": "Root", "status": "pending"}]
     assert child.items == [{"content": "Child", "status": "in_progress"}]
     assert get_todos() == []
+
+
+def test_agent_tools_bind_one_manager_and_use_strict_schemas() -> None:
+    calls: list[tuple[Any, ...]] = []
+
+    class FakeAgents:
+        def start(self, description: str, prompt: str) -> Any:
+            calls.append(("start", description, prompt))
+            return SimpleNamespace(model_text=lambda: "agent_id: agent_1")
+
+        def status_text(self) -> str:
+            calls.append(("list",))
+            return "agent_1 running"
+
+        def poll(self, agent_id: str) -> Any:
+            calls.append(("poll", agent_id))
+            return SimpleNamespace(model_text=lambda: "status: completed")
+
+        def wait(self, agent_id: str, timeout: float, token: Any) -> Any:
+            calls.append(("wait", agent_id, timeout, token))
+            snapshot = SimpleNamespace(
+                model_text=lambda wait_timed_out=False: (
+                    f"wait_timed_out: {str(wait_timed_out).lower()}"
+                )
+            )
+            return snapshot, True
+
+        def followup(self, agent_id: str, message: str) -> Any:
+            calls.append(("followup", agent_id, message))
+            return SimpleNamespace(model_text=lambda: "status: starting")
+
+        def stop(self, agent_id: str, timeout: float) -> Any:
+            calls.append(("stop", agent_id, timeout))
+            return SimpleNamespace(model_text=lambda: "status: stopped")
+
+    token = CancellationToken()
+    registry = build_tool_registry(
+        todo_state=TodoState(),
+        cancellation_token=token,
+        agent_manager=FakeAgents(),
+    )
+
+    assert (
+        registry.dispatch(
+            "spawn_agent", {"description": "inspect", "prompt": "read it"}
+        )
+        == "agent_id: agent_1"
+    )
+    assert (
+        registry.dispatch(
+            "agent",
+            {
+                "action": "wait",
+                "agent_id": "agent_1",
+                "message": None,
+                "timeout_seconds": 3,
+            },
+        )
+        == "wait_timed_out: true"
+    )
+    definitions = {item["name"]: item for item in registry.definitions()}
+    assert definitions["spawn_agent"]["strict"] is True
+    assert definitions["agent"]["parameters"]["required"] == [
+        "action",
+        "agent_id",
+        "message",
+        "timeout_seconds",
+    ]
+    assert calls == [
+        ("start", "inspect", "read it"),
+        ("wait", "agent_1", 3, token),
+    ]
+
+
+def test_child_registry_excludes_agent_and_background_controls() -> None:
+    registry = build_child_tool_registry(TodoState(), CancellationToken())
+
+    assert "spawn_agent" not in registry.names
+    assert "agent" not in registry.names
+    assert "task" not in registry.names
+    execute = next(item for item in registry.definitions() if item["name"] == "execute")
+    assert execute["parameters"]["required"] == ["command"]
+    assert "background" not in execute["parameters"]["properties"]
 
 
 def test_todo_can_clear_a_finished_checklist() -> None:

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.events import CancellationToken
 from coding_kid.terminal import run_command
+
+if TYPE_CHECKING:
+    from coding_kid.agents import AgentManager
 
 ToolFunction = Callable[..., str]
 ToolEntry = dict[str, Any]
@@ -66,6 +69,54 @@ def task(
         task_id,
         timeout_seconds,
         cancellation_token,
+    )
+    return snapshot.model_text(wait_timed_out=timed_out)
+
+
+def spawn_agent(
+    description: str,
+    prompt: str,
+    *,
+    agent_manager: AgentManager | None = None,
+) -> str:
+    """Start one process-local child Agent."""
+    if agent_manager is None:
+        raise RuntimeError("Child Agent runtime is not active")
+    return agent_manager.start(description, prompt).model_text()
+
+
+def agent(
+    action: str,
+    agent_id: str | None,
+    message: str | None,
+    timeout_seconds: float,
+    *,
+    agent_manager: AgentManager | None = None,
+    cancellation_token: CancellationToken | None = None,
+) -> str:
+    """Inspect, wait for, continue, or stop a process-local child Agent."""
+    if agent_manager is None:
+        raise RuntimeError("Child Agent runtime is not active")
+    if action == "list":
+        if agent_id is not None or message is not None:
+            raise ValueError("agent_id and message must be null for list")
+        return agent_manager.status_text()
+    if action not in {"poll", "wait", "followup", "stop"}:
+        raise ValueError("action must be list, poll, wait, followup, or stop")
+    if not agent_id:
+        raise ValueError(f"agent_id is required for {action}")
+    if action != "followup" and message is not None:
+        raise ValueError(f"message must be null for {action}")
+    if action == "poll":
+        return agent_manager.poll(agent_id).model_text()
+    if action == "followup":
+        if not message:
+            raise ValueError("message is required for followup")
+        return agent_manager.followup(agent_id, message).model_text()
+    if action == "stop":
+        return agent_manager.stop(agent_id, timeout_seconds).model_text()
+    snapshot, timed_out = agent_manager.wait(
+        agent_id, timeout_seconds, cancellation_token
     )
     return snapshot.model_text(wait_timed_out=timed_out)
 
@@ -382,6 +433,69 @@ TOOLS: dict[str, ToolEntry] = {
         },
         "function": todo,
     },
+    "spawn_agent": {
+        "description": (
+            "Start an independent child Agent for one concrete, self-contained "
+            "subtask. It runs asynchronously in the shared working directory. "
+            "Use multiple calls for independent parallel work; avoid overlapping "
+            "writes and do not delegate trivial operations."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                },
+                "prompt": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 12_000,
+                },
+            },
+            "required": ["description", "prompt"],
+            "additionalProperties": False,
+        },
+        "function": spawn_agent,
+    },
+    "agent": {
+        "description": (
+            "Manage process-local child Agents. list and poll return immediately; "
+            "wait blocks for at most 30 seconds without stopping work; followup "
+            "reuses a finished Agent's context; stop requests bounded cooperative "
+            "cancellation. Completion does not prove correctness—inspect results."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["list", "poll", "wait", "followup", "stop"],
+                },
+                "agent_id": {"type": ["string", "null"], "minLength": 1},
+                "message": {
+                    "type": ["string", "null"],
+                    "minLength": 1,
+                    "maxLength": 12_000,
+                },
+                "timeout_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 30,
+                    "default": 10,
+                },
+            },
+            "required": [
+                "action",
+                "agent_id",
+                "message",
+                "timeout_seconds",
+            ],
+            "additionalProperties": False,
+        },
+        "function": agent,
+    },
     "task": {
         "description": (
             "Manage process-local background shell tasks. list and poll return "
@@ -460,9 +574,10 @@ def build_tool_registry(
     task_manager: BackgroundTaskManager | None = None,
     cancellation_token: CancellationToken | None = None,
     todo_state: TodoState | None = None,
+    agent_manager: AgentManager | None = None,
 ) -> ToolRegistry:
     """Bind process-local task state to one immutable per-turn registry."""
-    if task_manager is None and todo_state is None:
+    if task_manager is None and todo_state is None and agent_manager is None:
         return DEFAULT_TOOL_REGISTRY
     entries = {name: dict(entry) for name, entry in TOOLS.items()}
     if todo_state is not None:
@@ -482,6 +597,49 @@ def build_tool_registry(
                 cancellation_token=cancellation_token,
             )
         )
+    if agent_manager is not None:
+        entries["spawn_agent"]["function"] = lambda description, prompt: spawn_agent(
+            description, prompt, agent_manager=agent_manager
+        )
+        entries["agent"]["function"] = (
+            lambda action, agent_id, message, timeout_seconds: agent(
+                action,
+                agent_id,
+                message,
+                timeout_seconds,
+                agent_manager=agent_manager,
+                cancellation_token=cancellation_token,
+            )
+        )
+    return ToolRegistry(entries)
+
+
+def build_child_tool_registry(
+    todo_state: TodoState,
+    cancellation_token: CancellationToken,
+) -> ToolRegistry:
+    """Build a child-only registry without Agent or background task controls."""
+    excluded = {"task", "spawn_agent", "agent"}
+    entries = {
+        name: dict(entry) for name, entry in TOOLS.items() if name not in excluded
+    }
+    entries["execute"] = {
+        "description": (
+            "Run one non-interactive Windows PowerShell command in the shared "
+            "working directory. Output is bounded and the process tree is "
+            "terminated on timeout or Agent cancellation."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"command": {"type": "string", "minLength": 1}},
+            "required": ["command"],
+            "additionalProperties": False,
+        },
+        "function": lambda command: run_command(
+            command, cancellation_token=cancellation_token
+        ).model_text(),
+    }
+    entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     return ToolRegistry(entries)
 
 

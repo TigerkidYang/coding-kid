@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.compaction import compact_context
@@ -42,6 +42,9 @@ from coding_kid.tools import (
     get_todos,
     tool_definitions,
 )
+
+if TYPE_CHECKING:
+    from coding_kid.agents import AgentManager
 
 SYSTEM_PROMPT = BASE_INSTRUCTIONS
 
@@ -121,6 +124,7 @@ def run_turn(
     background_tasks: BackgroundTaskManager | None = None,
     todo_state: TodoState | None = None,
     max_tool_calls: int = MAX_TOOL_CALLS_PER_TURN,
+    agent_manager: AgentManager | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     registry = tool_registry or DEFAULT_TOOL_REGISTRY
@@ -148,7 +152,12 @@ def run_turn(
                 if background_tasks is not None
                 else ""
             )
-            task_overlay = (task_summary,) if task_summary else ()
+            agent_summary = (
+                agent_manager.prompt_summary() if agent_manager is not None else ""
+            )
+            task_overlay = tuple(
+                summary for summary in (task_summary, agent_summary) if summary
+            )
             instructions = current_instructions(
                 context,
                 instruction_overlays + task_overlay + recovery_overlays,

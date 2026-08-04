@@ -5,10 +5,12 @@ import os
 from pathlib import Path
 import shlex
 import sys
+import threading
 import time
 
 import pytest
 
+from coding_kid.events import CancellationToken
 from coding_kid.terminal import (
     COMMAND_OUTPUT_MAX_BYTES,
     TIMEOUT_EXIT_CODE,
@@ -107,6 +109,34 @@ def test_head_tail_capture_is_bounded_before_model_formatting() -> None:
     assert rendered.startswith(b"a")
     assert rendered.endswith(b"z" * 100)
     assert b"output bytes omitted" in rendered
+
+
+def test_cancellation_terminates_the_tree_and_preserves_partial_output(
+    tmp_path: Path,
+) -> None:
+    script = tmp_path / "cancel.py"
+    marker = tmp_path / "late.txt"
+    script.write_text(
+        "import pathlib, time\n"
+        "print('ready evidence', flush=True)\n"
+        "time.sleep(5)\n"
+        f"pathlib.Path({str(marker)!r}).write_text('late')\n",
+        encoding="utf-8",
+    )
+    token = CancellationToken()
+    timer = threading.Timer(0.3, token.cancel)
+    timer.start()
+    try:
+        result = run_command(
+            f'& "{sys.executable}" "{script}"', cancellation_token=token
+        )
+    finally:
+        timer.cancel()
+
+    assert result.cancelled
+    assert "ready evidence" in result.stdout
+    time.sleep(0.2)
+    assert not marker.exists()
 
 
 def test_decode_prefers_utf8_then_legacy_encoding(monkeypatch) -> None:

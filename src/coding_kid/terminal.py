@@ -12,10 +12,13 @@ import threading
 import time
 import xml.etree.ElementTree as ElementTree
 
+from coding_kid.events import CancellationToken, TurnCancelled
+
 COMMAND_TIMEOUT_SECONDS = 120.0
 COMMAND_OUTPUT_MAX_BYTES = 1_000_000
 IO_DRAIN_TIMEOUT_SECONDS = 2.0
 TIMEOUT_EXIT_CODE = 124
+CANCELLED_EXIT_CODE = 125
 _CREATE_SUSPENDED = 0x00000004
 
 
@@ -61,11 +64,13 @@ class CommandResult:
     stderr: str
     timed_out: bool
     duration_seconds: float
+    cancelled: bool = False
 
     def model_text(self) -> str:
         return (
             f"exit_code: {self.exit_code}\n"
             f"timed_out: {str(self.timed_out).lower()}\n"
+            f"cancelled: {str(self.cancelled).lower()}\n"
             f"duration_seconds: {self.duration_seconds:.3f}\n"
             f"stdout:\n{self.stdout.rstrip()}\n"
             f"stderr:\n{self.stderr.rstrip()}"
@@ -76,6 +81,7 @@ def run_command(
     command: str,
     *,
     timeout_seconds: float = COMMAND_TIMEOUT_SECONDS,
+    cancellation_token: CancellationToken | None = None,
 ) -> CommandResult:
     """Run a non-interactive command with bounded byte capture and cleanup."""
     if not command:
@@ -107,9 +113,27 @@ def run_command(
         reader.start()
 
     timed_out = False
+    cancelled = False
     try:
         try:
-            exit_code = process.wait(timeout=timeout_seconds)
+            if cancellation_token is None:
+                exit_code = process.wait(timeout=timeout_seconds)
+            else:
+                deadline = time.monotonic() + timeout_seconds
+                while True:
+                    cancellation_token.raise_if_cancelled()
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout_seconds)
+                    try:
+                        exit_code = process.wait(timeout=min(0.05, remaining))
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+        except TurnCancelled:
+            cancelled = True
+            _terminate_process_tree(process)
+            exit_code = CANCELLED_EXIT_CODE
         except subprocess.TimeoutExpired:
             timed_out = True
             _terminate_process_tree(process)
@@ -130,6 +154,7 @@ def run_command(
         stderr=stderr_text,
         timed_out=timed_out,
         duration_seconds=time.monotonic() - started,
+        cancelled=cancelled,
     )
 
 

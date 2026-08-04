@@ -38,6 +38,11 @@ Use execute with background=true only when its result is not needed immediately.
 Use the task tool to list, poll, wait for, or stop background work. A started
 process is not proof that a server is ready: inspect its output or run a concrete
 health probe. Do not busy-poll or use repeated sleep commands while waiting.
+Use spawn_agent only for concrete, independent subtasks that can usefully run in
+parallel. Each child prompt must be self-contained because children cannot see
+this conversation. Child Agents share the working directory: never delegate
+overlapping writes concurrently. Use agent to inspect, wait, continue, or stop
+them, and verify their evidence before synthesizing a result.
 When the task is complete, explain the result clearly and briefly."""
 
 

@@ -86,6 +86,7 @@ class CapabilityRuntime:
         self.snapshot = snapshot
         self.context_window = context_window
         self._event_sink = event_sink
+        self._event_lock = threading.RLock()
         self._events: list[TurnEvent] = []
         self._warnings = list(snapshot.warnings)
         for warning in snapshot.warnings:
@@ -156,7 +157,8 @@ class CapabilityRuntime:
 
     @property
     def warnings(self) -> tuple[str, ...]:
-        return tuple(self._warnings)
+        with self._event_lock:
+            return tuple(self._warnings)
 
     @property
     def statuses(self) -> tuple[MCPServerStatus, ...]:
@@ -168,7 +170,8 @@ class CapabilityRuntime:
 
     @property
     def events(self) -> tuple[TurnEvent, ...]:
-        return tuple(self._events)
+        with self._event_lock:
+            return tuple(self._events)
 
     def skill_metadata(self) -> str:
         return self.snapshot.skills.render(self.context_window)
@@ -330,7 +333,8 @@ class CapabilityRuntime:
         self._tools = self._select_tools(discovered)
 
     def _record_event(self, event: TurnEvent) -> None:
-        self._events.append(event)
+        with self._event_lock:
+            self._events.append(event)
         emit(self._event_sink, event)
 
     async def _connect_server(self, config: MCPServerConfig) -> list[MCPTool]:
