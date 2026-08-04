@@ -139,8 +139,9 @@ Run the archive procedure when the user explicitly indicates that:
 - The project is ready to begin the next version or stage.
 
 These statements authorize the normal local archive procedure. They do not
-authorize a push, history rewrite, destructive cleanup, or changes unrelated to
-the version transition.
+authorize a history rewrite, destructive cleanup, or changes unrelated to the
+version transition. After the archive and verification steps succeed, they also
+authorize a normal non-force push of the completed branch and version tags.
 
 ## Archive Procedure
 
@@ -157,7 +158,9 @@ When a version-completion trigger occurs, the agent must:
 8. Add its `README.md` and commit the archive.
 9. Create an annotated tag named `version-NN-short-name` on the archive commit.
 10. Confirm that the tag and archive resolve to the intended version.
-11. Continue future development from the root implementation on `main`.
+11. Push the completed branch and version tags with ordinary non-force Git
+    commands.
+12. Continue future development from the root implementation on `main`.
 
 The agent reports the resulting commits and tag to the user.
 
@@ -192,11 +195,15 @@ Standing authorization covers:
 - Routine local commits for coherent progress.
 - Completed-version directory creation.
 - Annotated version tags triggered by version completion.
+- A normal non-force push of the completed branch and version tags after the
+  user explicitly confirms that the stage is complete.
 
 Explicit user permission is still required for:
 
-- Pushing commits or tags.
+- Pushing work before stage-completion confirmation or outside the completed
+  stage's scope.
 - Creating or publishing hosted releases.
+- Force-pushing.
 - Rebasing or otherwise rewriting shared history.
 - Deleting or moving branches and tags.
 - Discarding changes or destructive cleanup.

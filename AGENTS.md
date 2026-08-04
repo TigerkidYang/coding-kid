@@ -123,9 +123,11 @@ Agents must not assume permission to:
 
 Routine local commits, completed-version snapshots, and annotated version tags
 are standing delegated responsibilities under `docs/VERSIONING.md`; they do not
-require the user to repeat the authorization each time. Pushing, rewriting
-history, deleting or moving tags, and other destructive Git operations remain
-outside that standing authorization.
+require the user to repeat the authorization each time. Once the user explicitly
+confirms that a stage is complete, that confirmation also authorizes a normal
+non-force push of the completed work and its version tags according to
+`docs/VERSIONING.md`. Rewriting history, deleting or moving tags, and other
+destructive Git operations remain outside that standing authorization.
 
 ## Benchmark and Spending Authorization
 
@@ -204,7 +206,9 @@ In particular:
 - Preserve each completed major version under `versions/` and with an annotated
   Git tag.
 - Do not overwrite user changes or mix unrelated work into a commit.
-- Do not push or perform destructive Git operations without explicit permission.
+- After the user confirms a stage is complete, push its completed commits and
+  version tags normally. Never force-push or perform destructive Git operations
+  without separate explicit permission.
 
 ## Documentation Style
 
