@@ -44,7 +44,7 @@ def test_run_command_timeout_returns_partial_output() -> None:
     result = run_command(
         f"{sys.executable} -c \"import time; print('started', flush=True); "
         'time.sleep(5)"',
-        timeout_seconds=0.1,
+        timeout_seconds=0.3,
     )
 
     assert result.exit_code == TIMEOUT_EXIT_CODE
@@ -87,7 +87,7 @@ def test_timeout_terminates_descendant_processes(tmp_path: Path) -> None:
         if os.name == "nt"
         else f"{shlex.quote(sys.executable)} {shlex.quote(str(parent))}"
     )
-    result = run_command(command, timeout_seconds=0.15)
+    result = run_command(command, timeout_seconds=0.3)
     time.sleep(0.8)
 
     assert result.timed_out

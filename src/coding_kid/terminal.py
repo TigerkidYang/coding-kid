@@ -16,6 +16,7 @@ COMMAND_TIMEOUT_SECONDS = 120.0
 COMMAND_OUTPUT_MAX_BYTES = 1_000_000
 IO_DRAIN_TIMEOUT_SECONDS = 2.0
 TIMEOUT_EXIT_CODE = 124
+_CREATE_SUSPENDED = 0x00000004
 
 
 class _HeadTailBytes:
@@ -83,7 +84,7 @@ def run_command(
         raise ValueError("timeout_seconds must be positive")
 
     started = time.monotonic()
-    process = spawn_command(command)
+    process = spawn_command(command, process_job=True)
     assert process.stdout is not None
     assert process.stderr is not None
     stdout = _HeadTailBytes(COMMAND_OUTPUT_MAX_BYTES)
@@ -143,9 +144,12 @@ def spawn_command(
     environment["PYTHONUTF8"] = "1"
     process_options: dict[str, object] = {}
     if os.name == "nt":
-        process_options["creationflags"] = (
+        creationflags = (
             subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
         )
+        if process_job:
+            creationflags |= _CREATE_SUSPENDED
+        process_options["creationflags"] = creationflags
     else:
         process_options["start_new_session"] = True
     process = subprocess.Popen(
@@ -157,7 +161,14 @@ def spawn_command(
         **process_options,
     )
     if os.name == "nt" and process_job:
-        _attach_windows_job(process)
+        try:
+            _attach_windows_job(process)
+            _resume_windows_process(process)
+        except BaseException:
+            process.kill()
+            process.wait()
+            _close_windows_job(process)
+            raise
     return process
 
 
@@ -235,7 +246,10 @@ def _finish_readers(
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
     if os.name == "nt":
-        if not _terminate_windows_job(process) and process.poll() is None:
+        # Use both boundaries. taskkill sees descendants that may have started
+        # just before Job assignment; the Job catches descendants created while
+        # taskkill is enumerating the tree.
+        if process.poll() is None:
             try:
                 subprocess.run(
                     ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
@@ -248,6 +262,7 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
                 )
             except (OSError, subprocess.SubprocessError):
                 pass
+        _terminate_windows_job(process)
     else:
         if process.poll() is not None:
             return
@@ -337,6 +352,60 @@ def _attach_windows_job(process: subprocess.Popen[bytes]) -> None:
         kernel32.CloseHandle(job)
         return
     setattr(process, "_coding_kid_job", job)
+
+
+def _resume_windows_process(process: subprocess.Popen[bytes]) -> None:
+    """Resume every initial thread after the process enters its Job Object."""
+    import ctypes
+    from ctypes import wintypes
+
+    class ThreadEntry32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ThreadID", wintypes.DWORD),
+            ("th32OwnerProcessID", wintypes.DWORD),
+            ("tpBasePri", wintypes.LONG),
+            ("tpDeltaPri", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Thread32First.argtypes = [wintypes.HANDLE, ctypes.POINTER(ThreadEntry32)]
+    kernel32.Thread32First.restype = wintypes.BOOL
+    kernel32.Thread32Next.argtypes = [wintypes.HANDLE, ctypes.POINTER(ThreadEntry32)]
+    kernel32.Thread32Next.restype = wintypes.BOOL
+    kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenThread.restype = wintypes.HANDLE
+    kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
+    kernel32.ResumeThread.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000004, 0)
+    invalid_handle = ctypes.c_void_p(-1).value
+    if not snapshot or snapshot == invalid_handle:
+        raise OSError(ctypes.get_last_error(), "Could not enumerate process threads")
+    resumed = False
+    try:
+        entry = ThreadEntry32(dwSize=ctypes.sizeof(ThreadEntry32))
+        has_entry = bool(kernel32.Thread32First(snapshot, ctypes.byref(entry)))
+        while has_entry:
+            if entry.th32OwnerProcessID == process.pid:
+                thread = kernel32.OpenThread(0x0002, False, entry.th32ThreadID)
+                if thread:
+                    try:
+                        if kernel32.ResumeThread(thread) != 0xFFFFFFFF:
+                            resumed = True
+                    finally:
+                        kernel32.CloseHandle(thread)
+            has_entry = bool(kernel32.Thread32Next(snapshot, ctypes.byref(entry)))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    if not resumed:
+        raise OSError(ctypes.get_last_error(), "Could not resume command process")
 
 
 def _terminate_windows_job(process: subprocess.Popen[bytes]) -> bool:
