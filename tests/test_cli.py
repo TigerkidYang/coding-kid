@@ -282,7 +282,7 @@ def test_format_tool_call_keeps_each_action_compact() -> None:
 
 
 def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
-    from coding_kid.tools import get_todos, set_todos
+    from coding_kid.tools import TodoState
 
     inputs = iter(["first task", "second task", "/exit"])
     received_messages: list[list[Any]] = []
@@ -292,24 +292,27 @@ def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
         on_tool: Any,
         on_context: Any,
         session_context: Any,
+        todo_state: TodoState,
     ) -> str:
         received_messages.append(manager.conversation.active_items())
         if len(received_messages) == 1:
-            set_todos([{"content": "Keep me", "status": "pending"}])
+            todo_state.replace([{"content": "Keep me", "status": "pending"}])
             return "First task completed."
         if len(received_messages) == 2:
-            set_todos([{"content": "Temporary", "status": "in_progress"}])
+            todo_state.replace([{"content": "Temporary", "status": "in_progress"}])
             raise RuntimeError("failed")
         raise AssertionError("unexpected turn")
 
     monkeypatch.setattr(cli, "run_turn", fake_run_turn)
 
+    state = TodoState()
     cli.chat(
         input_function=lambda prompt: next(inputs),
         output_function=lambda text: None,
+        todo_state=state,
     )
 
-    assert get_todos() == [{"content": "Keep me", "status": "pending"}]
+    assert state.items == [{"content": "Keep me", "status": "pending"}]
     assert received_messages[1] == [
         {"role": "user", "content": "first task"},
         {"role": "user", "content": "second task"},
@@ -317,16 +320,16 @@ def test_chat_rolls_back_todos_with_a_failed_turn(monkeypatch: Any) -> None:
 
 
 def test_chat_starts_with_a_fresh_todo_session() -> None:
-    from coding_kid.tools import get_todos, set_todos
+    from coding_kid.tools import TodoState
 
-    set_todos([{"content": "Old session", "status": "pending"}])
-
+    state = TodoState()
     cli.chat(
         input_function=lambda prompt: "/exit",
         output_function=lambda text: None,
+        todo_state=state,
     )
 
-    assert get_todos() == []
+    assert state.items == []
 
 
 def test_chat_reuses_one_session_context_for_all_turns(monkeypatch: Any) -> None:

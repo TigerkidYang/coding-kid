@@ -43,7 +43,7 @@ from coding_kid.memory import MemoryManager, MemorySyncResult
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.skills import SkillTurnState, explicit_skill_names
-from coding_kid.tools import build_tool_registry, get_todos, set_todos
+from coding_kid.tools import TodoState, build_tool_registry
 
 Provider = Callable[..., Any]
 
@@ -194,6 +194,7 @@ class CodingKidApp(App[None]):
         memory_manager: MemoryManager | None = None,
         capability_runtime: CapabilityRuntime | None = None,
         background_tasks: BackgroundTaskManager | None = None,
+        todo_state: TodoState | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -204,6 +205,9 @@ class CodingKidApp(App[None]):
         self.memory_manager = memory_manager
         self.capability_runtime = capability_runtime
         self.background_tasks = background_tasks or BackgroundTaskManager()
+        self.todo_state = todo_state or TodoState(
+            session_handle.todos if session_handle is not None else None
+        )
         self._owns_background_tasks = background_tasks is None
         self.active_turn = False
         self.cancellation_token: CancellationToken | None = None
@@ -335,7 +339,7 @@ class CodingKidApp(App[None]):
 
     def _run_turn(self, user_text: str) -> None:
         turn_start = self.manager.clone()
-        todos_start = get_todos()
+        todos_start = self.todo_state.items
         token = self.cancellation_token
         request_context: list[Any] = []
         recalled_ids: tuple[str, ...] = ()
@@ -344,7 +348,7 @@ class CodingKidApp(App[None]):
                 user_text
             )
         skill_state: SkillTurnState | None = None
-        registry = build_tool_registry(self.background_tasks, token)
+        registry = build_tool_registry(self.background_tasks, token, self.todo_state)
         overlays: tuple[str, ...] = ()
         if self.capability_runtime is not None:
             skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
@@ -384,6 +388,7 @@ class CodingKidApp(App[None]):
                 ),
                 "tool_registry": registry,
                 "instruction_overlays": overlays,
+                "todo_state": self.todo_state,
             }
             if "background_tasks" in inspect.signature(run_turn).parameters:
                 turn_options["background_tasks"] = self.background_tasks
@@ -394,7 +399,7 @@ class CodingKidApp(App[None]):
             )
         except BaseException as error:
             self.manager.restore(turn_start)
-            set_todos(todos_start)
+            self.todo_state.replace(todos_start)
             if self.session_handle is not None:
                 try:
                     self.session_handle.record_aborted(user_text, str(error))
@@ -405,7 +410,7 @@ class CodingKidApp(App[None]):
                     )
         else:
             if self.session_handle is not None:
-                self.session_handle.todos = get_todos()
+                self.session_handle.todos = self.todo_state.items
                 try:
                     self.session_handle.commit_state()
                 except BaseException as error:
@@ -536,7 +541,9 @@ class CodingKidApp(App[None]):
         )
 
     def _show_context(self) -> None:
-        base_registry = build_tool_registry(self.background_tasks)
+        base_registry = build_tool_registry(
+            self.background_tasks, todo_state=self.todo_state
+        )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
         overlays: tuple[str, ...] = (task_summary,) if task_summary else ()
@@ -548,7 +555,8 @@ class CodingKidApp(App[None]):
             metadata = self.capability_runtime.skill_metadata()
             overlays = (*overlays, *((metadata,) if metadata else ()))
         status = self.manager.status_text(
-            current_instructions(self.session_context, overlays), definitions
+            current_instructions(self.session_context, overlays, self.todo_state),
+            definitions,
         )
         self._append_cell(
             Static(
@@ -749,6 +757,7 @@ class CodingKidApp(App[None]):
         base_registry = build_tool_registry(
             self.background_tasks,
             self.cancellation_token,
+            self.todo_state,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
@@ -765,7 +774,9 @@ class CodingKidApp(App[None]):
             compact_context(
                 self.manager,
                 self.provider,
-                instructions=current_instructions(self.session_context, overlays),
+                instructions=current_instructions(
+                    self.session_context, overlays, self.todo_state
+                ),
                 tools=definitions,
                 trigger="manual",
                 event_sink=self._thread_event_sink(),
@@ -785,7 +796,7 @@ class CodingKidApp(App[None]):
             )
         else:
             if self.session_handle is not None:
-                self.session_handle.todos = get_todos()
+                self.session_handle.todos = self.todo_state.items
                 try:
                     self.session_handle.commit_state(kind="context_committed")
                 except BaseException as error:
@@ -956,6 +967,7 @@ def run_tui(
     memory_manager: MemoryManager | None = None,
     capability_runtime: CapabilityRuntime | None = None,
     background_tasks: BackgroundTaskManager | None = None,
+    todo_state: TodoState | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -967,4 +979,5 @@ def run_tui(
         memory_manager=memory_manager,
         capability_runtime=capability_runtime,
         background_tasks=background_tasks,
+        todo_state=todo_state,
     ).run()

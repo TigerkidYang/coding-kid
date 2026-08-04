@@ -8,6 +8,7 @@ from coding_kid.tools import (
     MAX_TODO_ITEMS,
     MAX_TOOL_OUTPUT_CHARS,
     TOOLS,
+    TodoState,
     ToolRegistry,
     build_tool_registry,
     dispatch_tool,
@@ -279,6 +280,23 @@ def test_todo_replaces_the_full_checklist() -> None:
     )
     assert "1. [completed] Inspect bug" in second
     assert get_todos()[1]["status"] == "in_progress"
+
+
+def test_explicit_todo_states_are_isolated() -> None:
+    root = TodoState([{"content": "Root", "status": "pending"}])
+    child = TodoState()
+    root_registry = build_tool_registry(todo_state=root)
+    child_registry = build_tool_registry(todo_state=child)
+    assert "todo" in root_registry.names
+
+    child_registry.dispatch(
+        "todo",
+        {"todos": [{"content": "Child", "status": "in_progress"}]},
+    )
+
+    assert root.items == [{"content": "Root", "status": "pending"}]
+    assert child.items == [{"content": "Child", "status": "in_progress"}]
+    assert get_todos() == []
 
 
 def test_todo_can_clear_a_finished_checklist() -> None:

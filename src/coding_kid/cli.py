@@ -18,7 +18,7 @@ from coding_kid.memory import MemoryManager
 from coding_kid.provider import generate
 from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
 from coding_kid.skills import SkillTurnState, explicit_skill_names
-from coding_kid.tools import build_tool_registry, clear_todos, get_todos, set_todos
+from coding_kid.tools import TodoState, build_tool_registry
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
@@ -109,6 +109,7 @@ def chat(
     memory_manager: MemoryManager | None = None,
     capability_runtime: CapabilityRuntime | None = None,
     background_tasks: BackgroundTaskManager | None = None,
+    todo_state: TodoState | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     output_function = _safe_output_function(output_function)
@@ -121,12 +122,12 @@ def chat(
         except RuntimeError as error:
             output_function(f"Error: {error}")
             return
-        clear_todos()
+        todo_state = todo_state or TodoState()
         ready = "Coding Kid is ready. Type /exit to quit."
     else:
         session_context = session_handle.context
         manager = session_handle.manager
-        set_todos(session_handle.todos)
+        todo_state = todo_state or TodoState(session_handle.todos)
         ready = (
             f"Coding Kid is ready. Session {session_handle.info.session_id[:8]}. "
             "Type /exit to quit."
@@ -188,7 +189,7 @@ def chat(
                 background_tasks.drain_events()
             continue
         if user_input == "/context":
-            base_registry = build_tool_registry(background_tasks)
+            base_registry = build_tool_registry(background_tasks, todo_state=todo_state)
             definitions = base_registry.definitions()
             context_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
@@ -200,7 +201,7 @@ def chat(
                 context_overlays = (metadata,) if metadata else ()
             output_function(
                 manager.status_text(
-                    current_instructions(session_context, context_overlays),
+                    current_instructions(session_context, context_overlays, todo_state),
                     definitions,
                 )
             )
@@ -304,7 +305,7 @@ def chat(
             continue
         if user_input == "/compact":
             snapshot = manager.clone()
-            base_registry = build_tool_registry(background_tasks)
+            base_registry = build_tool_registry(background_tasks, todo_state=todo_state)
             definitions = base_registry.definitions()
             compact_overlays: tuple[str, ...] = ()
             if capability_runtime is not None:
@@ -319,7 +320,7 @@ def chat(
                     manager,
                     generate,
                     instructions=current_instructions(
-                        session_context, compact_overlays
+                        session_context, compact_overlays, todo_state
                     ),
                     tools=definitions,
                     trigger="manual",
@@ -333,7 +334,7 @@ def chat(
                 output_function(f"Error: {error}")
             else:
                 if session_handle is not None:
-                    session_handle.todos = get_todos()
+                    session_handle.todos = todo_state.items
                     try:
                         session_handle.commit_state(kind="context_committed")
                     except Exception as error:
@@ -342,13 +343,13 @@ def chat(
             continue
 
         turn_start = manager.clone()
-        todos_start = get_todos()
+        todos_start = todo_state.items
         request_context: list[Any] = []
         recalled_ids: tuple[str, ...] = ()
         if memory_manager is not None:
             request_context, recalled_ids = memory_manager.recall_context(user_input)
         skill_state: SkillTurnState | None = None
-        registry = build_tool_registry(background_tasks)
+        registry = build_tool_registry(background_tasks, todo_state=todo_state)
         overlays: tuple[str, ...] = ()
         if capability_runtime is not None:
             skill_state = SkillTurnState(capability_runtime.snapshot.skills)
@@ -384,6 +385,8 @@ def chat(
                 turn_options["tool_registry"] = registry
             if "background_tasks" in parameters:
                 turn_options["background_tasks"] = background_tasks
+            if "todo_state" in parameters:
+                turn_options["todo_state"] = todo_state
             if capability_runtime is not None and "instruction_overlays" in parameters:
                 turn_options["instruction_overlays"] = overlays
             answer = run_turn(
@@ -397,7 +400,7 @@ def chat(
                 raise RuntimeError("Model returned an empty answer")
         except KeyboardInterrupt:
             manager.restore(turn_start)
-            set_todos(todos_start)
+            todo_state.replace(todos_start)
             if session_handle is not None:
                 try:
                     session_handle.record_aborted(user_input, "interrupted")
@@ -407,7 +410,7 @@ def chat(
             continue
         except Exception as error:
             manager.restore(turn_start)
-            set_todos(todos_start)
+            todo_state.replace(todos_start)
             if session_handle is not None:
                 try:
                     session_handle.record_aborted(user_input, str(error))
@@ -417,7 +420,7 @@ def chat(
             continue
 
         if session_handle is not None:
-            session_handle.todos = get_todos()
+            session_handle.todos = todo_state.items
             try:
                 session_handle.commit_state()
             except Exception as error:
@@ -484,7 +487,6 @@ def _open_session(
         handle = session_store.resume(options.session_id)
     else:
         manager = ContextManager.capture(current)
-        clear_todos()
         handle = session_store.create(current, manager, [])
     if handle.context.cwd != current.cwd:
         handle.close()

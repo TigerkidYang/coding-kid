@@ -35,6 +35,7 @@ from coding_kid.parser import parse_output
 from coding_kid.provider import generate, is_context_window_error
 from coding_kid.tools import (
     DEFAULT_TOOL_REGISTRY,
+    TodoState,
     ToolRegistry,
     clear_todos,
     dispatch_tool,
@@ -75,12 +76,13 @@ MAX_TOOL_CALLS_PER_TURN = 64
 def current_instructions(
     session_context: SessionContext | None = None,
     overlays: tuple[str, ...] = (),
+    todo_state: TodoState | None = None,
 ) -> str:
     """Build stable runtime instructions plus current dynamic guidance."""
     context = session_context or SessionContext.capture()
     return build_instructions(
         context,
-        get_todos(),
+        todo_state.items if todo_state is not None else get_todos(),
         overlays,
         base_instructions=SYSTEM_PROMPT,
     )
@@ -117,6 +119,8 @@ def run_turn(
     tool_registry: ToolRegistry | None = None,
     instruction_overlays: tuple[str, ...] = (),
     background_tasks: BackgroundTaskManager | None = None,
+    todo_state: TodoState | None = None,
+    max_tool_calls: int = MAX_TOOL_CALLS_PER_TURN,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     registry = tool_registry or DEFAULT_TOOL_REGISTRY
@@ -148,6 +152,7 @@ def run_turn(
             instructions = current_instructions(
                 context,
                 instruction_overlays + task_overlay + recovery_overlays,
+                todo_state,
             )
 
             if manager.should_auto_compact(instructions, tools):
@@ -227,14 +232,14 @@ def run_turn(
             if not parsed.tool_calls:
                 manager.conversation.append_model_round(round_items)
                 if parsed.text.strip():
-                    todos = get_todos()
+                    todos = todo_state.items if todo_state is not None else get_todos()
                     has_incomplete_todo = any(
                         item["status"] != "completed" for item in todos
                     )
                     if has_incomplete_todo and not todo_reconciliation_requested:
                         todo_reconciliation_requested = True
                         recovery_overlays = (TODO_RECONCILIATION,)
-                        if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                        if tool_calls_executed >= max_tool_calls:
                             recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                         continue
                     if has_incomplete_todo:
@@ -242,7 +247,10 @@ def run_turn(
                             "Model returned a final answer with unfinished todos"
                         )
                     if todos and all(item["status"] == "completed" for item in todos):
-                        clear_todos()
+                        if todo_state is None:
+                            clear_todos()
+                        else:
+                            todo_state.clear()
                     if compatibility_messages is not None:
                         compatibility_messages[:] = manager.conversation.active_items()
                     if on_memory_citations is not None:
@@ -262,20 +270,20 @@ def run_turn(
                 if empty_responses >= MAX_EMPTY_RESPONSES:
                     raise RuntimeError("Model returned repeated empty responses")
                 recovery_overlays = (EMPTY_RESPONSE_RECOVERY,)
-                if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                if tool_calls_executed >= max_tool_calls:
                     recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                 continue
 
             empty_responses = 0
-            tool_budget_reached = tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
+            tool_budget_reached = tool_calls_executed >= max_tool_calls
 
             for tool_call in parsed.tool_calls:
                 if cancellation_token is not None:
                     cancellation_token.raise_if_cancelled()
-                if (
-                    tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN
-                    and tool_call.name not in {"todo", "skill"}
-                ):
+                if tool_calls_executed >= max_tool_calls and tool_call.name not in {
+                    "todo",
+                    "skill",
+                }:
                     result = (
                         "Tool call skipped: the per-turn tool-call budget was reached. "
                         "Use the results already available and answer the user."
@@ -305,13 +313,17 @@ def run_turn(
                             TodoUpdated(
                                 tuple(
                                     TodoItem(item["content"], item["status"])
-                                    for item in get_todos()
+                                    for item in (
+                                        todo_state.items
+                                        if todo_state is not None
+                                        else get_todos()
+                                    )
                                 )
                             ),
                         )
                     if cancellation_token is not None:
                         cancellation_token.raise_if_cancelled()
-                    if tool_calls_executed >= MAX_TOOL_CALLS_PER_TURN:
+                    if tool_calls_executed >= max_tool_calls:
                         tool_budget_reached = True
                 round_items.append(
                     {

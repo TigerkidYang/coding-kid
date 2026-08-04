@@ -163,16 +163,41 @@ def delete(path: str) -> str:
 VALID_TODO_STATUSES = {"pending", "in_progress", "completed"}
 MAX_TODO_ITEMS = 20
 MAX_TODO_CONTENT_CHARS = 200
-_current_todos: list[dict[str, str]] = []
+
+
+class TodoState:
+    """One Agent's isolated, replace-based checklist."""
+
+    def __init__(self, items: list[dict[str, Any]] | None = None) -> None:
+        self._items: list[dict[str, str]] = []
+        if items is not None:
+            self.replace(items)
+
+    @property
+    def items(self) -> list[dict[str, str]]:
+        return [dict(item) for item in self._items]
+
+    def replace(self, todos: list[dict[str, Any]]) -> None:
+        self._items = _validate_todos(todos)
+
+    def clear(self) -> None:
+        self._items = []
+
+
+_default_todo_state = TodoState()
 
 
 def get_todos() -> list[dict[str, str]]:
     """Return a copy of the process-local todo checklist."""
-    return [dict(item) for item in _current_todos]
+    return _default_todo_state.items
 
 
 def set_todos(todos: list[dict[str, Any]]) -> None:
     """Validate and replace the process-local todo checklist."""
+    _default_todo_state.replace(todos)
+
+
+def _validate_todos(todos: list[dict[str, Any]]) -> list[dict[str, str]]:
     if not isinstance(todos, list):
         raise ValueError("todos must be a list")
     if len(todos) > MAX_TODO_ITEMS:
@@ -201,19 +226,17 @@ def set_todos(todos: list[dict[str, Any]]) -> None:
     if in_progress_count > 1:
         raise ValueError("at most one todo may be in_progress")
 
-    global _current_todos
-    _current_todos = normalized
+    return normalized
 
 
 def clear_todos() -> None:
     """Clear the process-local todo checklist."""
-    global _current_todos
-    _current_todos = []
+    _default_todo_state.clear()
 
 
 def format_todos(todos: list[dict[str, str]] | None = None) -> str:
     """Render a todo checklist for prompts and tool results."""
-    items = _current_todos if todos is None else todos
+    items = _default_todo_state.items if todos is None else todos
     if not items:
         return "(no todos)"
     return "\n".join(
@@ -436,24 +459,42 @@ DEFAULT_TOOL_REGISTRY = ToolRegistry()
 def build_tool_registry(
     task_manager: BackgroundTaskManager | None = None,
     cancellation_token: CancellationToken | None = None,
+    todo_state: TodoState | None = None,
 ) -> ToolRegistry:
     """Bind process-local task state to one immutable per-turn registry."""
-    if task_manager is None:
+    if task_manager is None and todo_state is None:
         return DEFAULT_TOOL_REGISTRY
     entries = {name: dict(entry) for name, entry in TOOLS.items()}
-    entries["execute"]["function"] = lambda command, background=False: execute(
-        command,
-        background,
-        task_manager=task_manager,
-    )
-    entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: task(
-        action,
-        task_id,
-        timeout_seconds,
-        task_manager=task_manager,
-        cancellation_token=cancellation_token,
-    )
+    if todo_state is not None:
+        entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
+    if task_manager is not None:
+        entries["execute"]["function"] = lambda command, background=False: execute(
+            command,
+            background,
+            task_manager=task_manager,
+        )
+        entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: (
+            task(
+                action,
+                task_id,
+                timeout_seconds,
+                task_manager=task_manager,
+                cancellation_token=cancellation_token,
+            )
+        )
     return ToolRegistry(entries)
+
+
+def _todo_for_state(state: TodoState, todos: list[dict[str, Any]]) -> str:
+    state.replace(todos)
+    if not todos:
+        return "Cleared todos."
+    return (
+        "Updated todos:\n"
+        f"{format_todos(state.items)}\n"
+        "Continue from this list. Keep at most one item in_progress while "
+        "working, and mark items completed when finished."
+    )
 
 
 def tool_definitions() -> list[dict[str, Any]]:
