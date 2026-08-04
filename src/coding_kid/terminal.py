@@ -82,27 +82,8 @@ def run_command(
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
 
-    environment = os.environ.copy()
-    environment["PYTHONIOENCODING"] = "utf-8"
-    environment["PYTHONUTF8"] = "1"
-    argv = _shell_argv(command)
-    process_options: dict[str, object] = {}
-    if os.name == "nt":
-        process_options["creationflags"] = (
-            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-        )
-    else:
-        process_options["start_new_session"] = True
-
     started = time.monotonic()
-    process = subprocess.Popen(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=environment,
-        **process_options,
-    )
+    process = spawn_command(command)
     assert process.stdout is not None
     assert process.stderr is not None
     stdout = _HeadTailBytes(COMMAND_OUTPUT_MAX_BYTES)
@@ -148,6 +129,45 @@ def run_command(
         timed_out=timed_out,
         duration_seconds=time.monotonic() - started,
     )
+
+
+def spawn_command(command: str) -> subprocess.Popen[bytes]:
+    """Start one non-interactive command using the shared terminal boundary."""
+    if not command:
+        raise ValueError("command must not be empty")
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["PYTHONUTF8"] = "1"
+    process_options: dict[str, object] = {}
+    if os.name == "nt":
+        process_options["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+        )
+    else:
+        process_options["start_new_session"] = True
+    return subprocess.Popen(
+        _shell_argv(command),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+        **process_options,
+    )
+
+
+def decode_process_output(data: bytes) -> str:
+    """Decode command bytes through the shared Unicode fallback policy."""
+    return _decode_process_output(data)
+
+
+def normalize_process_stderr(stderr: str) -> str:
+    """Normalize redirected PowerShell stderr on Windows."""
+    return _normalize_powershell_stderr(stderr) if os.name == "nt" else stderr
+
+
+def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    """Terminate a command and its descendants with bounded cleanup."""
+    _terminate_process_tree(process)
 
 
 def _shell_argv(command: str) -> list[str]:
