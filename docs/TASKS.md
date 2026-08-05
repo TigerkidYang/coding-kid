@@ -1,5 +1,63 @@
 # Tasks
 
+## Current Core Version: 11 — Sandbox Control
+
+Completion status: in progress. The user selected the final incomplete research
+topic, "How to control the sandbox environment," approved the implementation
+plan, and explicitly delegated development, deterministic verification, and a
+real installed-wheel TUI trial to the assistant.
+
+### Goal
+
+Constrain model-controlled local file and process tools behind one explicit,
+session-wide sandbox policy without changing the synchronous Turn/Step loop.
+Restricted modes must confine work to the project, with no silent fallback to
+the host when isolation is unavailable.
+
+### Included Scope
+
+- `read-only`, `workspace-write`, and `danger-full-access` startup modes, with
+  `workspace-write` as the default.
+- An application-owned Docker sandbox for restricted foreground/background
+  commands, with bounded resources, filtered environment, explicit network
+  control, and deterministic container cleanup.
+- One canonical path policy for built-in read/search/write/patch/delete tools,
+  including traversal, symlink/junction, and protected-metadata checks.
+- The same policy inherited by child Agents and background tasks.
+- Fail-closed startup diagnostics and explicit CLI/TUI sandbox status.
+- Restricted-mode suppression of MCP processes and tools whose effects cannot
+  be contained by the local sandbox; inert Skills remain available.
+- V10 runtime freezing plus installed V1-V11 selection.
+- Deterministic, Docker integration, stress, packaging, clean-install, and real
+  TUI verification.
+
+### Excluded Scope
+
+- Per-command approvals, permission prompts, remembered approval rules, or
+  model-requested escalation.
+- Automatic unsandboxed retry, command allow/deny parsing, or trust scoring.
+- Domain-level network proxies, remote service authorization, or sandboxing
+  remote HTTP effects.
+- Container-image construction, package-manager orchestration, VM lifecycle,
+  or protection from a compromised Docker daemon or container kernel escape.
+- SWE-bench or another paid batch evaluation.
+
+### Completion Criteria
+
+- Restricted modes never execute a model command on the host and refuse to
+  start when Docker or the configured image is unavailable.
+- `workspace-write` can modify the project but cannot read or write outside it;
+  `read-only` cannot modify it; `.git` and `.coding-kid` remain protected.
+- Host secrets are not inherited by sandbox commands, network is disabled by
+  default, and the Docker socket is never mounted.
+- Timeout, cancellation, background stop, Agent stop, and application shutdown
+  leave no running Coding Kid containers while retaining bounded evidence.
+- CLI/TUI expose the effective policy, backend, image, and network state; tool
+  denials are model-readable and do not trigger a host retry.
+- Pytest, Ruff, isolation probes, cleanup stress, wheel inspection, V10
+  fidelity, clean-install V1-V11 launches, and a real TUI trial pass within the
+  standing USD 1.00 live-verification allowance.
+
 ## Current Core Version: 10 — Controllable Turn Runtime
 
 Completion status: complete and archived under

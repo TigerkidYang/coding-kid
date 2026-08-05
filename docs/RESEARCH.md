@@ -45,6 +45,45 @@ Research notes should support two outcomes:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
 
+## Version 11 Sandbox-Control Source Reading
+
+Version 11 uses the local Claude Code and Codex snapshots to add one explicit,
+fail-closed boundary around model-controlled local effects.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/utils/sandbox/sandbox-adapter.ts`
+- `research/repos/claude-code/src/tools/BashTool/shouldUseSandbox.ts`
+- `research/repos/claude-code/src/tools/BashTool/BashTool.tsx`
+- `research/repos/claude-code/src/commands/sandbox-toggle/sandbox-toggle.tsx`
+- `research/repos/claude-code/src/components/sandbox/SandboxSettings.tsx`
+- `research/repos/claude-code/src/components/permissions/SandboxPermissionRequest.tsx`
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/protocol/src/protocol.rs`
+- `research/repos/codex/codex-rs/core/src/tools/sandboxing.rs`
+- `research/repos/codex/codex-rs/core/src/safety.rs`
+- `research/repos/codex/codex-rs/core/src/sandboxing/mod.rs`
+- `research/repos/codex/codex-rs/core/src/exec.rs`
+- `research/repos/codex/codex-rs/linux-sandbox/README.md`
+- `research/repos/codex/codex-rs/core/tests/suite/approvals.rs`
+- `research/repos/codex/codex-rs/core/tests/suite/windows_sandbox.rs`
+
+Useful invariants:
+
+- Policy selection, policy enforcement, and UI status are separate concerns;
+  confirmation text is not an isolation boundary.
+- Restricted execution must fail closed when its platform backend is missing.
+- Writable roots require protected metadata subpaths and path normalization;
+  lexical prefix checks alone are insufficient around links and missing paths.
+- The model must not be able to grant itself network, environment secrets, an
+  unsandboxed retry, or a broader per-call policy.
+- Foreground, background, and child-Agent execution must share cleanup and
+  cancellation semantics, including one terminal outcome and retained output.
+- External tools whose effects cannot be enforced by the active backend must be
+  withheld rather than advertised as sandboxed.
+
 ## Version 10 Loop-Control Source Reading
 
 Version 10 uses the existing local Claude Code and Codex snapshots to turn the

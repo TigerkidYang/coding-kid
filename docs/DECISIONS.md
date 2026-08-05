@@ -44,9 +44,27 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 10 are complete. Version 10 is the current controllable
-turn-runtime implementation. Do not define a later version until the user
-chooses one from the research topic list.
+Versions 01 through 10 are complete. Version 11 is the current sandbox-control
+implementation. Do not define a later version until Version 11 is complete and
+the user chooses one from the research topic list.
+
+## Make Version 11 sandbox policy explicit and fail closed
+
+Decision:
+Select one immutable startup policy: `read-only`, `workspace-write`, or
+`danger-full-access`, defaulting to `workspace-write`. Restricted model shell
+commands run only through a Docker Linux container and all built-in file tools
+share one project-root path policy. Docker or image failure rejects restricted
+startup; the model cannot request a host fallback or policy elevation.
+
+Consequence:
+The provider, session store, and inert Skill loader remain application control
+plane services on the host. Restricted modes do not start MCP servers or expose
+MCP tools because their local or remote effects cannot be proven contained.
+Network is disabled unless the user opts in at startup. Per-command approvals,
+automatic unsandboxed retries, and domain proxies remain outside Version 11.
+Docker and the configured image are trusted infrastructure; Version 11 does not
+claim protection from a compromised daemon or kernel escape.
 
 ## Make complete protocol rounds the Version 10 evidence boundary
 

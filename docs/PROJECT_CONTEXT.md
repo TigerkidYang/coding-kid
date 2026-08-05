@@ -66,6 +66,13 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
+- Version 11 sandbox control is in progress. The user selected the research
+  topic, approved a Docker-backed fail-closed design, and delegated
+  implementation, testing, and real installed-wheel TUI verification. The
+  default `workspace-write` policy will confine model-controlled file and
+  process work to the project; `read-only` and explicit
+  `danger-full-access` modes complete the startup policy surface. V10 will be
+  frozen before the living runtime changes.
 - Version 10 controllable-turn-runtime is complete and archived under
   `versions/10-controllable-turn-runtime/` with annotated tag
   `version-10-controllable-turn-runtime`. It makes

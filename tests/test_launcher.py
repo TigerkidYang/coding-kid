@@ -177,6 +177,7 @@ def test_historical_version_runs_isolated_and_preserves_cwd(
         ("v07", "07-pluggable-capabilities"),
         ("v08", "08-background-tasks"),
         ("v09", "09-multi-agent-workflows"),
+        ("v10", "10-controllable-turn-runtime"),
     ],
 )
 def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
@@ -184,7 +185,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     bundled_root = ROOT / "src" / "coding_kid" / "_runtimes" / version / "coding_kid"
     excluded = (
         {"__main__.py", "launcher.py"}
-        if version in {"v04", "v05", "v06", "v07", "v08", "v09"}
+        if version in {"v04", "v05", "v06", "v07", "v08", "v09", "v10"}
         else set()
     )
     archived_files = {
