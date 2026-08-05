@@ -12,6 +12,7 @@ import time
 from typing import Callable, Literal
 
 from coding_kid.events import CancellationToken
+from coding_kid.sandbox import SandboxRuntime
 from coding_kid.terminal import (
     IO_DRAIN_TIMEOUT_SECONDS,
     decode_process_output,
@@ -124,9 +125,11 @@ class BackgroundTaskManager:
         *,
         id_factory: IdFactory | None = None,
         clock: Clock = time.monotonic,
+        sandbox_runtime: SandboxRuntime | None = None,
     ) -> None:
         self._id_factory = id_factory or (lambda: f"task_{secrets.token_hex(6)}")
         self._clock = clock
+        self.sandbox_runtime = sandbox_runtime
         self._tasks: dict[str, _TaskRecord] = {}
         self._events: deque[TaskEvent] = deque(maxlen=MAX_TASK_EVENTS)
         self._lock = threading.RLock()
@@ -145,7 +148,10 @@ class BackgroundTaskManager:
                 )
             self._evict_terminal_tasks()
             task_id = self._new_task_id()
-            process = spawn_command(command, process_job=True)
+            spawn_options: dict[str, object] = {"process_job": True}
+            if self.sandbox_runtime is not None:
+                spawn_options["sandbox_runtime"] = self.sandbox_runtime
+            process = spawn_command(command, **spawn_options)
             record = _TaskRecord(task_id, command, process, self._clock())
             self._tasks[task_id] = record
             self._events.append(TaskEvent(task_id, "running", command))

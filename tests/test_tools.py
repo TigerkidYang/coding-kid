@@ -18,6 +18,7 @@ from coding_kid.tools import (
 )
 from coding_kid.terminal import CommandResult
 from coding_kid.events import CancellationToken
+from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -141,6 +142,43 @@ def test_delete_removes_file(tmp_path: Path) -> None:
 
     assert result == f"Deleted {path}"
     assert not path.exists()
+
+
+def test_restricted_registry_confines_file_tools(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.WORKSPACE_WRITE, project, project),
+        docker_executable="docker",
+    )
+    registry = build_tool_registry(sandbox_runtime=sandbox)
+
+    allowed = registry.dispatch("write", {"path": "inside.txt", "content": "ok"})
+    denied_read = registry.dispatch("read", {"path": "../outside.txt"})
+    denied_metadata = registry.dispatch(
+        "write", {"path": ".git/config", "content": "bad"}
+    )
+
+    assert "inside.txt" in allowed
+    assert (project / "inside.txt").read_text(encoding="utf-8") == "ok"
+    assert "outside project" in denied_read
+    assert "protects workspace metadata" in denied_metadata
+    assert outside.read_text(encoding="utf-8") == "secret"
+
+
+def test_read_only_registry_rejects_mutation(tmp_path: Path) -> None:
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.READ_ONLY, tmp_path, tmp_path),
+        docker_executable="docker",
+    )
+    registry = build_tool_registry(sandbox_runtime=sandbox)
+
+    result = registry.dispatch("write", {"path": "blocked.txt", "content": "x"})
+
+    assert "sandbox is read-only" in result
+    assert not (tmp_path / "blocked.txt").exists()
 
 
 def test_execute_returns_exit_code_stdout_and_stderr() -> None:

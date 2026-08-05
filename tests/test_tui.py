@@ -17,6 +17,7 @@ from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import CancellationToken, EventSink, ToolCompleted
 from coding_kid.memory import MemoryManager
 from coding_kid.sessions import SessionStore
+from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 from coding_kid.tui import AssistantCell, CodingKidApp, Composer
 
 
@@ -47,6 +48,7 @@ def make_app(
     streaming_provider: Any | None = None,
     background_tasks: BackgroundTaskManager | None = None,
     agent_manager: AgentManager | None = None,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> CodingKidApp:
     context = SessionContext(
         cwd=tmp_path,
@@ -66,6 +68,7 @@ def make_app(
         or (lambda *args, **kwargs: response(text_message("ok"))),
         background_tasks=background_tasks,
         agent_manager=agent_manager,
+        sandbox_runtime=sandbox_runtime,
     )
 
 
@@ -105,6 +108,31 @@ def test_tui_renders_codex_style_session_header_and_footer(tmp_path: Path) -> No
                 app.query_one("#footer-right", Static)
             )
             assert app.query_one(Composer).has_focus
+
+    asyncio.run(exercise())
+
+
+def test_tui_displays_sandbox_status_command(tmp_path: Path) -> None:
+    async def exercise() -> None:
+        sandbox = SandboxRuntime(
+            SandboxConfig(SandboxMode.READ_ONLY, tmp_path, tmp_path),
+            docker_executable="docker",
+        )
+        app = make_app(tmp_path, sandbox_runtime=sandbox)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            header = content(app.query_one(".session-card", Static))
+            assert "v11" in header
+            assert "read-only" in header
+            composer = app.query_one(Composer)
+            composer.load_text("/sandbox")
+            composer.action_submit()
+            await pilot.pause()
+            transcript = "\n".join(
+                content(item) for item in app.query(Static) if item.id is None
+            )
+            assert "Backend: docker" in transcript
+            assert "Network: disabled" in transcript
 
     asyncio.run(exercise())
 

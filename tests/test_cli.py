@@ -473,7 +473,7 @@ def test_main_uses_plain_chat_when_terminal_is_not_interactive(
         lambda *, session_handle, memory_manager: calls.append("plain"),
     )
 
-    cli.main()
+    cli.main(cli.SessionOptions(sandbox_mode="danger-full-access"))
 
     assert calls == ["plain"]
 
@@ -490,7 +490,7 @@ def test_main_uses_tui_when_terminal_is_interactive(monkeypatch: Any) -> None:
         lambda context, manager, *, session_handle, memory_manager: calls.append("tui"),
     )
 
-    cli.main()
+    cli.main(cli.SessionOptions(sandbox_mode="danger-full-access"))
 
     assert calls == ["tui"]
 

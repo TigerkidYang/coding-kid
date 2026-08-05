@@ -121,21 +121,30 @@ class CapabilityRuntime:
         context_window: int | None = None,
         home: Path | None = None,
         event_sink: EventSink | None = None,
+        external_tools_enabled: bool = True,
     ) -> CapabilityRuntime:
         config = load_capability_config(home)
         outcome = load_plugins(config.plugins)
         warnings = list(outcome.warnings)
-        servers = list(config.mcp_servers)
-        for plugin in outcome.plugins:
-            if plugin.mcp_config is None:
-                continue
-            try:
-                servers.extend(_load_plugin_servers(plugin))
-            except (OSError, json.JSONDecodeError, CapabilityConfigError) as error:
-                warnings.append(
-                    f"Plugin {plugin.name} MCP configuration was skipped: "
-                    f"{type(error).__name__}"
-                )
+        servers: list[MCPServerConfig] = []
+        if external_tools_enabled:
+            servers.extend(config.mcp_servers)
+            for plugin in outcome.plugins:
+                if plugin.mcp_config is None:
+                    continue
+                try:
+                    servers.extend(_load_plugin_servers(plugin))
+                except (OSError, json.JSONDecodeError, CapabilityConfigError) as error:
+                    warnings.append(
+                        f"Plugin {plugin.name} MCP configuration was skipped: "
+                        f"{type(error).__name__}"
+                    )
+        elif config.mcp_servers or any(
+            plugin.mcp_config is not None for plugin in outcome.plugins
+        ):
+            warnings.append(
+                "MCP servers and tools are disabled by the active restricted sandbox"
+            )
         identities = [
             server.qualified_server_name for server in servers if server.enabled
         ]

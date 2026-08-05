@@ -11,7 +11,7 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v10"
+LATEST_VERSION = "v11"
 AVAILABLE_VERSIONS = (
     "v1",
     "v2",
@@ -22,6 +22,7 @@ AVAILABLE_VERSIONS = (
     "v7",
     "v8",
     "v9",
+    "v10",
     LATEST_VERSION,
 )
 BUNDLED_RUNTIME_DIRS = {
@@ -34,6 +35,7 @@ BUNDLED_RUNTIME_DIRS = {
     "v7": "v07",
     "v8": "v08",
     "v9": "v09",
+    "v10": "v10",
 }
 RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 
@@ -100,7 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sessions = parser.add_mutually_exclusive_group()
     sessions.add_argument(
-        "--new", action="store_true", help="start a new Version 10 session"
+        "--new", action="store_true", help="start a new Version 11 session"
     )
     sessions.add_argument(
         "--continue",
@@ -114,12 +116,28 @@ def build_parser() -> argparse.ArgumentParser:
     sessions.add_argument(
         "--list-sessions",
         action="store_true",
-        help="list Version 10 sessions for the current project",
+        help="list Version 11 sessions for the current project",
     )
     sessions.add_argument(
         "--delete-session",
         metavar="SESSION",
-        help="soft-delete a Version 10 session while retaining evidence",
+        help="soft-delete a Version 11 session while retaining evidence",
+    )
+    parser.add_argument(
+        "--sandbox",
+        choices=("read-only", "workspace-write", "danger-full-access"),
+        default="workspace-write",
+        help="Version 11 local-tool policy (default: workspace-write)",
+    )
+    parser.add_argument(
+        "--sandbox-image",
+        default=cli.DEFAULT_SANDBOX_IMAGE,
+        help="Docker image for a restricted Version 11 sandbox",
+    )
+    parser.add_argument(
+        "--sandbox-network",
+        action="store_true",
+        help="allow network inside a restricted Version 11 sandbox",
     )
     parser.add_argument(
         "--list-versions",
@@ -161,8 +179,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.delete_session,
         )
     )
-    if selected_version != LATEST_VERSION and uses_session_options:
-        parser.error("session options are available only for Version 10")
+    uses_sandbox_options = any(
+        (
+            arguments.sandbox != "workspace-write",
+            arguments.sandbox_image != cli.DEFAULT_SANDBOX_IMAGE,
+            arguments.sandbox_network,
+        )
+    )
+    if selected_version != LATEST_VERSION and (
+        uses_session_options or uses_sandbox_options
+    ):
+        parser.error("session and sandbox options are available only for Version 11")
     options = cli.SessionOptions(
         mode=(
             "continue"
@@ -174,5 +201,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         session_id=arguments.resume,
         list_only=arguments.list_sessions,
         delete_session=arguments.delete_session,
+        sandbox_mode=arguments.sandbox,
+        sandbox_image=arguments.sandbox_image,
+        sandbox_network=arguments.sandbox_network,
     )
     return launch_version(selected_version, options)

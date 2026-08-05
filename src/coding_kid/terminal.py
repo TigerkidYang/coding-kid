@@ -13,6 +13,7 @@ import time
 import xml.etree.ElementTree as ElementTree
 
 from coding_kid.events import CancellationToken, TurnCancelled
+from coding_kid.sandbox import SandboxRuntime
 
 COMMAND_TIMEOUT_SECONDS = 120.0
 COMMAND_OUTPUT_MAX_BYTES = 1_000_000
@@ -82,6 +83,7 @@ def run_command(
     *,
     timeout_seconds: float = COMMAND_TIMEOUT_SECONDS,
     cancellation_token: CancellationToken | None = None,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> CommandResult:
     """Run a non-interactive command with bounded byte capture and cleanup."""
     if not command:
@@ -90,7 +92,11 @@ def run_command(
         raise ValueError("timeout_seconds must be positive")
 
     started = time.monotonic()
-    process = spawn_command(command, process_job=True)
+    process = spawn_command(
+        command,
+        process_job=True,
+        sandbox_runtime=sandbox_runtime,
+    )
     assert process.stdout is not None
     assert process.stderr is not None
     stdout = _HeadTailBytes(COMMAND_OUTPUT_MAX_BYTES)
@@ -159,7 +165,10 @@ def run_command(
 
 
 def spawn_command(
-    command: str, *, process_job: bool = False
+    command: str,
+    *,
+    process_job: bool = False,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> subprocess.Popen[bytes]:
     """Start one non-interactive command using the shared terminal boundary."""
     if not command:
@@ -177,14 +186,24 @@ def spawn_command(
         process_options["creationflags"] = creationflags
     else:
         process_options["start_new_session"] = True
+    restricted = sandbox_runtime is not None and sandbox_runtime.restricted
+    container_name = sandbox_runtime.new_container_name() if restricted else None
+    command_argv = (
+        sandbox_runtime.command_argv(command, container_name)
+        if restricted and container_name is not None
+        else _shell_argv(command)
+    )
     process = subprocess.Popen(
-        _shell_argv(command),
+        command_argv,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=environment,
         **process_options,
     )
+    if container_name is not None:
+        setattr(process, "_coding_kid_sandbox_runtime", sandbox_runtime)
+        setattr(process, "_coding_kid_container", container_name)
     if os.name == "nt" and process_job:
         try:
             _attach_windows_job(process)
@@ -214,6 +233,7 @@ def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
 
 def release_process_tree(process: subprocess.Popen[bytes]) -> None:
     """Release process-group resources, killing any descendants still attached."""
+    _cleanup_sandbox(process)
     if os.name == "nt":
         _close_windows_job(process)
 
@@ -270,6 +290,7 @@ def _finish_readers(
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    _cleanup_sandbox(process)
     if os.name == "nt":
         # Use both boundaries. taskkill sees descendants that may have started
         # just before Job assignment; the Job catches descendants created while
@@ -460,6 +481,16 @@ def _close_windows_job(process: subprocess.Popen[bytes]) -> None:
     kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
     kernel32.CloseHandle.restype = wintypes.BOOL
     kernel32.CloseHandle(wintypes.HANDLE(job))
+
+
+def _cleanup_sandbox(process: subprocess.Popen[bytes]) -> None:
+    runtime = getattr(process, "_coding_kid_sandbox_runtime", None)
+    container_name = getattr(process, "_coding_kid_container", None)
+    if runtime is None or container_name is None:
+        return
+    setattr(process, "_coding_kid_sandbox_runtime", None)
+    setattr(process, "_coding_kid_container", None)
+    runtime.remove_container(container_name)
 
 
 def _decode_process_output(data: bytes) -> str:

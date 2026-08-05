@@ -83,6 +83,28 @@ def test_stdio_discovery_call_and_cleanup(tmp_path: Path) -> None:
     assert not runtime._thread.is_alive()
 
 
+def test_restricted_sandbox_suppresses_mcp_startup(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _write_config(
+        home,
+        {"must-not-start": _stdio_server(command="definitely-not-a-command")},
+    )
+
+    runtime = CapabilityRuntime.capture(
+        _context(tmp_path),
+        home=home,
+        external_tools_enabled=False,
+    )
+    try:
+        assert runtime.tools == ()
+        assert runtime.statuses == ()
+        assert "disabled by the active restricted sandbox" in "\n".join(
+            runtime.warnings
+        )
+    finally:
+        runtime.close()
+
+
 def test_capabilities_compose_on_a_caller_owned_base_registry(tmp_path: Path) -> None:
     home = tmp_path / "home"
     _write_config(home, {"local": _stdio_server(enabledTools=["echo"])})

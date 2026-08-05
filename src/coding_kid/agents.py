@@ -23,6 +23,7 @@ from coding_kid.events import (
     TurnStarted,
 )
 from coding_kid.provider import generate, generate_streaming
+from coding_kid.sandbox import SandboxRuntime
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TodoState
 
@@ -144,12 +145,14 @@ class AgentManager:
         clock: Clock = time.monotonic,
         max_running: int = MAX_RUNNING_AGENTS,
         max_retained: int = MAX_RETAINED_AGENTS,
+        sandbox_runtime: SandboxRuntime | None = None,
     ) -> None:
         self.session_context = session_context
         self.budget = budget
         self.call_provider = call_provider
         self.stream_provider = stream_provider
         self.capability_runtime = capability_runtime
+        self.sandbox_runtime = sandbox_runtime
         self._child_runner = child_runner
         self._id_factory = id_factory or (lambda: f"agent_{secrets.token_hex(6)}")
         self._clock = clock
@@ -408,7 +411,11 @@ class AgentManager:
 
         request_context: list[Any] = []
         overlays = [WORKER_INSTRUCTIONS]
-        registry = build_child_tool_registry(record.todos, record.token)
+        registry = build_child_tool_registry(
+            record.todos,
+            record.token,
+            self.sandbox_runtime,
+        )
         if self.capability_runtime is not None:
             skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
             for skill_name in explicit_skill_names(

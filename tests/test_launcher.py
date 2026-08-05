@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
         ("8", "v8"),
         ("09", "v9"),
         ("v10", "v10"),
+        ("11", "v11"),
     ],
 )
 def test_normalize_version_accepts_documented_aliases(
@@ -35,7 +36,7 @@ def test_normalize_version_accepts_documented_aliases(
     assert launcher.normalize_version(value) == expected
 
 
-@pytest.mark.parametrize("value", ["", "latest", "v0", "v11", "one"])
+@pytest.mark.parametrize("value", ["", "latest", "v0", "v12", "one"])
 def test_normalize_version_rejects_unknown_values(value: str) -> None:
     with pytest.raises(ValueError):
         launcher.normalize_version(value)
@@ -75,13 +76,50 @@ def test_main_passes_resume_selection_to_latest(
         lambda version, options: selected.append((version, options)) or 0,
     )
 
-    assert launcher.main(["v10", "--resume", "abc123"]) == 0
+    assert launcher.main(["v11", "--resume", "abc123"]) == 0
     assert selected == [
         (
-            "v10",
+            "v11",
             launcher.cli.SessionOptions(mode="resume", session_id="abc123"),
         )
     ]
+
+
+def test_main_passes_explicit_sandbox_selection_to_latest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected: list[launcher.cli.SessionOptions] = []
+    monkeypatch.setattr(
+        launcher,
+        "launch_version",
+        lambda version, options: selected.append(options) or 0,
+    )
+
+    assert (
+        launcher.main(
+            [
+                "v11",
+                "--sandbox",
+                "read-only",
+                "--sandbox-image",
+                "example/sandbox:test",
+                "--sandbox-network",
+            ]
+        )
+        == 0
+    )
+    assert selected == [
+        launcher.cli.SessionOptions(
+            sandbox_mode="read-only",
+            sandbox_image="example/sandbox:test",
+            sandbox_network=True,
+        )
+    ]
+
+
+def test_main_rejects_sandbox_options_for_historical_version() -> None:
+    with pytest.raises(SystemExit, match="2"):
+        launcher.main(["v10", "--sandbox", "read-only"])
 
 
 def test_main_rejects_session_options_for_historical_version() -> None:
@@ -109,7 +147,8 @@ def test_main_lists_versions_without_launching(
         "v7",
         "v8",
         "v9",
-        "v10 (latest, default)",
+        "v10",
+        "v11 (latest, default)",
     ]
 
 
@@ -126,7 +165,7 @@ def test_main_rejects_unknown_version_before_launch(
         launcher.main(["v99"])
 
     assert (
-        "available versions: v1, v2, v3, v4, v5, v6, v7, v8, v9, v10"
+        "available versions: v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11"
         in capsys.readouterr().err
     )
 
@@ -135,7 +174,7 @@ def test_latest_version_runs_in_process(monkeypatch: pytest.MonkeyPatch) -> None
     called: list[bool] = []
     monkeypatch.setattr(launcher.cli, "main", lambda options=None: called.append(True))
 
-    assert launcher.launch_version("v10") == 0
+    assert launcher.launch_version("v11") == 0
     assert called == [True]
 
 
@@ -200,7 +239,20 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
 
 @pytest.mark.parametrize(
     "version",
-    [None, "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"],
+    [
+        None,
+        "v1",
+        "v2",
+        "v3",
+        "v4",
+        "v5",
+        "v6",
+        "v7",
+        "v8",
+        "v9",
+        "v10",
+        "v11",
+    ],
 )
 def test_module_launcher_starts_from_unrelated_project(
     version: str | None, tmp_path: Path
@@ -208,6 +260,8 @@ def test_module_launcher_starts_from_unrelated_project(
     command = [sys.executable, "-m", "coding_kid"]
     if version is not None:
         command.append(version)
+    if version in {None, "v11"}:
+        command.extend(["--sandbox", "danger-full-access"])
     environment = os.environ.copy()
     existing_pythonpath = environment.get("PYTHONPATH")
     environment["PYTHONPATH"] = os.pathsep.join(

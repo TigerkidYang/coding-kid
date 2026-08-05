@@ -46,6 +46,7 @@ from coding_kid.events import (
 )
 from coding_kid.memory import MemoryManager, MemorySyncResult
 from coding_kid.provider import generate, generate_streaming
+from coding_kid.sandbox import SandboxRuntime
 from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import TodoState, build_tool_registry
@@ -202,6 +203,7 @@ class CodingKidApp(App[None]):
         background_tasks: BackgroundTaskManager | None = None,
         todo_state: TodoState | None = None,
         agent_manager: AgentManager | None = None,
+        sandbox_runtime: SandboxRuntime | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -211,7 +213,10 @@ class CodingKidApp(App[None]):
         self.session_handle = session_handle
         self.memory_manager = memory_manager
         self.capability_runtime = capability_runtime
-        self.background_tasks = background_tasks or BackgroundTaskManager()
+        self.sandbox_runtime = sandbox_runtime
+        self.background_tasks = background_tasks or BackgroundTaskManager(
+            sandbox_runtime=sandbox_runtime
+        )
         self.todo_state = todo_state or TodoState(
             session_handle.todos if session_handle is not None else None
         )
@@ -219,6 +224,7 @@ class CodingKidApp(App[None]):
             session_context,
             manager.budget,
             capability_runtime=capability_runtime,
+            sandbox_runtime=sandbox_runtime,
         )
         self._owns_agent_manager = agent_manager is None
         self._owns_background_tasks = background_tasks is None
@@ -262,17 +268,18 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v10)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v11)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
-                f"[dim]session:   [/]{self._session_label()}",
+                f"[dim]session:   [/]{self._session_label()}\n"
+                f"[dim]sandbox:   [/]{escape(self._sandbox_label())}",
                 classes="session-card",
             )
         )
         self._append_cell(
             Static(
                 "[dim]  Describe a task, or use /agents, /tasks, /session, /sessions, "
-                "/context, /compact, or /exit.[/]",
+                "/sandbox, /context, /compact, or /exit.[/]",
                 classes="help-cell",
             )
         )
@@ -302,6 +309,9 @@ class CodingKidApp(App[None]):
             return
         if text == "/agents":
             self._show_agents()
+            return
+        if text == "/sandbox":
+            self._show_sandbox()
             return
         if text.startswith("/agent stop "):
             self._start_agent_stop(text.removeprefix("/agent stop ").strip())
@@ -424,8 +434,13 @@ class CodingKidApp(App[None]):
             token,
             self.todo_state,
             self.agent_manager,
+            self.sandbox_runtime,
         )
-        overlays: tuple[str, ...] = ()
+        overlays: tuple[str, ...] = (
+            (self.sandbox_runtime.instruction_text(),)
+            if self.sandbox_runtime is not None
+            else ()
+        )
         if self.capability_runtime is not None:
             skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
             for skill_name in explicit_skill_names(
@@ -445,7 +460,8 @@ class CodingKidApp(App[None]):
                 base_registry=registry,
             )
             metadata = self.capability_runtime.skill_metadata()
-            overlays = (metadata,) if metadata else ()
+            if metadata:
+                overlays = (*overlays, metadata)
         try:
             turn_options = {
                 "on_context": None,
@@ -626,10 +642,17 @@ class CodingKidApp(App[None]):
             self.background_tasks,
             todo_state=self.todo_state,
             agent_manager=self.agent_manager,
+            sandbox_runtime=self.sandbox_runtime,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
-        overlays: tuple[str, ...] = (task_summary,) if task_summary else ()
+        overlays: tuple[str, ...] = (
+            (self.sandbox_runtime.instruction_text(),)
+            if self.sandbox_runtime is not None
+            else ()
+        )
+        if task_summary:
+            overlays = (*overlays, task_summary)
         if self.capability_runtime is not None:
             definitions = self.capability_runtime.registry_for_turn(
                 SkillTurnState(self.capability_runtime.snapshot.skills),
@@ -658,6 +681,25 @@ class CodingKidApp(App[None]):
             Static(
                 f"[b]• Capabilities[/]\n  "
                 f"{escape(status).replace(chr(10), chr(10) + '  ')}",
+                classes="context-cell",
+            )
+        )
+
+    def _sandbox_label(self) -> str:
+        if self.sandbox_runtime is None:
+            return "not configured"
+        return self.sandbox_runtime.config.mode.value
+
+    def _show_sandbox(self) -> None:
+        rendered = (
+            self.sandbox_runtime.status_text()
+            if self.sandbox_runtime is not None
+            else "Sandbox: not configured"
+        )
+        self._append_cell(
+            Static(
+                f"[b]• Sandbox[/]\n  "
+                f"{escape(rendered).replace(chr(10), chr(10) + '  ')}",
                 classes="context-cell",
             )
         )
@@ -842,10 +884,17 @@ class CodingKidApp(App[None]):
             self.cancellation_token,
             self.todo_state,
             self.agent_manager,
+            self.sandbox_runtime,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
-        overlays: tuple[str, ...] = (task_summary,) if task_summary else ()
+        overlays: tuple[str, ...] = (
+            (self.sandbox_runtime.instruction_text(),)
+            if self.sandbox_runtime is not None
+            else ()
+        )
+        if task_summary:
+            overlays = (*overlays, task_summary)
         if self.capability_runtime is not None:
             definitions = self.capability_runtime.registry_for_turn(
                 SkillTurnState(self.capability_runtime.snapshot.skills),
@@ -920,7 +969,10 @@ class CodingKidApp(App[None]):
         status.update(f"• {escape(self._status_label)} ({elapsed}s • esc to interrupt)")
 
     def _refresh_footer(self) -> None:
-        left = f"{self.session_context.model} · {self.session_context.cwd}"
+        left = (
+            f"{self.session_context.model} · {self._sandbox_label()} · "
+            f"{self.session_context.cwd}"
+        )
         remaining = self.manager.context_remaining_percent()
         right_parts = []
         if self.background_tasks.running_count:
@@ -1125,6 +1177,7 @@ def run_tui(
     background_tasks: BackgroundTaskManager | None = None,
     todo_state: TodoState | None = None,
     agent_manager: AgentManager | None = None,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -1138,4 +1191,5 @@ def run_tui(
         background_tasks=background_tasks,
         todo_state=todo_state,
         agent_manager=agent_manager,
+        sandbox_runtime=sandbox_runtime,
     ).run()

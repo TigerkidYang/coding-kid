@@ -17,6 +17,12 @@ from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
 from coding_kid.memory import MemoryManager
 from coding_kid.provider import generate
+from coding_kid.sandbox import (
+    DEFAULT_SANDBOX_IMAGE,
+    SandboxConfig,
+    SandboxMode,
+    SandboxRuntime,
+)
 from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import TodoState, build_tool_registry
@@ -57,6 +63,9 @@ class SessionOptions:
     session_id: str | None = None
     list_only: bool = False
     delete_session: str | None = None
+    sandbox_mode: str = SandboxMode.WORKSPACE_WRITE.value
+    sandbox_image: str = DEFAULT_SANDBOX_IMAGE
+    sandbox_network: bool = False
 
 
 def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
@@ -119,11 +128,14 @@ def chat(
     background_tasks: BackgroundTaskManager | None = None,
     todo_state: TodoState | None = None,
     agent_manager: AgentManager | None = None,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     output_function = _safe_output_function(output_function)
     owns_background_tasks = background_tasks is None
-    background_tasks = background_tasks or BackgroundTaskManager()
+    background_tasks = background_tasks or BackgroundTaskManager(
+        sandbox_runtime=sandbox_runtime
+    )
     owns_agent_manager = agent_manager is None
     if session_handle is None:
         try:
@@ -146,8 +158,11 @@ def chat(
         session_context,
         manager.budget,
         capability_runtime=capability_runtime,
+        sandbox_runtime=sandbox_runtime,
     )
     output_function(ready)
+    if sandbox_runtime is not None:
+        output_function(sandbox_runtime.status_text())
     if capability_runtime is not None:
         output_function(capability_runtime.summary())
         for warning in capability_runtime.warnings:
@@ -195,6 +210,13 @@ def chat(
         if user_input == "/agents":
             output_function(agent_manager.status_text())
             continue
+        if user_input == "/sandbox":
+            output_function(
+                sandbox_runtime.status_text()
+                if sandbox_runtime is not None
+                else "Sandbox: not configured"
+            )
+            continue
         if user_input.startswith("/agent stop "):
             agent_id = user_input.removeprefix("/agent stop ").strip()
             try:
@@ -223,16 +245,22 @@ def chat(
                 background_tasks,
                 todo_state=todo_state,
                 agent_manager=agent_manager,
+                sandbox_runtime=sandbox_runtime,
             )
             definitions = base_registry.definitions()
-            context_overlays: tuple[str, ...] = ()
+            context_overlays: tuple[str, ...] = (
+                (sandbox_runtime.instruction_text(),)
+                if sandbox_runtime is not None
+                else ()
+            )
             if capability_runtime is not None:
                 definitions = capability_runtime.registry_for_turn(
                     SkillTurnState(capability_runtime.snapshot.skills),
                     base_registry=base_registry,
                 ).definitions()
                 metadata = capability_runtime.skill_metadata()
-                context_overlays = (metadata,) if metadata else ()
+                if metadata:
+                    context_overlays = (*context_overlays, metadata)
             output_function(
                 manager.status_text(
                     current_instructions(session_context, context_overlays, todo_state),
@@ -343,16 +371,22 @@ def chat(
                 background_tasks,
                 todo_state=todo_state,
                 agent_manager=agent_manager,
+                sandbox_runtime=sandbox_runtime,
             )
             definitions = base_registry.definitions()
-            compact_overlays: tuple[str, ...] = ()
+            compact_overlays: tuple[str, ...] = (
+                (sandbox_runtime.instruction_text(),)
+                if sandbox_runtime is not None
+                else ()
+            )
             if capability_runtime is not None:
                 definitions = capability_runtime.registry_for_turn(
                     SkillTurnState(capability_runtime.snapshot.skills),
                     base_registry=base_registry,
                 ).definitions()
                 metadata = capability_runtime.skill_metadata()
-                compact_overlays = (metadata,) if metadata else ()
+                if metadata:
+                    compact_overlays = (*compact_overlays, metadata)
             try:
                 compact_context(
                     manager,
@@ -389,8 +423,11 @@ def chat(
             background_tasks,
             todo_state=todo_state,
             agent_manager=agent_manager,
+            sandbox_runtime=sandbox_runtime,
         )
-        overlays: tuple[str, ...] = ()
+        overlays: tuple[str, ...] = (
+            (sandbox_runtime.instruction_text(),) if sandbox_runtime is not None else ()
+        )
         if capability_runtime is not None:
             skill_state = SkillTurnState(capability_runtime.snapshot.skills)
             for skill_name in explicit_skill_names(
@@ -409,7 +446,8 @@ def chat(
                 base_registry=registry,
             )
             metadata = capability_runtime.skill_metadata()
-            overlays = (metadata,) if metadata else ()
+            if metadata:
+                overlays = (*overlays, metadata)
         manager.conversation.append_user(user_input)
         try:
             turn_options: dict[str, Any] = {}
@@ -555,6 +593,23 @@ def _open_session(
     return handle
 
 
+def _create_sandbox(
+    options: SessionOptions,
+    context: SessionContext,
+) -> SandboxRuntime:
+    runtime = SandboxRuntime(
+        SandboxConfig(
+            SandboxMode(options.sandbox_mode),
+            context.project_root,
+            context.cwd,
+            options.sandbox_image,
+            options.sandbox_network,
+        )
+    )
+    runtime.check_available()
+    return runtime
+
+
 def main(options: SessionOptions | None = None) -> None:
     """Start the terminal chat."""
     _configure_standard_output()
@@ -569,22 +624,25 @@ def main(options: SessionOptions | None = None) -> None:
             deleted = store.soft_delete(selection.delete_session)
             print(f"Deleted session {deleted.session_id[:8]} (evidence retained).")
             return
+        sandbox_runtime = _create_sandbox(selection, current_context)
         handle = _open_session(selection, current_context, store)
-    except RuntimeError as error:
+    except (RuntimeError, ValueError) as error:
         print(f"Error: {error}")
         return
 
     try:
         memory_manager = MemoryManager(handle.store)
-        background_tasks = BackgroundTaskManager()
+        background_tasks = BackgroundTaskManager(sandbox_runtime=sandbox_runtime)
         capability_runtime = CapabilityRuntime.capture(
             handle.context,
             context_window=handle.manager.budget.context_length,
+            external_tools_enabled=not sandbox_runtime.restricted,
         )
         agent_manager = AgentManager(
             handle.context,
             handle.manager.budget,
             capability_runtime=capability_runtime,
+            sandbox_runtime=sandbox_runtime,
         )
         if sys.stdin.isatty() and sys.stdout.isatty():
             from coding_kid.tui import run_tui
@@ -593,6 +651,8 @@ def main(options: SessionOptions | None = None) -> None:
                 "session_handle": handle,
                 "memory_manager": memory_manager,
             }
+            if "sandbox_runtime" in inspect.signature(run_tui).parameters:
+                tui_options["sandbox_runtime"] = sandbox_runtime
             if "background_tasks" in inspect.signature(run_tui).parameters:
                 tui_options["background_tasks"] = background_tasks
             if "capability_runtime" in inspect.signature(run_tui).parameters:
@@ -605,6 +665,8 @@ def main(options: SessionOptions | None = None) -> None:
                 "session_handle": handle,
                 "memory_manager": memory_manager,
             }
+            if "sandbox_runtime" in inspect.signature(chat).parameters:
+                chat_options["sandbox_runtime"] = sandbox_runtime
             if "background_tasks" in inspect.signature(chat).parameters:
                 chat_options["background_tasks"] = background_tasks
             if "capability_runtime" in inspect.signature(chat).parameters:

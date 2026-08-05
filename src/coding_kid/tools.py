@@ -8,6 +8,7 @@ from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.events import CancellationToken
+from coding_kid.sandbox import SandboxRuntime, SandboxViolation
 from coding_kid.terminal import run_command
 
 if TYPE_CHECKING:
@@ -36,13 +37,18 @@ def execute(
     *,
     task_manager: BackgroundTaskManager | None = None,
     cancellation_token: CancellationToken | None = None,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> str:
     """Run one foreground command or explicitly start a background task."""
     if background:
         if task_manager is None:
             raise RuntimeError("Background task runtime is not active")
         return task_manager.start(command).model_text()
-    return run_command(command, cancellation_token=cancellation_token).model_text()
+    return run_command(
+        command,
+        cancellation_token=cancellation_token,
+        sandbox_runtime=sandbox_runtime,
+    ).model_text()
 
 
 def task(
@@ -122,31 +128,47 @@ def agent(
     return snapshot.model_text(wait_timed_out=timed_out)
 
 
-def read(path: str) -> str:
+def read(path: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
     """Read a UTF-8 text file."""
-    return Path(path).read_text(encoding="utf-8")
+    file_path = _tool_path(path, sandbox_runtime)
+    return file_path.read_text(encoding="utf-8")
 
 
-def write(path: str, content: str) -> str:
+def write(
+    path: str,
+    content: str,
+    *,
+    sandbox_runtime: SandboxRuntime | None = None,
+) -> str:
     """Create or completely overwrite a UTF-8 text file."""
-    file_path = Path(path)
+    file_path = _tool_path(path, sandbox_runtime, write=True)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text(content, encoding="utf-8")
     return f"Wrote {file_path}"
 
 
-def search(query: str, path: str = ".") -> str:
+def search(
+    query: str,
+    path: str = ".",
+    *,
+    sandbox_runtime: SandboxRuntime | None = None,
+) -> str:
     """Search file names and UTF-8 text contents below a path."""
     if not query:
         raise ValueError("search query must not be empty")
 
-    root = Path(path)
+    root = _tool_path(path or ".", sandbox_runtime)
     if not root.exists():
         raise FileNotFoundError(f"Search path does not exist: {root}")
 
     matches: list[str] = []
 
     for file_path in _search_files(root):
+        if sandbox_runtime is not None:
+            try:
+                file_path = sandbox_runtime.resolve_path(str(file_path))
+            except SandboxViolation:
+                continue
         display_path = (
             file_path.name if root.is_file() else str(file_path.relative_to(root))
         )
@@ -191,9 +213,15 @@ def _truncated_search_result(matches: list[str]) -> str:
     return "\n".join(matches)
 
 
-def patch(path: str, old_text: str, new_text: str) -> str:
+def patch(
+    path: str,
+    old_text: str,
+    new_text: str,
+    *,
+    sandbox_runtime: SandboxRuntime | None = None,
+) -> str:
     """Replace one unique, exact text fragment in a UTF-8 file."""
-    file_path = Path(path)
+    file_path = _tool_path(path, sandbox_runtime, write=True)
     content = file_path.read_text(encoding="utf-8")
     count = content.count(old_text)
     if count == 0:
@@ -205,11 +233,22 @@ def patch(path: str, old_text: str, new_text: str) -> str:
     return f"Patched {file_path}"
 
 
-def delete(path: str) -> str:
+def delete(path: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
     """Delete one file."""
-    file_path = Path(path)
+    file_path = _tool_path(path, sandbox_runtime, write=True)
     file_path.unlink()
     return f"Deleted {file_path}"
+
+
+def _tool_path(
+    path: str,
+    sandbox_runtime: SandboxRuntime | None,
+    *,
+    write: bool = False,
+) -> Path:
+    if sandbox_runtime is None:
+        return Path(path)
+    return sandbox_runtime.resolve_path(path, write=write)
 
 
 VALID_TODO_STATUSES = {"pending", "in_progress", "completed"}
@@ -583,11 +622,35 @@ def build_tool_registry(
     cancellation_token: CancellationToken | None = None,
     todo_state: TodoState | None = None,
     agent_manager: AgentManager | None = None,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> ToolRegistry:
     """Bind process-local task state to one immutable per-turn registry."""
-    if task_manager is None and todo_state is None and agent_manager is None:
+    if (
+        task_manager is None
+        and todo_state is None
+        and agent_manager is None
+        and sandbox_runtime is None
+    ):
         return DEFAULT_TOOL_REGISTRY
     entries = {name: dict(entry) for name, entry in TOOLS.items()}
+    if sandbox_runtime is not None and sandbox_runtime.restricted:
+        entries["execute"]["description"] = (
+            "Run one non-interactive POSIX shell command inside the active Linux "
+            "sandbox container. Use project-relative paths. The container cannot "
+            "change its sandbox policy. Set background=true only when its result "
+            "is not needed immediately."
+        )
+    for name, function in {
+        "read": read,
+        "write": write,
+        "search": search,
+        "patch": patch,
+        "delete": delete,
+    }.items():
+        entries[name]["function"] = lambda function=function, **arguments: function(
+            **arguments,
+            sandbox_runtime=sandbox_runtime,
+        )
     if todo_state is not None:
         entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     if task_manager is not None:
@@ -596,6 +659,7 @@ def build_tool_registry(
             background,
             task_manager=task_manager,
             cancellation_token=cancellation_token,
+            sandbox_runtime=sandbox_runtime,
         )
         entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: (
             task(
@@ -626,15 +690,31 @@ def build_tool_registry(
 def build_child_tool_registry(
     todo_state: TodoState,
     cancellation_token: CancellationToken,
+    sandbox_runtime: SandboxRuntime | None = None,
 ) -> ToolRegistry:
     """Build a child-only registry without Agent or background task controls."""
     excluded = {"task", "spawn_agent", "agent"}
     entries = {
         name: dict(entry) for name, entry in TOOLS.items() if name not in excluded
     }
+    for name, function in {
+        "read": read,
+        "write": write,
+        "search": search,
+        "patch": patch,
+        "delete": delete,
+    }.items():
+        entries[name]["function"] = lambda function=function, **arguments: function(
+            **arguments,
+            sandbox_runtime=sandbox_runtime,
+        )
     entries["execute"] = {
         "description": (
-            "Run one non-interactive Windows PowerShell command in the shared "
+            "Run one non-interactive POSIX shell command inside the active Linux "
+            "sandbox container. Use project-relative paths. Output is bounded "
+            "and the process tree is terminated on timeout or Agent cancellation."
+            if sandbox_runtime is not None and sandbox_runtime.restricted
+            else "Run one non-interactive Windows PowerShell command in the shared "
             "working directory. Output is bounded and the process tree is "
             "terminated on timeout or Agent cancellation."
         ),
@@ -645,7 +725,9 @@ def build_child_tool_registry(
             "additionalProperties": False,
         },
         "function": lambda command: run_command(
-            command, cancellation_token=cancellation_token
+            command,
+            cancellation_token=cancellation_token,
+            sandbox_runtime=sandbox_runtime,
         ).model_text(),
     }
     entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
