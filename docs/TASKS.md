@@ -2,11 +2,11 @@
 
 ## Current Core Version: 10 — Controllable Turn Runtime
 
-Completion status: implementation and verification complete; awaiting the
-user's stage-completion confirmation before archive, tag, and push. The user
-selected the advanced research topic "How to better control the whole loop and
-workflow" and explicitly delegated implementation, deterministic verification,
-and bounded real-TUI verification to the assistant.
+Completion status: complete and archived under
+`versions/10-controllable-turn-runtime/` with annotated tag
+`version-10-controllable-turn-runtime`. The user selected the advanced research
+topic "How to better control the whole loop and workflow," delegated
+implementation and verification, and confirmed stage completion on 2026-08-05.
 
 ### Goal
 

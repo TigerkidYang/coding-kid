@@ -410,8 +410,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V9 are preserved under `versions/` and by matching
-annotated tags. Version 10 is the living implementation pending completion
-confirmation. The installed launcher bundles V1–V9 runtime source and shares
-one Python environment and one set of third-party dependencies across all
-versions.
+Completed checkpoints V1–V10 are preserved under `versions/` and by matching
+annotated tags. Version 10 remains the living implementation. The installed
+launcher bundles V1–V9 runtime source and shares one Python environment and one
+set of third-party dependencies across all versions.

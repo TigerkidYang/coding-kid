@@ -44,7 +44,7 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 09 are complete. Version 10 is the current controllable
+Versions 01 through 10 are complete. Version 10 is the current controllable
 turn-runtime implementation. Do not define a later version until the user
 chooses one from the research topic list.
 

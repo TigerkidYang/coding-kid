@@ -37,7 +37,8 @@ Research notes should support two outcomes:
 - How to implement skills and plugins as pluggable context. (Implemented in
   Version 07.)
 - How to implement context auto-compression.
-- How to better control the whole loop and workflow.
+- How to better control the whole loop and workflow. (Implemented in Version
+  10.)
 - How to control the sandbox environment.
 - How to design freely configurable MCP support. (Implemented in Version 07.)
 - How to initially implement visualization and observability:

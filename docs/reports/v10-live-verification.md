@@ -71,6 +71,6 @@ is conservatively below USD 0.02, well inside the standing USD 1.00 allowance.
 
 ## Outcome
 
-All Version 10 completion criteria passed. The implementation is ready for the
-user's stage-completion confirmation; archive creation, annotated tagging, and
-push remain intentionally deferred until that confirmation.
+All Version 10 completion criteria passed. The user confirmed stage completion
+on 2026-08-05; the teaching archive and annotated tag preserve the resulting
+checkpoint.

@@ -219,18 +219,19 @@ In particular:
 
 ## Current State
 
-- Version 10 controllable turn runtime implementation and verification are
-  complete, but it is not yet archived or tagged because user stage-completion
-  confirmation is pending. Explicit Turn/Step phases, reasons, limits, recovery,
-  FIFO TUI steering, hard interruption, completed-round evidence retention,
-  foreground cancellation, and bounded safe-tool parallelism now control the
-  living synchronous root loop. V09 is frozen in the installed runtime and the
-  launcher selects V1–V10 with V10 as default. It passes 289 tests, Ruff, ten
-  rounds of concurrency/process-tree stress, wheel inspection, and clean-install
-  V1–V10 launches. Real `openai/gpt-5.6-luna` TUI steering, interruption,
-  persistence, FIFO, process cleanup, and retained-evidence recall passed in
-  eight paid responses for conservatively less than USD 0.02. No SWE-bench or
-  paid batch evaluation was run. See
+- Version 10 is complete and archived under
+  `versions/10-controllable-turn-runtime/` with annotated tag
+  `version-10-controllable-turn-runtime`. Explicit Turn/Step phases, reasons,
+  limits, recovery, FIFO TUI steering, hard interruption, completed-round
+  evidence retention, foreground cancellation, and bounded safe-tool
+  parallelism now control the living synchronous root loop. V09 is frozen in
+  the installed runtime and the launcher selects V1–V10 with V10 as default. It
+  passes 289 tests, Ruff, ten rounds of concurrency/process-tree stress, wheel
+  inspection, and clean-install V1–V10 launches. Real
+  `openai/gpt-5.6-luna` TUI steering, interruption, persistence, FIFO, process
+  cleanup, and retained-evidence recall passed in eight paid responses for
+  conservatively less than USD 0.02. No SWE-bench or paid batch evaluation was
+  run. The user confirmed stage completion on 2026-08-05. See
   `docs/reports/v10-live-verification.md`.
 - Version 09 is complete and archived under
   `versions/09-multi-agent-workflows/` with annotated tag

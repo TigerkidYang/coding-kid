@@ -66,9 +66,9 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 10 controllable-turn-runtime implementation and verification are
-  complete and await the user's stage-completion confirmation before archive,
-  tag, and push. It makes
+- Version 10 controllable-turn-runtime is complete and archived under
+  `versions/10-controllable-turn-runtime/` with annotated tag
+  `version-10-controllable-turn-runtime`. It makes
   Turn/Step transitions explicit, adds bounded active-turn steering, preserves
   protocol evidence for completed side effects across interruption, propagates
   cancellation into foreground work, and adds controlled safe-tool scheduling.
@@ -76,9 +76,9 @@ without explicit permission.
   final wheel inspection, clean-install V1–V10 launches, and real TUI steering,
   hard-interrupt, evidence-resume, and FIFO trials. Eight paid responses kept
   task-wide live spend conservatively below USD 0.02; no benchmark was run.
-  The user selected the research topic and delegated implementation plus
-  deterministic and bounded real-TUI verification to the assistant. Version 09
-  remains the completed frozen teaching checkpoint.
+  The user selected the research topic, delegated implementation plus
+  deterministic and bounded real-TUI verification, and confirmed stage
+  completion on 2026-08-05. Version 09 remains the frozen teaching checkpoint.
 - Version 09 multi-Agent workflows are complete and archived under
   `versions/09-multi-agent-workflows/` with annotated tag
   `version-09-multi-agent-workflows`. One root-owned `AgentManager` runs up to
