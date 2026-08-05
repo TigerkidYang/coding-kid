@@ -93,6 +93,31 @@ def test_session_restores_workflow_plan_and_checkpoint_without_approval_grants(
     assert resumed.workflow.checkpoint_id == "checkpoint_abcdef"
 
 
+@pytest.mark.parametrize("kind", ["turn_failed", "turn_interrupted", "turn_steered"])
+def test_resume_restores_committed_evidence_and_workflow_from_terminal_turns(
+    tmp_path: Path, kind: str
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    workflow = WorkflowState()
+    handle = store.create(context, manager, [], workflow)
+    manager.conversation.append_user("attempt")
+    manager.conversation.append_model_round([{"type": "retained-tool-evidence"}])
+    workflow.ensure_checkpoint("checkpoint_abcdef")
+    handle.commit_state(kind=kind)
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id)
+
+    assert resumed.manager.conversation.active_items()[-1] == {
+        "type": "retained-tool-evidence"
+    }
+    assert resumed.workflow.checkpoint_id == "checkpoint_abcdef"
+
+
 def test_session_round_trip_normalizes_provider_items_for_replay(
     tmp_path: Path,
 ) -> None:

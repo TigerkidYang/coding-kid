@@ -825,11 +825,21 @@ def _restore_records(
     todos = [dict(item) for item in header.get("todos", [])]
     workflow = WorkflowState.from_dict(header.get("workflow"))
     for record in records[1:]:
-        if record.get("kind") not in {
+        kind = record.get("kind")
+        if kind not in {
             "state_committed",
             "context_committed",
             "workflow_committed",
+            "turn_failed",
+            "turn_interrupted",
+            "turn_steered",
         }:
+            continue
+        if kind in {"turn_failed", "turn_interrupted", "turn_steered"} and not any(
+            item.get("kind") == "model" for item in record.get("transcript_delta", [])
+        ):
+            # A failure before any complete model/tool round is audit evidence,
+            # not useful resumable conversation state.
             continue
         manager.conversation.transcript.extend(
             _segment_from_json(item) for item in record["transcript_delta"]

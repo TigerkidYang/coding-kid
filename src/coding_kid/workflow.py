@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import deque
 from enum import Enum
 from threading import RLock
 from typing import Any
@@ -28,6 +29,13 @@ class WorkflowSnapshot:
     changes_accepted: bool
 
 
+@dataclass(frozen=True)
+class WorkflowModeChanged:
+    previous: CollaborationMode
+    current: CollaborationMode
+    reason: str
+
+
 class WorkflowState:
     """Mutable workflow state shared by one root session and its children."""
 
@@ -44,6 +52,7 @@ class WorkflowState:
         self._checkpoint_id = checkpoint_id
         self._changes_accepted = changes_accepted
         self._lock = RLock()
+        self._events: deque[WorkflowModeChanged] = deque(maxlen=32)
 
     @property
     def mode(self) -> CollaborationMode:
@@ -65,18 +74,30 @@ class WorkflowState:
         with self._lock:
             return self._changes_accepted
 
-    def transition(self, mode: CollaborationMode) -> None:
+    def transition(self, mode: CollaborationMode, *, reason: str = "user") -> None:
         with self._lock:
+            previous = self._mode
             self._mode = mode
+            if previous is not mode:
+                self._events.append(WorkflowModeChanged(previous, mode, reason))
 
     def approve_plan(self, plan: str, checkpoint_id: str) -> None:
         if not plan.strip():
             raise ValueError("approved plan must not be empty")
         with self._lock:
+            previous = self._mode
             self._approved_plan = plan.strip()
             self._checkpoint_id = checkpoint_id
             self._changes_accepted = False
             self._mode = CollaborationMode.IMPLEMENTATION
+            if previous is not CollaborationMode.IMPLEMENTATION:
+                self._events.append(
+                    WorkflowModeChanged(
+                        previous,
+                        CollaborationMode.IMPLEMENTATION,
+                        "plan-approved",
+                    )
+                )
 
     def ensure_checkpoint(self, checkpoint_id: str) -> None:
         with self._lock:
@@ -85,8 +106,13 @@ class WorkflowState:
                 self._changes_accepted = False
 
     def enter_review(self) -> None:
+        self.transition(CollaborationMode.REVIEW, reason="review-requested")
+
+    def drain_events(self) -> tuple[WorkflowModeChanged, ...]:
         with self._lock:
-            self._mode = CollaborationMode.REVIEW
+            events = tuple(self._events)
+            self._events.clear()
+            return events
 
     def accept_changes(self) -> None:
         with self._lock:

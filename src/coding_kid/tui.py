@@ -60,7 +60,7 @@ from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import TodoState, build_tool_registry
 from coding_kid.turn_control import TurnController
-from coding_kid.workflow import CollaborationMode, WorkflowState
+from coding_kid.workflow import CollaborationMode, WorkflowModeChanged, WorkflowState
 from coding_kid.workflow_runtime import (
     InteractionRequest,
     InteractionResponse,
@@ -297,6 +297,8 @@ class CodingKidApp(App[None]):
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(0.1, self._drain_task_events)
         self.set_interval(0.1, self._drain_agent_events)
+        self.set_interval(0.05, self._drain_permission_requests)
+        self.set_interval(0.1, self._drain_workflow_events)
         if self.memory_manager is not None and self.memory_manager.mode == "auto":
             self.call_after_refresh(self._start_memory_sync, False)
 
@@ -576,19 +578,7 @@ class CodingKidApp(App[None]):
 
     def handle_turn_event(self, event: TurnEvent) -> None:
         if isinstance(event, ApprovalRequested):
-            self._pending_approval_id = event.request.request_id
-            self._append_cell(
-                Static(
-                    "[b yellow]Permission required[/]\n"
-                    f"{escape(event.request.tool_name)} "
-                    f"({escape(event.request.effect.value)})\n"
-                    f"{escape(event.request.summary)}\n"
-                    "[dim]Enter 1 approve once, 2 approve matching action for "
-                    "this session, 3 [feedback] deny, or 4 abort turn.[/]",
-                    classes="notice-cell",
-                )
-            )
-            self._set_status("Waiting for approval")
+            self._display_approval_request(event.request)
         elif isinstance(event, ApprovalCancelled):
             if self._pending_approval_id == event.request_id:
                 self._pending_approval_id = None
@@ -940,6 +930,50 @@ class CodingKidApp(App[None]):
             self._append_cell(
                 Static("■ Approval request is no longer active.", classes="error-cell")
             )
+        else:
+            self._pending_approval_id = None
+            self._set_status("Working")
+
+    def _drain_permission_requests(self) -> None:
+        if self.permission_broker is None:
+            return
+        try:
+            pending = self.permission_broker.pending
+            if pending and pending[0].request_id != self._pending_approval_id:
+                self._display_approval_request(pending[0])
+        except NoMatches:
+            return
+
+    def _display_approval_request(self, request: Any) -> None:
+        self._pending_approval_id = request.request_id
+        self._append_cell(
+            Static(
+                "[b yellow]Permission required[/]\n"
+                f"{escape(request.tool_name)} ({escape(request.effect.value)})\n"
+                f"{escape(request.summary)}\n"
+                "[dim]Enter 1 approve once, 2 approve matching action for this "
+                "session, 3 [feedback] deny, or 4 abort turn.[/]",
+                classes="notice-cell",
+            )
+        )
+        self._set_status("Waiting for approval")
+
+    def _drain_workflow_events(self) -> None:
+        try:
+            for event in self.workflow_state.drain_events():
+                self._show_workflow_event(event)
+        except NoMatches:
+            return
+
+    def _show_workflow_event(self, event: WorkflowModeChanged) -> None:
+        self._append_cell(
+            Static(
+                f"[dim]• Mode {event.previous.value} → {event.current.value} "
+                f"({escape(event.reason)})[/]",
+                classes="context-cell",
+            )
+        )
+        self._refresh_footer()
 
     def _tui_interaction(self, request: InteractionRequest) -> InteractionResponse:
         self.call_from_thread(self._show_interaction_request, request)

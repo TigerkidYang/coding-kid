@@ -7,7 +7,7 @@ from enum import Enum
 import json
 from pathlib import Path
 import secrets
-from threading import Condition, RLock
+from threading import Condition, Lock, RLock
 from typing import Any, Callable
 
 from coding_kid.events import CancellationToken, EventSink, TurnCancelled, emit
@@ -95,6 +95,7 @@ class PermissionBroker:
         self._pending: dict[str, ApprovalRequest] = {}
         self._responses: dict[str, ApprovalResponse] = {}
         self._condition = Condition(RLock())
+        self._approval_lock = Lock()
 
     @property
     def session_grants(self) -> frozenset[str]:
@@ -170,43 +171,18 @@ class PermissionBroker:
         key = approval_key(tool_name, effect, arguments)
         needs_approval = self._needs_approval(effect)
         if key not in self.session_grants and needs_approval:
-            request = ApprovalRequest(
-                f"approval_{secrets.token_hex(6)}",
-                tool_name,
-                effect,
-                dict(arguments),
-                approval_summary(tool_name, effect, arguments),
-                key,
-            )
-            emit(event_sink, ApprovalRequested(request))
-            handler = self._handler
-            if handler is None:
-                response = ApprovalResponse(
-                    ApprovalChoice.DENY,
-                    "No interactive approval channel is available.",
-                )
-            else:
-                try:
-                    response = handler(request, cancellation_token)
-                except TurnCancelled as error:
-                    emit(event_sink, ApprovalCancelled(request.request_id, str(error)))
-                    raise
-            emit(
-                event_sink,
-                ApprovalResolved(
-                    request.request_id, response.choice, response.feedback
-                ),
-            )
-            if response.choice is ApprovalChoice.ABORT:
-                raise TurnCancelled("Turn aborted from approval prompt")
-            if response.choice is ApprovalChoice.DENY:
-                feedback = (
-                    f" Feedback: {response.feedback}" if response.feedback else ""
-                )
-                return AuthorizationResult(False, f"User denied {tool_name}.{feedback}")
-            if response.choice is ApprovalChoice.SESSION:
-                with self._condition:
-                    self._session_grants.add(key)
+            with self._approval_lock:
+                if key not in self.session_grants:
+                    denied = self._request_approval(
+                        tool_name,
+                        effect,
+                        arguments,
+                        key,
+                        cancellation_token,
+                        event_sink,
+                    )
+                    if denied is not None:
+                        return denied
 
         if sandbox_check is not None:
             try:
@@ -216,6 +192,50 @@ class PermissionBroker:
                     False, f"Sandbox blocked {tool_name}: {error}"
                 )
         return AuthorizationResult(True)
+
+    def _request_approval(
+        self,
+        tool_name: str,
+        effect: ToolEffect,
+        arguments: dict[str, Any],
+        key: str,
+        cancellation_token: CancellationToken | None,
+        event_sink: EventSink | None,
+    ) -> AuthorizationResult | None:
+        request = ApprovalRequest(
+            f"approval_{secrets.token_hex(6)}",
+            tool_name,
+            effect,
+            dict(arguments),
+            approval_summary(tool_name, effect, arguments),
+            key,
+        )
+        emit(event_sink, ApprovalRequested(request))
+        handler = self._handler
+        if handler is None:
+            response = ApprovalResponse(
+                ApprovalChoice.DENY,
+                "No interactive approval channel is available.",
+            )
+        else:
+            try:
+                response = handler(request, cancellation_token)
+            except TurnCancelled as error:
+                emit(event_sink, ApprovalCancelled(request.request_id, str(error)))
+                raise
+        emit(
+            event_sink,
+            ApprovalResolved(request.request_id, response.choice, response.feedback),
+        )
+        if response.choice is ApprovalChoice.ABORT:
+            raise TurnCancelled("Turn aborted from approval prompt")
+        if response.choice is ApprovalChoice.DENY:
+            feedback = f" Feedback: {response.feedback}" if response.feedback else ""
+            return AuthorizationResult(False, f"User denied {tool_name}.{feedback}")
+        if response.choice is ApprovalChoice.SESSION:
+            with self._condition:
+                self._session_grants.add(key)
+        return None
 
     def _needs_approval(self, effect: ToolEffect) -> bool:
         if effect in {ToolEffect.READ_ONLY, ToolEffect.INTERACTION, ToolEffect.CONTROL}:

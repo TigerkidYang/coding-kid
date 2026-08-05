@@ -74,6 +74,10 @@ def test_plan_tools_validate_questions_and_approve_with_checkpoint(
     assert state.checkpoint_id is not None
     assert runtime.consume_clear_context()
     assert not runtime.consume_clear_context()
+    event = state.drain_events()[0]
+    assert event.previous is CollaborationMode.PLAN
+    assert event.current is CollaborationMode.IMPLEMENTATION
+    assert event.reason == "plan-approved"
 
 
 def test_plan_revision_does_not_create_checkpoint(tmp_path: Path) -> None:

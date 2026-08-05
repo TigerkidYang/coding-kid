@@ -199,7 +199,7 @@ class WorkflowRuntime:
             raise RuntimeError("No checkpoint is available")
         changes = self.checkpoints.rollback(checkpoint_id)
         self.state.clear_checkpoint()
-        self.state.transition(CollaborationMode.IMPLEMENTATION)
+        self.state.transition(CollaborationMode.IMPLEMENTATION, reason="rollback")
         return changes
 
     def accept(self) -> ChangeSummary:
@@ -209,7 +209,9 @@ class WorkflowRuntime:
         changes = self.checkpoints.accept(checkpoint_id)
         self.state.accept_changes()
         self.state.clear_checkpoint()
-        self.state.transition(CollaborationMode.IMPLEMENTATION)
+        self.state.transition(
+            CollaborationMode.IMPLEMENTATION, reason="changes-accepted"
+        )
         return changes
 
     def _interact(self, request: InteractionRequest) -> InteractionResponse:

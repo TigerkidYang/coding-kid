@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from pathlib import Path
 import threading
+import time
 
 import pytest
 
@@ -143,6 +144,38 @@ def test_session_grant_is_conservative_and_process_local() -> None:
     assert broker.authorize("patch", ToolEffect.PROJECT_WRITE, {"path": "a"}).allowed
     assert prompt_count == 2
     assert not PermissionBroker(ApprovalPolicy.CAUTIOUS, WorkflowState()).session_grants
+
+
+def test_sensitive_approval_prompts_are_exclusive_across_threads() -> None:
+    active = 0
+    maximum = 0
+    lock = threading.Lock()
+
+    def handler(*_args: object) -> ApprovalResponse:
+        nonlocal active, maximum
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+        time.sleep(0.02)
+        with lock:
+            active -= 1
+        return ApprovalResponse(ApprovalChoice.ONCE)
+
+    broker = PermissionBroker(ApprovalPolicy.CAUTIOUS, WorkflowState(), handler=handler)
+    threads = [
+        threading.Thread(
+            target=lambda index=index: broker.authorize(
+                "write", ToolEffect.PROJECT_WRITE, {"path": str(index)}
+            )
+        )
+        for index in range(4)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert maximum == 1
 
 
 def test_denial_feedback_and_abort() -> None:
