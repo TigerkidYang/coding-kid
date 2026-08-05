@@ -257,7 +257,9 @@ def _mode_error(
         if mode is CollaborationMode.PLAN
         else {"read", "search", "skill"}
     )
-    if tool_name in allowed_names:
+    if tool_name in allowed_names or (
+        tool_name == "task" and effect is ToolEffect.READ_ONLY
+    ):
         return None
     return f"Workflow mode {mode.value} blocks tool {tool_name} ({effect.value})"
 
@@ -271,9 +273,20 @@ def approval_key(tool_name: str, effect: ToolEffect, arguments: dict[str, Any]) 
             pass
         return f"{tool_name}:path:{target.casefold()}"
     if effect is ToolEffect.COMMAND:
+        if tool_name == "task":
+            action = str(arguments.get("action", ""))
+            task_id = str(arguments.get("task_id", ""))
+            payload = (
+                arguments.get("input", "")
+                if action == "write"
+                else arguments.get("command", "")
+            )
+            normalized = " ".join(str(payload).split())
+            return f"task:{action}:{task_id}:{normalized}"
         command = " ".join(str(arguments.get("command", "")).split())
         background = bool(arguments.get("background", False))
-        return f"{tool_name}:command:{background}:{command}"
+        interactive = bool(arguments.get("interactive", False))
+        return f"{tool_name}:command:{background}:{interactive}:{command}"
     if effect is ToolEffect.EXTERNAL:
         server = str(arguments.get("_server", "dynamic"))
         return f"external:{server}:{tool_name}"
@@ -287,10 +300,24 @@ def approval_summary(
     tool_name: str, effect: ToolEffect, arguments: dict[str, Any]
 ) -> str:
     if effect is ToolEffect.COMMAND:
+        if tool_name == "task":
+            action = arguments.get("action", "")
+            payload = (
+                arguments.get("input", "")
+                if action == "write"
+                else arguments.get("command", "")
+            )
+            return (
+                f"Execution session: {arguments.get('task_id', '')}\n"
+                f"Action: {action}\n"
+                f"Payload: {payload}\n"
+                f"Reason: {arguments.get('reason') or 'not provided'}"
+            )
         return (
             f"Command: {arguments.get('command', '')}\n"
             f"Working directory: {Path.cwd()}\n"
             f"Background: {bool(arguments.get('background', False))}\n"
+            f"Interactive: {bool(arguments.get('interactive', False))}\n"
             f"Reason: {arguments.get('reason') or 'not provided'}"
         )
     if effect in {ToolEffect.PROJECT_WRITE, ToolEffect.DESTRUCTIVE}:

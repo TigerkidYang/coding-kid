@@ -37,18 +37,31 @@ SKIPPED_SEARCH_DIRECTORIES = {
 def execute(
     command: str,
     background: bool = False,
+    interactive: bool = False,
+    yield_time_ms: int = 10_000,
     reason: str | None = None,
     *,
     task_manager: BackgroundTaskManager | None = None,
     cancellation_token: CancellationToken | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
 ) -> str:
-    """Run one foreground command or explicitly start a background task."""
+    """Run a short command or yield one continuing execution session."""
     del reason
-    if background:
-        if task_manager is None:
-            raise RuntimeError("Background task runtime is not active")
-        return task_manager.start(command).model_text()
+    if not isinstance(yield_time_ms, int) or not 0 <= yield_time_ms <= 30_000:
+        raise ValueError("yield_time_ms must be an integer between 0 and 30000")
+    if task_manager is not None:
+        started = task_manager.start(command, interactive=interactive)
+        if background:
+            return started.model_text()
+        snapshot, _ = task_manager.wait(
+            started.task_id,
+            yield_time_ms / 1000,
+            cancellation_token,
+            incremental=True,
+        )
+        return snapshot.model_text(wait_timed_out=snapshot.status == "running")
+    if background or interactive:
+        raise RuntimeError("Execution-session runtime is not active")
     return run_command(
         command,
         cancellation_token=cancellation_token,
@@ -60,27 +73,53 @@ def task(
     action: str,
     task_id: str | None = None,
     timeout_seconds: float = 10,
+    input: str | None = None,
+    submit: bool = True,
+    command: str | None = None,
+    reason: str | None = None,
     *,
     task_manager: BackgroundTaskManager | None = None,
     cancellation_token: CancellationToken | None = None,
 ) -> str:
-    """Inspect, wait for, or stop one process-local background task."""
+    """Inspect or continue one process-local execution session."""
+    del reason
     if task_manager is None:
         raise RuntimeError("Background task runtime is not active")
     if action == "list":
         return task_manager.status_text()
-    if action not in {"poll", "wait", "stop"}:
-        raise ValueError("action must be list, poll, wait, or stop")
+    if action not in {"poll", "wait", "write", "interrupt", "stop", "check"}:
+        raise ValueError(
+            "action must be list, poll, wait, write, interrupt, stop, or check"
+        )
     if not task_id:
         raise ValueError(f"task_id is required for {action}")
     if action == "poll":
-        return task_manager.poll(task_id).model_text()
+        return task_manager.poll(task_id, incremental=True).model_text()
+    if action == "write":
+        if input is None:
+            raise ValueError("input is required for write")
+        return task_manager.write(task_id, input, submit=submit).model_text()
+    if action == "interrupt":
+        return task_manager.interrupt(task_id).model_text()
+    if action == "check":
+        if not command:
+            raise ValueError("command is required for check")
+        return (
+            "readiness_check: explicit\n"
+            + task_manager.check(
+                task_id,
+                command,
+                timeout_seconds,
+                cancellation_token,
+            ).model_text()
+        )
     if action == "stop":
         return task_manager.stop(task_id).model_text()
     snapshot, timed_out = task_manager.wait(
         task_id,
         timeout_seconds,
         cancellation_token,
+        incremental=True,
     )
     return snapshot.model_text(wait_timed_out=timed_out)
 
@@ -360,19 +399,33 @@ TOOLS: dict[str, ToolEntry] = {
     "execute": {
         "effect": ToolEffect.COMMAND,
         "description": (
-            "Run one non-interactive Windows PowerShell command in the current "
-            "directory. Set background=true only when its result is not needed "
-            "immediately. Foreground output is bounded and its process tree is "
-            "terminated after 2 minutes. Background execution returns a task ID."
+            "Run a command in the current project. Short commands return their "
+            "result; a command still alive after yield_time_ms returns a stable "
+            "task ID without restarting. Set interactive=true for a real terminal "
+            "that can accept later task(write/interrupt) calls. background=true "
+            "returns immediately. Running does not prove service readiness."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "minLength": 1},
                 "background": {"type": "boolean", "default": False},
+                "interactive": {"type": "boolean", "default": False},
+                "yield_time_ms": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 30_000,
+                    "default": 10_000,
+                },
                 "reason": {"type": ["string", "null"], "default": None},
             },
-            "required": ["command", "background", "reason"],
+            "required": [
+                "command",
+                "background",
+                "interactive",
+                "yield_time_ms",
+                "reason",
+            ],
             "additionalProperties": False,
         },
         "function": execute,
@@ -562,33 +615,74 @@ TOOLS: dict[str, ToolEntry] = {
         "effect": lambda arguments: (
             ToolEffect.READ_ONLY
             if arguments.get("action") in {"list", "poll", "wait"}
+            else ToolEffect.COMMAND
+            if arguments.get("action") in {"write", "check"}
             else ToolEffect.DESTRUCTIVE
         ),
         "description": (
-            "Manage process-local background shell tasks. list and poll return "
-            "immediately; wait blocks for completion for at most 30 seconds; stop "
-            "terminates the process tree. Waiting for completion does not prove a "
-            "server is ready—inspect logs or run a concrete health probe."
+            "Manage process-local execution sessions. poll/wait return only new "
+            "output; write submits input to an interactive terminal; interrupt "
+            "sends Ctrl+C while preserving the session when possible; stop ends "
+            "the process tree; check runs an explicit bounded readiness command "
+            "in the same host or container environment."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "poll", "wait", "stop"],
+                    "enum": [
+                        "list",
+                        "poll",
+                        "wait",
+                        "write",
+                        "interrupt",
+                        "stop",
+                        "check",
+                    ],
                 },
                 "task_id": {"type": ["string", "null"], "minLength": 1},
+                "input": {
+                    "type": ["string", "null"],
+                    "maxLength": 20_000,
+                    "default": None,
+                },
+                "submit": {"type": "boolean", "default": True},
+                "command": {
+                    "type": ["string", "null"],
+                    "minLength": 1,
+                    "default": None,
+                },
                 "timeout_seconds": {
                     "type": "number",
                     "minimum": 0,
                     "maximum": 30,
                     "default": 10,
                 },
+                "reason": {"type": ["string", "null"], "default": None},
             },
-            "required": ["action", "task_id", "timeout_seconds"],
+            "required": [
+                "action",
+                "task_id",
+                "input",
+                "submit",
+                "command",
+                "timeout_seconds",
+                "reason",
+            ],
             "additionalProperties": False,
         },
         "function": task,
+        "hard_check": lambda arguments: (
+            _protect_command(
+                arguments["input"]
+                if arguments.get("action") == "write"
+                else arguments["command"]
+            )
+            if arguments.get("action") in {"write", "check"}
+            and (arguments.get("input") or arguments.get("command"))
+            else None
+        ),
     },
 }
 
@@ -631,15 +725,41 @@ class ToolRegistry:
         if mode is CollaborationMode.IMPLEMENTATION:
             return self.definitions()
         allowed_names = (
-            {"read", "search", "skill", "request_user_input", "propose_plan"}
+            {
+                "read",
+                "search",
+                "skill",
+                "task",
+                "request_user_input",
+                "propose_plan",
+            }
             if mode is CollaborationMode.PLAN
-            else {"read", "search", "skill"}
+            else {"read", "search", "skill", "task"}
         )
-        return [
+        definitions = [
             definition
             for definition in self.definitions()
             if definition["name"] in allowed_names
         ]
+        for definition in definitions:
+            if definition["name"] == "task":
+                definition["parameters"] = {
+                    **definition["parameters"],
+                    "properties": {
+                        **definition["parameters"]["properties"],
+                        "action": {
+                            "type": "string",
+                            "enum": ["list", "poll", "wait"],
+                        },
+                    },
+                }
+                definition["description"] = (
+                    "Read existing execution-session state. list and poll return "
+                    "immediately; wait observes completion for at most 30 seconds. "
+                    "This workflow mode cannot start, write, check, interrupt, or "
+                    "stop sessions."
+                )
+        return definitions
 
     def effect(self, name: str, arguments: dict[str, Any]) -> ToolEffect:
         """Classify unknown and dynamic tools conservatively as external."""
@@ -716,10 +836,11 @@ def build_tool_registry(
     entries = {name: dict(entry) for name, entry in TOOLS.items()}
     if sandbox_runtime is not None and sandbox_runtime.restricted:
         entries["execute"]["description"] = (
-            "Run one non-interactive POSIX shell command inside the active Linux "
-            "sandbox container. Use project-relative paths. The container cannot "
-            "change its sandbox policy. Set background=true only when its result "
-            "is not needed immediately."
+            "Run a POSIX shell command inside the active Linux sandbox. Short "
+            "commands return normally; continuing commands keep the same named "
+            "container and return a task ID. interactive=true allocates a real "
+            "terminal. Use project-relative paths; the session cannot change its "
+            "sandbox policy."
         )
     for name, function in {
         "read": read,
@@ -745,23 +866,33 @@ def build_tool_registry(
     if todo_state is not None:
         entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     if task_manager is not None:
-        entries["execute"]["function"] = lambda command, background=False, reason=None: (
-            execute(
-                command,
-                background,
-                reason,
-                task_manager=task_manager,
-                cancellation_token=cancellation_token,
-                sandbox_runtime=sandbox_runtime,
+        entries["execute"]["function"] = (
+            lambda command, background=False, interactive=False, yield_time_ms=10_000, reason=None: (
+                execute(
+                    command,
+                    background,
+                    interactive,
+                    yield_time_ms,
+                    reason,
+                    task_manager=task_manager,
+                    cancellation_token=cancellation_token,
+                    sandbox_runtime=sandbox_runtime,
+                )
             )
         )
-        entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: (
-            task(
-                action,
-                task_id,
-                timeout_seconds,
-                task_manager=task_manager,
-                cancellation_token=cancellation_token,
+        entries["task"]["function"] = (
+            lambda action, task_id=None, input=None, submit=True, command=None, timeout_seconds=10, reason=None: (
+                task(
+                    action,
+                    task_id,
+                    timeout_seconds,
+                    input,
+                    submit,
+                    command,
+                    reason,
+                    task_manager=task_manager,
+                    cancellation_token=cancellation_token,
+                )
             )
         )
     if agent_manager is not None:

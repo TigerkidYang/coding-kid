@@ -7,9 +7,11 @@ from dataclasses import dataclass
 import locale
 import os
 import re
+import signal
 import subprocess
 import threading
 import time
+from typing import Protocol
 import xml.etree.ElementTree as ElementTree
 
 from coding_kid.events import CancellationToken, TurnCancelled
@@ -21,6 +23,26 @@ IO_DRAIN_TIMEOUT_SECONDS = 2.0
 TIMEOUT_EXIT_CODE = 124
 CANCELLED_EXIT_CODE = 125
 _CREATE_SUSPENDED = 0x00000004
+
+
+class InteractiveProcess(Protocol):
+    """Small cross-platform surface owned by the execution-session manager."""
+
+    pid: int
+
+    def read(self, size: int = 8192) -> bytes: ...
+
+    def write(self, value: str) -> int: ...
+
+    def interrupt(self) -> None: ...
+
+    def wait(self) -> int: ...
+
+    def poll(self) -> int | None: ...
+
+    def terminate_tree(self) -> None: ...
+
+    def release(self) -> None: ...
 
 
 class _HeadTailBytes:
@@ -216,6 +238,40 @@ def spawn_command(
     return process
 
 
+def spawn_interactive_command(
+    command: str,
+    *,
+    sandbox_runtime: SandboxRuntime | None = None,
+) -> InteractiveProcess:
+    """Start a continuing command behind a real host/container terminal."""
+    if not command:
+        raise ValueError("command must not be empty")
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["PYTHONUTF8"] = "1"
+    restricted = sandbox_runtime is not None and sandbox_runtime.restricted
+    container_name = sandbox_runtime.new_container_name() if restricted else None
+    argv = (
+        sandbox_runtime.command_argv(command, container_name, interactive=True)
+        if restricted and container_name is not None
+        else _interactive_shell_argv(command)
+    )
+    try:
+        process: InteractiveProcess = (
+            _WindowsPtyProcess.spawn(argv, environment)
+            if os.name == "nt"
+            else _UnixPtyProcess.spawn(argv, environment)
+        )
+    except BaseException:
+        if container_name is not None:
+            sandbox_runtime.remove_container(container_name, retry_missing=True)
+        raise
+    if container_name is not None:
+        setattr(process, "_coding_kid_sandbox_runtime", sandbox_runtime)
+        setattr(process, "_coding_kid_container", container_name)
+    return process
+
+
 def decode_process_output(data: bytes) -> str:
     """Decode command bytes through the shared Unicode fallback policy."""
     return _decode_process_output(data)
@@ -226,14 +282,22 @@ def normalize_process_stderr(stderr: str) -> str:
     return _normalize_powershell_stderr(stderr) if os.name == "nt" else stderr
 
 
-def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+def terminate_process_tree(
+    process: subprocess.Popen[bytes] | InteractiveProcess,
+) -> None:
     """Terminate a command and its descendants with bounded cleanup."""
+    if hasattr(process, "terminate_tree"):
+        process.terminate_tree()  # type: ignore[union-attr]
+        return
     _terminate_process_tree(process)
 
 
-def release_process_tree(process: subprocess.Popen[bytes]) -> None:
+def release_process_tree(process: subprocess.Popen[bytes] | InteractiveProcess) -> None:
     """Release process-group resources, killing any descendants still attached."""
     _cleanup_sandbox(process)
+    if hasattr(process, "release"):
+        process.release()  # type: ignore[union-attr]
+        return
     if os.name == "nt":
         _close_windows_job(process)
 
@@ -267,6 +331,159 @@ def _shell_argv(command: str) -> list[str]:
         ]
     shell = os.environ.get("SHELL") or "/bin/sh"
     return [shell, "-lc", command]
+
+
+def _interactive_shell_argv(command: str) -> list[str]:
+    if os.name == "nt":
+        return [
+            "powershell.exe",
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            command,
+        ]
+    shell = os.environ.get("SHELL") or "/bin/sh"
+    return [shell, "-lc", command]
+
+
+class _WindowsPtyProcess:
+    def __init__(self, process: object) -> None:
+        self._process = process
+        self.pid = int(process.pid)  # type: ignore[attr-defined]
+        self._released = False
+
+    @classmethod
+    def spawn(cls, argv: list[str], environment: dict[str, str]):
+        try:
+            from winpty import PtyProcess
+        except ImportError as error:  # pragma: no cover - dependency diagnostic
+            raise RuntimeError(
+                "Interactive Windows terminals require pywinpty"
+            ) from error
+        return cls(PtyProcess.spawn(argv, cwd=os.getcwd(), env=environment))
+
+    def read(self, size: int = 8192) -> bytes:
+        return self._process.read(size).encode("utf-8")  # type: ignore[attr-defined]
+
+    def write(self, value: str) -> int:
+        return int(self._process.write(value))  # type: ignore[attr-defined]
+
+    def interrupt(self) -> None:
+        self._process.sendintr()  # type: ignore[attr-defined]
+
+    def wait(self) -> int:
+        self._process.wait()  # type: ignore[attr-defined]
+        status = self._process.exitstatus  # type: ignore[attr-defined]
+        return int(status if status is not None else 0)
+
+    def poll(self) -> int | None:
+        if self._process.isalive():  # type: ignore[attr-defined]
+            return None
+        status = self._process.exitstatus  # type: ignore[attr-defined]
+        return int(status if status is not None else 0)
+
+    def terminate_tree(self) -> None:
+        try:
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(self.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except (OSError, subprocess.SubprocessError):
+            try:
+                self._process.terminate(force=True)  # type: ignore[attr-defined]
+            except (OSError, RuntimeError):
+                pass
+        finally:
+            _cleanup_sandbox(self, retry_missing=True)
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._released = True
+        try:
+            self._process.close(force=False)  # type: ignore[attr-defined]
+        except (EOFError, OSError):
+            pass
+
+
+class _UnixPtyProcess:
+    def __init__(self, process: subprocess.Popen[bytes], master_fd: int) -> None:
+        self._process = process
+        self._master_fd = master_fd
+        self.pid = process.pid
+        self._released = False
+
+    @classmethod
+    def spawn(cls, argv: list[str], environment: dict[str, str]):
+        import pty
+
+        master_fd, slave_fd = pty.openpty()
+        try:
+            process = subprocess.Popen(
+                argv,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                env=environment,
+                start_new_session=True,
+            )
+        except BaseException:
+            os.close(master_fd)
+            raise
+        finally:
+            os.close(slave_fd)
+        return cls(process, master_fd)
+
+    def read(self, size: int = 8192) -> bytes:
+        return os.read(self._master_fd, size)
+
+    def write(self, value: str) -> int:
+        return os.write(self._master_fd, value.encode("utf-8"))
+
+    def interrupt(self) -> None:
+        try:
+            os.killpg(self.pid, signal.SIGINT)
+        except ProcessLookupError:
+            pass
+
+    def wait(self) -> int:
+        return self._process.wait()
+
+    def poll(self) -> int | None:
+        return self._process.poll()
+
+    def terminate_tree(self) -> None:
+        try:
+            os.killpg(self.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            self._process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(self.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                self._process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+        finally:
+            _cleanup_sandbox(self, retry_missing=True)
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._released = True
+        try:
+            os.close(self._master_fd)
+        except OSError:
+            pass
 
 
 def _read_stream(stream: object, buffer: _HeadTailBytes) -> None:
@@ -516,6 +733,13 @@ def _decode_process_output(data: bytes) -> str:
 
 
 _POWERSHELL_ESCAPE = re.compile(r"_x([0-9A-Fa-f]{4})_")
+_ANSI_CSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_ANSI_OSC = re.compile(r"\x1b\].*?(?:\x07|\x1b\\)")
+
+
+def normalize_terminal_output(output: str) -> str:
+    """Remove terminal-control traffic while preserving the visible text."""
+    return _ANSI_CSI.sub("", _ANSI_OSC.sub("", output))
 
 
 def _normalize_powershell_stderr(stderr: str) -> str:

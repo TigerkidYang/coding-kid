@@ -307,7 +307,7 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v12)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v13)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}\n"
@@ -319,7 +319,7 @@ class CodingKidApp(App[None]):
         )
         self._append_cell(
             Static(
-                "[dim]  Describe a task, or use /agents, /tasks, /session, /sessions, "
+                "[dim]  Describe a task, or use /agents, /tasks, /task, /session, /sessions, "
                 "/permissions, /mode, /changes, /sandbox, /context, /compact, "
                 "or /exit.[/]",
                 classes="help-cell",
@@ -381,6 +381,34 @@ class CodingKidApp(App[None]):
             return
         if text.startswith("/agent stop "):
             self._start_agent_stop(text.removeprefix("/agent stop ").strip())
+            return
+        if text.startswith("/task poll "):
+            task_id = text.removeprefix("/task poll ").strip()
+            try:
+                result = self.background_tasks.poll(task_id, incremental=True)
+            except Exception as error:
+                self._show_task_stop_error(str(error))
+            else:
+                self._show_task_action_result(result.model_text())
+            return
+        if text.startswith("/task input "):
+            parts = text.split(maxsplit=3)
+            if len(parts) < 4:
+                self._show_task_stop_error("Usage: /task input <id> <text>")
+            else:
+                self._start_task_action("input", parts[2], parts[3])
+            return
+        if text.startswith("/task interrupt "):
+            self._start_task_action(
+                "interrupt", text.removeprefix("/task interrupt ").strip()
+            )
+            return
+        if text.startswith("/task check "):
+            parts = text.split(maxsplit=3)
+            if len(parts) < 4:
+                self._show_task_stop_error("Usage: /task check <id> <command>")
+            else:
+                self._start_task_action("check", parts[2], parts[3])
             return
         if text.startswith("/task stop "):
             self._start_task_stop(text.removeprefix("/task stop ").strip())
@@ -1313,7 +1341,8 @@ class CodingKidApp(App[None]):
         remaining = self.manager.context_remaining_percent()
         right_parts = []
         if self.background_tasks.running_count:
-            right_parts.append(f"{self.background_tasks.running_count} background")
+            count = self.background_tasks.running_count
+            right_parts.append(f"{count} {'terminal' if count == 1 else 'terminals'}")
         if self.agent_manager.running_count:
             count = self.agent_manager.running_count
             right_parts.append(f"{count} {'Agent' if count == 1 else 'Agents'}")
@@ -1421,6 +1450,47 @@ class CodingKidApp(App[None]):
             exit_on_error=False,
         )
 
+    def _start_task_action(
+        self, action: str, task_id: str, value: str | None = None
+    ) -> None:
+        if not task_id:
+            self._show_task_stop_error(f"Usage: /task {action} <id>")
+            return
+        if self.active_turn:
+            return
+        self._begin_activity(f"Session {action}: {task_id}")
+        self.run_worker(
+            lambda: self._run_task_action(action, task_id, value),
+            name=f"task-{action}",
+            group="agent",
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _run_task_action(self, action: str, task_id: str, value: str | None) -> None:
+        try:
+            if action == "input":
+                result = self.background_tasks.write(task_id, value or "").model_text()
+            elif action == "interrupt":
+                result = self.background_tasks.interrupt(task_id).model_text()
+            elif action == "check":
+                result = (
+                    "Readiness check evidence:\n"
+                    + self.background_tasks.check(task_id, value or "").model_text()
+                )
+            else:  # pragma: no cover - internal dispatch invariant
+                raise ValueError(f"Unknown task action: {action}")
+        except BaseException as error:
+            self.call_from_thread(self._show_task_stop_error, str(error))
+        else:
+            self.call_from_thread(self._show_task_action_result, result)
+        finally:
+            self.call_from_thread(self._finish_activity)
+
+    def _show_task_action_result(self, result: str) -> None:
+        self._append_cell(Static(Text(result), classes="context-cell", markup=False))
+
     def _run_task_stop(self, task_id: str) -> None:
         try:
             self.background_tasks.stop(task_id)
@@ -1449,13 +1519,14 @@ class CodingKidApp(App[None]):
             "running": "started",
             "completed": "completed",
             "failed": "failed",
+            "interrupted": "interrupted",
             "stopped": "stopped",
         }
         suffix = f" (exit {event.exit_code})" if event.exit_code is not None else ""
         style = "error-cell" if event.status == "failed" else "notice-cell"
         self._append_cell(
             Static(
-                f"• Background task {labels[event.status]}{suffix}\n"
+                f"• Execution session {labels[event.status]}{suffix}\n"
                 f"  {escape(event.task_id)} · {escape(_bounded(event.command))}",
                 classes=style,
             )
@@ -1471,6 +1542,8 @@ def _tool_status(name: str, arguments: dict[str, Any]) -> str:
         return f"Starting Agent {_bounded(arguments.get('description', '?'))}"
     if name == "agent":
         return f"Managing Agent {arguments.get('action', '?')}"
+    if name == "task":
+        return f"Managing terminal {arguments.get('action', '?')}"
     return _tool_description(name, arguments).removeprefix("• ")
 
 
@@ -1495,6 +1568,12 @@ def _tool_description(name: str, arguments: dict[str, Any]) -> str:
         agent_id = arguments.get("agent_id") or "all"
         return (
             f"• Managed Agent\n  └ {arguments.get('action', '?')} {_bounded(agent_id)}"
+        )
+    if name == "task":
+        task_id = arguments.get("task_id") or "all"
+        return (
+            f"• Managed terminal\n"
+            f"  └ {arguments.get('action', '?')} {_bounded(task_id)}"
         )
     return f"• {name}"
 

@@ -46,9 +46,20 @@ def test_non_implementation_modes_structurally_hide_mutating_tools(
     names = {item["name"] for item in ToolRegistry().definitions_for_mode(mode)}
 
     assert {"read", "search"} <= names
+    assert "task" in names
     assert not names.intersection(
-        {"write", "patch", "delete", "execute", "spawn_agent", "agent", "task"}
+        {"write", "patch", "delete", "execute", "spawn_agent", "agent"}
     )
+    task_definition = next(
+        item
+        for item in ToolRegistry().definitions_for_mode(mode)
+        if item["name"] == "task"
+    )
+    assert task_definition["parameters"]["properties"]["action"]["enum"] == [
+        "list",
+        "poll",
+        "wait",
+    ]
 
 
 def test_mode_denial_happens_without_approval_prompt() -> None:
@@ -78,7 +89,7 @@ def test_mode_denial_happens_without_approval_prompt() -> None:
         (CollaborationMode.PLAN, "todo", ToolEffect.CONTROL),
         (CollaborationMode.PLAN, "spawn_agent", ToolEffect.EXTERNAL),
         (CollaborationMode.REVIEW, "request_user_input", ToolEffect.INTERACTION),
-        (CollaborationMode.REVIEW, "task", ToolEffect.READ_ONLY),
+        (CollaborationMode.REVIEW, "task", ToolEffect.COMMAND),
     ],
 )
 def test_hidden_tool_name_cannot_bypass_mode(

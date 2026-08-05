@@ -319,6 +319,48 @@ def chat(
                 output_function(f"Agent {result.agent_id}: {result.status}.")
                 agent_manager.drain_events()
             continue
+        if user_input.startswith("/task poll "):
+            task_id = user_input.removeprefix("/task poll ").strip()
+            try:
+                result = background_tasks.poll(task_id, incremental=True)
+            except Exception as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function(result.model_text())
+            continue
+        if user_input.startswith("/task input "):
+            parts = user_input.split(maxsplit=3)
+            if len(parts) < 4:
+                output_function("Usage: /task input <id> <text>")
+                continue
+            try:
+                result = background_tasks.write(parts[2], parts[3])
+            except Exception as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function(result.model_text())
+            continue
+        if user_input.startswith("/task interrupt "):
+            task_id = user_input.removeprefix("/task interrupt ").strip()
+            try:
+                result = background_tasks.interrupt(task_id)
+            except Exception as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function(result.model_text())
+            continue
+        if user_input.startswith("/task check "):
+            parts = user_input.split(maxsplit=3)
+            if len(parts) < 4:
+                output_function("Usage: /task check <id> <command>")
+                continue
+            try:
+                result = background_tasks.check(parts[2], parts[3])
+            except Exception as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function("Readiness check evidence:\n" + result.model_text())
+            continue
         if user_input.startswith("/task stop "):
             task_id = user_input.removeprefix("/task stop ").strip()
             try:

@@ -164,7 +164,8 @@ class WorkflowState:
                 "Workflow mode: plan. Investigate with read-only tools, ask up to "
                 "three structured questions when needed, and submit the complete "
                 "implementation and test plan with propose_plan. Project changes, "
-                "shell commands, background tasks, and child Agents are unavailable."
+                "shell commands, execution-session changes, and child Agents are "
+                "unavailable; existing sessions may only be listed or inspected."
             )
         if mode is CollaborationMode.REVIEW:
             return (

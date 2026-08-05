@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp>=2,<3",
     "openai>=2.30.0,<3",
+    "pywinpty>=3,<4; sys_platform == 'win32'",
     "pyyaml>=6,<7",
     "textual>=8,<9",
 ]

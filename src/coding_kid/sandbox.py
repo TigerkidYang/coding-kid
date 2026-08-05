@@ -163,8 +163,10 @@ class SandboxRuntime:
             raise SandboxError("sandbox container ID factory returned an invalid value")
         return f"coding-kid-{suffix}"
 
-    def command_argv(self, command: str, container_name: str) -> list[str]:
-        """Build one hardened, non-shell Docker invocation."""
+    def command_argv(
+        self, command: str, container_name: str, *, interactive: bool = False
+    ) -> list[str]:
+        """Build one hardened Docker invocation for a new execution session."""
         if not self.restricted:
             raise SandboxError("danger-full-access does not use Docker")
         relative_cwd = self.config.cwd.relative_to(self.config.project_root)
@@ -208,6 +210,10 @@ class SandboxRuntime:
             "--env",
             "PYTHONUTF8=1",
         ]
+        if interactive:
+            # The Docker client itself is attached to the application's PTY, so
+            # `-it` creates a real terminal inside the continuing container.
+            argv[2:2] = ["-i", "-t"]
         if self.config.mode is SandboxMode.WORKSPACE_WRITE:
             for name in sorted(PROTECTED_WORKSPACE_NAMES):
                 host_path = self.config.project_root / name
@@ -218,6 +224,23 @@ class SandboxRuntime:
                     argv.extend(["--tmpfs", f"{target}:ro,size=64k"])
         argv.extend([self.config.image, "/bin/sh", "-lc", command])
         return argv
+
+    def check_argv(self, container_name: str, command: str) -> list[str]:
+        """Build a bounded health check inside one live session container."""
+        if not self.restricted:
+            raise SandboxError("danger-full-access does not use Docker exec")
+        relative_cwd = self.config.cwd.relative_to(self.config.project_root)
+        container_cwd = Path("/workspace", relative_cwd).as_posix()
+        return [
+            self.docker_executable,
+            "exec",
+            "--workdir",
+            container_cwd,
+            container_name,
+            "/bin/sh",
+            "-lc",
+            command,
+        ]
 
     def remove_container(
         self, container_name: str, *, retry_missing: bool = False

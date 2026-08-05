@@ -131,7 +131,7 @@ def test_tui_displays_sandbox_status_command(tmp_path: Path) -> None:
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             header = content(app.query_one(".session-card", Static))
-            assert "v12" in header
+            assert "v13" in header
             assert "read-only" in header
             composer = app.query_one(Composer)
             composer.load_text("/sandbox")
@@ -246,7 +246,7 @@ def test_tui_shows_background_events_tasks_and_running_count(tmp_path: Path) -> 
         app = make_app(tmp_path, background_tasks=tasks)
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause(0.2)
-            assert "1 background" in content(app.query_one("#footer-right", Static))
+            assert "1 terminal" in content(app.query_one("#footer-right", Static))
             notices = [content(widget) for widget in app.query(".notice-cell")]
             assert any(task_id in notice and "started" in notice for notice in notices)
 
@@ -260,7 +260,7 @@ def test_tui_shows_background_events_tasks_and_running_count(tmp_path: Path) -> 
             await pilot.press("enter")
             await pilot.pause(0.3)
             assert tasks.poll(task_id).status == "stopped"
-            assert "background" not in content(app.query_one("#footer-right", Static))
+            assert "terminal" not in content(app.query_one("#footer-right", Static))
 
     try:
         asyncio.run(exercise())
