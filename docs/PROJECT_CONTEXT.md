@@ -66,6 +66,14 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
+- Version 12 permission-governed workflow is implemented and verified. It
+  separates collaboration mode, approval policy, and the existing sandbox;
+  adds application-owned approval prompts and conflict-aware stage checkpoints;
+  freezes V11; and makes V12 the installed default. It passes 383 tests with one
+  Windows symlink skip, Ruff, ten stress rounds, wheel inspection, clean-install
+  V1-V12 launches, and installed-wheel TUI trials. At most 18 short paid model
+  responses kept estimated spend below USD 0.10. No benchmark ran. Archive and
+  tag creation are in progress under the user's approved plan.
 - Version 11 sandbox control is complete and archived under
   `versions/11-sandbox-control/` with annotated tag
   `version-11-sandbox-control`.
@@ -161,8 +169,8 @@ without explicit permission.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
 - An unnumbered cross-version launcher improvement is complete. Each version
-  transition extends its registry; Version 11 selects Versions 01–11, bundles
-  frozen V01–V10, and defaults to the living Version 11 runtime. The original
+  transition extends its registry; Version 12 selects Versions 01–12, bundles
+  frozen V01–V11, and defaults to the living Version 12 runtime. The original
   V1–V3 increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.

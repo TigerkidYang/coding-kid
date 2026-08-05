@@ -2,17 +2,18 @@
 
 ## Overview
 
-Version 11 places one immutable, application-owned sandbox policy around every
-model-controlled local effect without changing Version 10's synchronous turn
-runtime. `SandboxRuntime` owns project path decisions, restricted Docker command
-construction, availability checks, and container cleanup. The root Agent,
-children, and background tasks receive the same runtime.
+Version 12 adds an application-owned permission and change-control plane above
+Version 11's immutable sandbox. Collaboration mode controls which tools exist,
+approval policy controls which sensitive requests pause for authorization, and
+the sandbox independently limits every authorized action.
 
 ```text
 launcher.py
-  |-- v1-v10 -> isolated bundled runtime process
-  `-- v11/default -> cli.py
+  |-- v1-v11 -> isolated bundled runtime process
+  `-- v12/default -> cli.py
                      |-- SessionStore / MemoryManager
+                     |-- WorkflowState / PermissionBroker
+                     |-- WorkflowRuntime / CheckpointManager
                      |-- SandboxRuntime -> path policy / Docker boundary
                      |-- AgentManager -> sandboxed child run_turn workers
                      |-- BackgroundTaskManager -> sandboxed process trees
@@ -31,6 +32,44 @@ rounds and todo effects, discard incomplete assistant streams, and write a
 reasoned durable transition. Temporary compaction projections are rolled back
 on failure while newly completed transcript rounds are preserved. Already
 started child Agents and background tasks remain discoverable.
+
+## Permission-Governed Workflow
+
+`workflow.py` owns the durable `plan`, `implementation`, and `review` mode plus
+the approved plan and checkpoint identity. The registry removes invalid tools
+from the model schema, while `PermissionBroker` repeats the mode check before
+dispatch so a fabricated hidden-tool call still fails. Plan exposes read,
+search, Skill loading, structured questions, and plan submission. Review
+exposes only read, search, and Skill loading.
+
+`permissions.py` classifies every tool as read-only, interaction, project write,
+command, destructive, external, or control. Unknown and dynamic tools default
+to external. The broker checks mode, hard metadata rules, process-local grants,
+approval policy, and finally sandbox preflight. Only then may `ToolStarted` be
+emitted. Cautious asks for all sensitive effects, Auto admits normal
+write/patch calls, and Full Access suppresses prompts without weakening hard or
+sandbox denials. Missing interactive channels deny safely.
+
+`workflow_runtime.py` owns structured Plan interactions and serializes every
+sensitive effect across root and child workers. An approved plan creates a
+checkpoint before Implementation; direct Implementation creates one before its
+first sensitive action. Approval may retain context or replace only the
+model-visible projection with the approved implementation instruction while
+preserving the canonical transcript.
+
+## Change Checkpoints
+
+`checkpoints.py` enumerates Git-tracked and non-ignored untracked files, stores
+content-addressed baseline bytes and types in protected session state, and
+records hashes after each sensitive effect. File count and byte limits are hard
+boundaries; an unreadable, unsupported, or oversized tree blocks mutation.
+
+Rollback requires background tasks and child Agents to stop, then compares the
+live tree with the last application-recorded tree. Any difference is treated as
+a possible external edit and refuses the whole rollback. A safe rollback
+restores the exact pre-stage state and removes stage-created non-ignored files.
+Ignored output, project-external effects, and remote MCP effects are outside the
+promise. Accepting changes removes the protected checkpoint.
 
 ## Sandbox Control Plane
 

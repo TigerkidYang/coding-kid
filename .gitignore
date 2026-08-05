@@ -5,6 +5,8 @@ research/repos/
 .ruff_cache/
 __pycache__/
 *.py[cod]
+output/v12-verification/
+output/v12-live/
 evals/v02-baseline/AgentBench-Live/
 evals/v02-baseline/swe-pylint-full/
 evals/v02-baseline/workspaces/

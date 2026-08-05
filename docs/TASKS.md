@@ -2,7 +2,8 @@
 
 ## Current Core Version: 12 — Permission-Governed Workflow
 
-Completion status: in progress. The user selected the supplementary improvement
+Completion status: implementation and verification complete; archive in
+progress. The user selected the supplementary improvement
 "Permission-governed change workflow," approved the implementation plan, and
 explicitly delegated development, deterministic verification, and bounded real
 installed-wheel TUI verification to the assistant.
@@ -56,6 +57,23 @@ independent hard boundary on what an authorized action can affect.
 - Pytest, Ruff, race/cleanup stress, wheel inspection, V11 fidelity,
   clean-install V1-V12 launches, and real TUI workflow trials pass within the
   standing USD 1.00 live-verification allowance.
+
+### Verification Result
+
+- Pytest collected 384 tests: 383 passed and one Windows symlink test was
+  skipped. Ruff lint and format checks pass.
+- Ten repeated approval/concurrency/rollback/process stress rounds pass.
+- The wheel contains 193 files / 189 Python files, including the 23-file frozen
+  V11 runtime, with no unrelated sources or generated evidence. A clean install
+  launches V1-V12 from an unrelated directory.
+- Installed-wheel pseudo-terminal trials pass Plan approval, Cautious allow and
+  deny feedback, Review/Accept, Auto rollback preserving a dirty baseline,
+  Full Access under read-only sandbox, approval interruption, root-routed child
+  approval, background cleanup, and checkpoint resume without old grants.
+- Live testing exposed and fixed terminal-turn replay of complete retained tool
+  rounds and workflow state. No benchmark ran. At most 18 short model responses
+  kept estimated task spend below USD 0.10. See
+  `docs/reports/v12-live-verification.md`.
 
 ## Current Core Version: 11 — Sandbox Control
 
