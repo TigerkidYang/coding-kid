@@ -78,7 +78,6 @@ inside the standing USD 1.00 allowance.
 
 ## Outcome
 
-All Version 11 implementation completion criteria passed. The root
-implementation remains unarchived until the user explicitly confirms stage
-completion, at which point the normal archive, annotated-tag, and push procedure
-applies.
+All Version 11 completion criteria passed. The user confirmed stage completion
+on 2026-08-05; the teaching archive and annotated tag preserve the resulting
+checkpoint.

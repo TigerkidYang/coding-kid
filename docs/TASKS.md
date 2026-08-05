@@ -2,12 +2,12 @@
 
 ## Current Core Version: 11 — Sandbox Control
 
-Completion status: implementation and verification complete; awaiting the
-user's stage-completion confirmation before archive, tag, and push. The user
-selected the final incomplete research topic, "How to control the sandbox
-environment," approved the implementation plan, and explicitly delegated
-development, deterministic verification, and a real installed-wheel TUI trial
-to the assistant.
+Completion status: complete and archived under `versions/11-sandbox-control/`
+with annotated tag `version-11-sandbox-control`. The user selected the final
+incomplete research topic, "How to control the sandbox environment," approved
+the implementation plan, explicitly delegated development, deterministic
+verification, and a real installed-wheel TUI trial to the assistant, and
+confirmed stage completion on 2026-08-05.
 
 ### Goal
 

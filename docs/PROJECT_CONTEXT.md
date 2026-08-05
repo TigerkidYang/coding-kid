@@ -66,15 +66,17 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 11 sandbox-control implementation and verification are complete and
-  await the user's stage-completion confirmation before archive, tag, and push.
+- Version 11 sandbox control is complete and archived under
+  `versions/11-sandbox-control/` with annotated tag
+  `version-11-sandbox-control`.
   The Docker-backed default `workspace-write`, `read-only`, and explicit
   `danger-full-access` policies cover built-in file tools, foreground commands,
   background tasks, and child Agents without changing the V10 loop. V10 is
   frozen in the installed runtime; 309 tests, Ruff, Docker probes and cleanup
   stress, wheel inspection, clean-install V1-V11 launches, and real installed-
   wheel TUI trials pass. Eleven paid responses remained conservatively below
-  USD 0.05; no benchmark was run.
+  USD 0.05; no benchmark was run. The user confirmed stage completion on
+  2026-08-05.
 - Version 10 controllable-turn-runtime is complete and archived under
   `versions/10-controllable-turn-runtime/` with annotated tag
   `version-10-controllable-turn-runtime`. It makes

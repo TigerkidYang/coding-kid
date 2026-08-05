@@ -219,8 +219,9 @@ In particular:
 
 ## Current State
 
-- Version 11 sandbox-control implementation and verification are complete and
-  await the user's stage-completion confirmation before archive, tag, and push.
+- Version 11 is complete and archived under
+  `versions/11-sandbox-control/` with annotated tag
+  `version-11-sandbox-control`.
   One immutable startup policy (`read-only`, default `workspace-write`, or
   explicit `danger-full-access`) now governs built-in paths, foreground Docker
   commands, background tasks, and child Agents. Restricted modes fail closed,
@@ -231,7 +232,8 @@ In particular:
   clean-install V1-V11 launches, and real TUI trials across all three modes.
   Eleven paid `openai/gpt-5.6-luna` responses kept estimated task spend below
   USD 0.05. No SWE-bench or paid batch evaluation was run. See
-  `docs/reports/v11-live-verification.md`.
+  `docs/reports/v11-live-verification.md`. The user confirmed stage completion
+  on 2026-08-05.
 - Version 10 is complete and archived under
   `versions/10-controllable-turn-runtime/` with annotated tag
   `version-10-controllable-turn-runtime`. Explicit Turn/Step phases, reasons,

@@ -44,9 +44,8 @@ The user decides each version's goal, scope, exclusions, and completion criteria
 when that version is about to begin.
 
 Consequence:
-Versions 01 through 10 are complete. Version 11 is the current sandbox-control
-implementation. Do not define a later version until Version 11 is complete and
-the user chooses one from the research topic list.
+Versions 01 through 11 are complete. Do not define a later version until the
+user chooses one from the research topic list.
 
 ## Make Version 11 sandbox policy explicit and fail closed
 
