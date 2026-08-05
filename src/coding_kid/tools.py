@@ -8,8 +8,10 @@ from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.events import CancellationToken
+from coding_kid.permissions import PermissionBroker, ToolEffect
 from coding_kid.sandbox import SandboxRuntime, SandboxViolation
 from coding_kid.terminal import run_command
+from coding_kid.workflow import CollaborationMode
 
 if TYPE_CHECKING:
     from coding_kid.agents import AgentManager
@@ -353,6 +355,7 @@ def todo(todos: list[dict[str, Any]]) -> str:
 # definitions. Keeping it explicit makes the first version easy to inspect.
 TOOLS: dict[str, ToolEntry] = {
     "execute": {
+        "effect": ToolEffect.COMMAND,
         "description": (
             "Run one non-interactive Windows PowerShell command in the current "
             "directory. Set background=true only when its result is not needed "
@@ -371,6 +374,7 @@ TOOLS: dict[str, ToolEntry] = {
         "function": execute,
     },
     "read": {
+        "effect": ToolEffect.READ_ONLY,
         "description": "Read a UTF-8 text file.",
         "parameters": {
             "type": "object",
@@ -382,6 +386,7 @@ TOOLS: dict[str, ToolEntry] = {
         "parallel_safe": True,
     },
     "write": {
+        "effect": ToolEffect.PROJECT_WRITE,
         "description": "Create or completely overwrite a UTF-8 text file.",
         "parameters": {
             "type": "object",
@@ -395,6 +400,7 @@ TOOLS: dict[str, ToolEntry] = {
         "function": write,
     },
     "search": {
+        "effect": ToolEffect.READ_ONLY,
         "description": (
             "Search for a literal non-empty substring in file names and text "
             "contents below a path. This is not a glob search."
@@ -412,6 +418,7 @@ TOOLS: dict[str, ToolEntry] = {
         "parallel_safe": True,
     },
     "patch": {
+        "effect": ToolEffect.PROJECT_WRITE,
         "description": "Replace one unique, exact text fragment in a file.",
         "parameters": {
             "type": "object",
@@ -426,6 +433,7 @@ TOOLS: dict[str, ToolEntry] = {
         "function": patch,
     },
     "delete": {
+        "effect": ToolEffect.DESTRUCTIVE,
         "description": "Delete one file.",
         "parameters": {
             "type": "object",
@@ -436,6 +444,7 @@ TOOLS: dict[str, ToolEntry] = {
         "function": delete,
     },
     "todo": {
+        "effect": ToolEffect.CONTROL,
         "description": (
             "Replace the full session task checklist. Use for multi-step work. "
             "Each item needs content and status "
@@ -476,6 +485,7 @@ TOOLS: dict[str, ToolEntry] = {
         "function": todo,
     },
     "spawn_agent": {
+        "effect": ToolEffect.EXTERNAL,
         "description": (
             "Start an independent child Agent for one concrete, self-contained "
             "subtask. It runs asynchronously in the shared working directory. "
@@ -502,6 +512,11 @@ TOOLS: dict[str, ToolEntry] = {
         "function": spawn_agent,
     },
     "agent": {
+        "effect": lambda arguments: (
+            ToolEffect.READ_ONLY
+            if arguments.get("action") in {"list", "poll", "wait"}
+            else ToolEffect.EXTERNAL
+        ),
         "description": (
             "Manage process-local child Agents. list and poll return immediately; "
             "wait blocks for at most 30 seconds without stopping work; followup "
@@ -539,6 +554,11 @@ TOOLS: dict[str, ToolEntry] = {
         "function": agent,
     },
     "task": {
+        "effect": lambda arguments: (
+            ToolEffect.READ_ONLY
+            if arguments.get("action") in {"list", "poll", "wait"}
+            else ToolEffect.DESTRUCTIVE
+        ),
         "description": (
             "Manage process-local background shell tasks. list and poll return "
             "immediately; wait blocks for completion for at most 30 seconds; stop "
@@ -585,7 +605,9 @@ class ToolRegistry:
         entries[name] = entry
         return ToolRegistry(entries)
 
-    def definitions(self) -> list[dict[str, Any]]:
+    def definitions(
+        self, *, allowed_effects: set[ToolEffect] | None = None
+    ) -> list[dict[str, Any]]:
         return [
             {
                 "type": "function",
@@ -595,7 +617,61 @@ class ToolRegistry:
                 "strict": entry.get("strict", True),
             }
             for name, entry in self._entries.items()
+            if allowed_effects is None
+            or self.effect(name, {}).value in {item.value for item in allowed_effects}
         ]
+
+    def definitions_for_mode(self, mode: CollaborationMode) -> list[dict[str, Any]]:
+        """Expose only structurally valid tools for the active workflow mode."""
+        if mode is CollaborationMode.IMPLEMENTATION:
+            return self.definitions()
+        allowed_names = (
+            {"read", "search", "skill", "request_user_input", "propose_plan"}
+            if mode is CollaborationMode.PLAN
+            else {"read", "search", "skill"}
+        )
+        return [
+            definition
+            for definition in self.definitions()
+            if definition["name"] in allowed_names
+        ]
+
+    def effect(self, name: str, arguments: dict[str, Any]) -> ToolEffect:
+        """Classify unknown and dynamic tools conservatively as external."""
+        entry = self._entries.get(name)
+        if entry is None:
+            return ToolEffect.EXTERNAL
+        declared = entry.get("effect", ToolEffect.EXTERNAL)
+        if callable(declared):
+            declared = declared(arguments)
+        try:
+            return ToolEffect(declared)
+        except (TypeError, ValueError):
+            return ToolEffect.EXTERNAL
+
+    def authorize(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        broker: PermissionBroker,
+        *,
+        cancellation_token: CancellationToken | None = None,
+        event_sink=None,
+    ):
+        """Apply the permission boundary without dispatching the tool."""
+        effect = self.effect(name, arguments)
+        entry = self._entries.get(name)
+        sandbox_check = None if entry is None else entry.get("sandbox_check")
+        hard_check = None if entry is None else entry.get("hard_check")
+        return broker.authorize(
+            name,
+            effect,
+            arguments,
+            hard_check=(lambda: hard_check(arguments)) if hard_check else None,
+            sandbox_check=(lambda: sandbox_check(arguments)) if sandbox_check else None,
+            cancellation_token=cancellation_token,
+            event_sink=event_sink,
+        )
 
     def parallel_safe(self, name: str) -> bool:
         """Return true only for tools explicitly safe to overlap."""
@@ -651,6 +727,16 @@ def build_tool_registry(
             **arguments,
             sandbox_runtime=sandbox_runtime,
         )
+        write_effect = name in {"write", "patch", "delete"}
+        entries[name]["sandbox_check"] = lambda arguments, write=write_effect: (
+            sandbox_runtime.resolve_path(arguments["path"], write=write)
+            if sandbox_runtime is not None
+            else None
+        )
+        if write_effect:
+            entries[name]["hard_check"] = lambda arguments: _protect_metadata_path(
+                arguments["path"], sandbox_runtime
+            )
     if todo_state is not None:
         entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     if task_manager is not None:
@@ -709,6 +795,7 @@ def build_child_tool_registry(
             sandbox_runtime=sandbox_runtime,
         )
     entries["execute"] = {
+        "effect": ToolEffect.COMMAND,
         "description": (
             "Run one non-interactive POSIX shell command inside the active Linux "
             "sandbox container. Use project-relative paths. Output is bounded "
@@ -732,6 +819,25 @@ def build_child_tool_registry(
     }
     entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     return ToolRegistry(entries)
+
+
+def _protect_metadata_path(path: str, sandbox_runtime: SandboxRuntime | None) -> None:
+    """Keep application and Git metadata outside model-controlled file tools."""
+    candidate = Path(path)
+    if sandbox_runtime is not None:
+        if not candidate.is_absolute():
+            candidate = sandbox_runtime.config.cwd / candidate
+        root = sandbox_runtime.config.project_root
+    else:
+        if not candidate.is_absolute():
+            candidate = Path.cwd() / candidate
+        root = Path.cwd()
+    try:
+        relative = candidate.resolve(strict=False).relative_to(root.resolve())
+    except ValueError:
+        return
+    if relative.parts and relative.parts[0].casefold() in {".git", ".coding-kid"}:
+        raise PermissionError(f"protected project metadata: {relative.parts[0]}")
 
 
 def _todo_for_state(state: TodoState, todos: list[dict[str, Any]]) -> str:

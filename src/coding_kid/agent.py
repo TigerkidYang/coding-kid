@@ -41,6 +41,7 @@ from coding_kid.events import (
     emit,
 )
 from coding_kid.parser import parse_output
+from coding_kid.permissions import PermissionBroker
 from coding_kid.provider import (
     generate,
     is_context_window_error,
@@ -58,6 +59,8 @@ from coding_kid.tools import (
     tool_definitions,
 )
 from coding_kid.turn_control import TransitionReason, TurnLimits
+from coding_kid.workflow import WorkflowState
+from coding_kid.workflow_runtime import WorkflowRuntime
 
 if TYPE_CHECKING:
     from coding_kid.agents import AgentManager
@@ -184,6 +187,9 @@ def run_turn(
     agent_manager: AgentManager | None = None,
     rollback_on_cancel: bool = False,
     limits: TurnLimits | None = None,
+    permission_broker: PermissionBroker | None = None,
+    workflow_state: WorkflowState | None = None,
+    workflow_runtime: WorkflowRuntime | None = None,
 ) -> str:
     """Run model and tools until the model returns a final text response."""
     configured_limits = limits or TurnLimits(
@@ -248,12 +254,25 @@ def run_turn(
             task_overlay = tuple(
                 summary for summary in (task_summary, agent_summary) if summary
             )
+            workflow_overlay = (
+                (workflow_state.instruction_text(),)
+                if workflow_state is not None
+                else ()
+            )
             instructions = current_instructions(
                 context,
-                instruction_overlays + task_overlay + recovery_overlays,
+                instruction_overlays
+                + workflow_overlay
+                + task_overlay
+                + recovery_overlays,
                 todo_state,
             )
-            active_tools = [] if stalled else tools
+            mode_tools = (
+                registry.definitions_for_mode(workflow_state.mode)
+                if workflow_state is not None
+                else tools
+            )
+            active_tools = [] if stalled else mode_tools
 
             if manager.should_auto_compact(instructions, active_tools):
                 try:
@@ -430,11 +449,53 @@ def run_turn(
 
             def invoke_tool(tool_index: int) -> str:
                 tool_call = parsed.tool_calls[tool_index]
+                effect = registry.effect(tool_call.name, tool_call.arguments)
+                if permission_broker is not None:
+                    authorization = registry.authorize(
+                        tool_call.name,
+                        tool_call.arguments,
+                        permission_broker,
+                        cancellation_token=cancellation_token,
+                        event_sink=event_sink,
+                    )
+                    if not authorization.allowed:
+                        result = f"ERROR: {authorization.message}"
+                        emit(
+                            event_sink,
+                            ToolCompleted(
+                                tool_call.name,
+                                dict(tool_call.arguments),
+                                result,
+                            ),
+                        )
+                        return result
+                if workflow_runtime is not None:
+                    try:
+                        workflow_runtime.before_effect(effect)
+                    except Exception as error:  # noqa: BLE001
+                        result = f"ERROR: {type(error).__name__}: {error}"
+                        emit(
+                            event_sink,
+                            ToolCompleted(
+                                tool_call.name,
+                                dict(tool_call.arguments),
+                                result,
+                            ),
+                        )
+                        return result
                 emit(
                     event_sink,
                     ToolStarted(tool_call.name, dict(tool_call.arguments)),
                 )
                 result = dispatch(tool_call.name, tool_call.arguments)
+                if workflow_runtime is not None:
+                    try:
+                        workflow_runtime.after_effect(effect)
+                    except Exception as error:  # noqa: BLE001
+                        result = (
+                            f"{result}\nERROR: Change tracking failed after the tool: "
+                            f"{type(error).__name__}: {error}"
+                        )
                 if on_tool is not None:
                     on_tool(tool_call.name, tool_call.arguments, result)
                 emit(
@@ -538,6 +599,15 @@ def run_turn(
                 )
 
             manager.conversation.append_model_round(round_items)
+            if (
+                workflow_runtime is not None
+                and workflow_runtime.consume_clear_context()
+            ):
+                approved_plan = workflow_runtime.state.approved_plan or ""
+                manager.conversation.reset_active_to_user(
+                    "Implement the approved plan below in a fresh context.\n\n"
+                    f"{approved_plan}"
+                )
             emit(
                 event_sink,
                 TransitionSelected(TransitionReason.TOOL_FOLLOWUP.value),

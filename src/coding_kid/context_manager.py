@@ -138,6 +138,13 @@ class ConversationState:
         self.transcript.append(segment.clone())
         self.active.append(segment)
 
+    def reset_active_to_user(self, content: str) -> None:
+        """Preserve the transcript while beginning a deliberately fresh model view."""
+        item = {"role": "user", "content": content}
+        segment = ConversationSegment("user", [item])
+        self.transcript.append(segment.clone())
+        self.active = [segment]
+
     def active_items(self) -> list[Any]:
         return [item for segment in self.active for item in segment.items]
 
