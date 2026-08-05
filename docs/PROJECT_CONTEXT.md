@@ -66,14 +66,17 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 13 continuous execution environment is in implementation and
-  verification. One bounded manager owns short, yielded, background, and
-  interactive commands; Windows ConPTY/Unix PTY sessions accept later input and
-  Ctrl+C, output is incremental with temporary full logs, readiness checks run
-  in the same host/container environment, and child Agents receive private
+- Version 13 continuous execution environment has completed implementation and
+  non-model verification. One bounded manager owns short, yielded, background,
+  and interactive commands; Windows ConPTY/Unix PTY sessions accept later input
+  and Ctrl+C, output is incremental with temporary full logs, readiness checks
+  run in the same host/container environment, and child Agents receive private
   managers that close with the child run. V12 is frozen and the launcher selects
-  V1-V13 with V13 as the living default. The version is not yet archived or
-  tagged.
+  V1-V13 with V13 as the living default. It passes 397 tests with one Windows
+  symlink skip, Ruff, ten real Docker stress rounds, wheel inspection,
+  clean-install V1-V13 launches, and direct installed-wheel terminal trials.
+  The final minimal model-driven workflow could not run because the environment
+  has no model credentials. The version is not yet archived or tagged.
 - Version 12 permission-governed workflow is complete and archived under
   `versions/12-permission-governed-workflow/` with annotated tag
   `version-12-permission-governed-workflow`. It

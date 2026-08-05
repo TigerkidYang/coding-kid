@@ -2,7 +2,9 @@
 
 ## Current Core Version: 13 — Continuous Execution Environment
 
-Completion status: implementation in progress. The user selected the
+Completion status: implementation and non-model verification complete; final
+live-model verification is unavailable because the current environment has no
+model credentials. The user selected the
 supplementary improvement "Rich, continuous execution environment," approved
 the implementation plan, and explicitly delegated implementation,
 deterministic verification, and bounded real installed-wheel terminal
@@ -74,3 +76,18 @@ interrupts, and health checks without being restarted.
 
 The version is archived and tagged only after the user explicitly confirms
 stage completion.
+
+### Verification Record
+
+- Full suite: 397 passed, one Windows symlink test skipped.
+- Ruff lint and formatting: passed over 245 Python files.
+- Ten real Docker concurrency/cleanup rounds: passed with no residual
+  containers or reader threads.
+- Wheel inspection, clean installation, and explicit V1-V13 launches: passed.
+- Real host ConPTY, installed CLI, installed full-screen TUI launch/exit, and
+  continuing Docker terminal/check/cleanup trials: passed.
+- Minimal paid model workflow: not run because `OPENROUTER_API_KEY` and
+  `OPENROUTER_MODEL` are unavailable; spend is USD 0.00.
+
+See `docs/reports/v13-live-verification.md` for the evidence and remaining
+completion gate.
