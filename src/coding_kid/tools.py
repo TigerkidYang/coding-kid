@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
@@ -36,12 +37,14 @@ SKIPPED_SEARCH_DIRECTORIES = {
 def execute(
     command: str,
     background: bool = False,
+    reason: str | None = None,
     *,
     task_manager: BackgroundTaskManager | None = None,
     cancellation_token: CancellationToken | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
 ) -> str:
     """Run one foreground command or explicitly start a background task."""
+    del reason
     if background:
         if task_manager is None:
             raise RuntimeError("Background task runtime is not active")
@@ -367,11 +370,13 @@ TOOLS: dict[str, ToolEntry] = {
             "properties": {
                 "command": {"type": "string", "minLength": 1},
                 "background": {"type": "boolean", "default": False},
+                "reason": {"type": ["string", "null"], "default": None},
             },
-            "required": ["command", "background"],
+            "required": ["command", "background", "reason"],
             "additionalProperties": False,
         },
         "function": execute,
+        "hard_check": lambda arguments: _protect_command(arguments["command"]),
     },
     "read": {
         "effect": ToolEffect.READ_ONLY,
@@ -740,12 +745,15 @@ def build_tool_registry(
     if todo_state is not None:
         entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     if task_manager is not None:
-        entries["execute"]["function"] = lambda command, background=False: execute(
-            command,
-            background,
-            task_manager=task_manager,
-            cancellation_token=cancellation_token,
-            sandbox_runtime=sandbox_runtime,
+        entries["execute"]["function"] = lambda command, background=False, reason=None: (
+            execute(
+                command,
+                background,
+                reason,
+                task_manager=task_manager,
+                cancellation_token=cancellation_token,
+                sandbox_runtime=sandbox_runtime,
+            )
         )
         entries["task"]["function"] = lambda action, task_id=None, timeout_seconds=10: (
             task(
@@ -794,6 +802,16 @@ def build_child_tool_registry(
             **arguments,
             sandbox_runtime=sandbox_runtime,
         )
+        write_effect = name in {"write", "patch", "delete"}
+        entries[name]["sandbox_check"] = lambda arguments, write=write_effect: (
+            sandbox_runtime.resolve_path(arguments["path"], write=write)
+            if sandbox_runtime is not None
+            else None
+        )
+        if write_effect:
+            entries[name]["hard_check"] = lambda arguments: _protect_metadata_path(
+                arguments["path"], sandbox_runtime
+            )
     entries["execute"] = {
         "effect": ToolEffect.COMMAND,
         "description": (
@@ -807,15 +825,19 @@ def build_child_tool_registry(
         ),
         "parameters": {
             "type": "object",
-            "properties": {"command": {"type": "string", "minLength": 1}},
-            "required": ["command"],
+            "properties": {
+                "command": {"type": "string", "minLength": 1},
+                "reason": {"type": ["string", "null"], "default": None},
+            },
+            "required": ["command", "reason"],
             "additionalProperties": False,
         },
-        "function": lambda command: run_command(
+        "function": lambda command, reason=None: run_command(
             command,
             cancellation_token=cancellation_token,
             sandbox_runtime=sandbox_runtime,
         ).model_text(),
+        "hard_check": lambda arguments: _protect_command(arguments["command"]),
     }
     entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     return ToolRegistry(entries)
@@ -832,12 +854,22 @@ def _protect_metadata_path(path: str, sandbox_runtime: SandboxRuntime | None) ->
         if not candidate.is_absolute():
             candidate = Path.cwd() / candidate
         root = Path.cwd()
+    if any(part.casefold() in {".git", ".coding-kid"} for part in candidate.parts):
+        raise PermissionError("protected project or application metadata")
     try:
         relative = candidate.resolve(strict=False).relative_to(root.resolve())
     except ValueError:
         return
     if relative.parts and relative.parts[0].casefold() in {".git", ".coding-kid"}:
         raise PermissionError(f"protected project metadata: {relative.parts[0]}")
+
+
+def _protect_command(command: str) -> None:
+    """Reject shell requests that explicitly target protected application metadata."""
+    normalized = " ".join(command.casefold().split())
+    protected = re.compile(r"(?:^|[\\/\s'\"])\.(?:git|coding-kid)(?:$|[\\/\s'\"])")
+    if protected.search(normalized):
+        raise PermissionError("command explicitly targets protected project metadata")
 
 
 def _todo_for_state(state: TodoState, todos: list[dict[str, Any]]) -> str:

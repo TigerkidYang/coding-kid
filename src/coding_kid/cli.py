@@ -12,10 +12,17 @@ from coding_kid.agent import current_instructions, run_turn
 from coding_kid.agents import AgentEvent, AgentManager
 from coding_kid.background_tasks import BackgroundTaskManager, TaskEvent
 from coding_kid.capabilities import CapabilityRuntime
+from coding_kid.checkpoints import CheckpointManager
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
 from coding_kid.memory import MemoryManager
+from coding_kid.permissions import (
+    ApprovalChoice,
+    ApprovalRequest,
+    ApprovalResponse,
+    PermissionBroker,
+)
 from coding_kid.provider import generate
 from coding_kid.sandbox import (
     DEFAULT_SANDBOX_IMAGE,
@@ -26,6 +33,12 @@ from coding_kid.sandbox import (
 from coding_kid.sessions import SessionError, SessionHandle, SessionInfo, SessionStore
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import TodoState, build_tool_registry
+from coding_kid.workflow import ApprovalPolicy, CollaborationMode, WorkflowState
+from coding_kid.workflow_runtime import (
+    InteractionRequest,
+    InteractionResponse,
+    WorkflowRuntime,
+)
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
@@ -66,6 +79,8 @@ class SessionOptions:
     sandbox_mode: str = SandboxMode.WORKSPACE_WRITE.value
     sandbox_image: str = DEFAULT_SANDBOX_IMAGE
     sandbox_network: bool = False
+    collaboration_mode: str = CollaborationMode.IMPLEMENTATION.value
+    approval_policy: str = ApprovalPolicy.CAUTIOUS.value
 
 
 def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
@@ -129,6 +144,8 @@ def chat(
     todo_state: TodoState | None = None,
     agent_manager: AgentManager | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
+    permission_broker: PermissionBroker | None = None,
+    workflow_runtime: WorkflowRuntime | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     output_function = _safe_output_function(output_function)
@@ -159,10 +176,33 @@ def chat(
         manager.budget,
         capability_runtime=capability_runtime,
         sandbox_runtime=sandbox_runtime,
+        permission_broker=permission_broker,
+        workflow_state=(workflow_runtime.state if workflow_runtime else None),
+        workflow_runtime=workflow_runtime,
     )
+    workflow_state = (
+        workflow_runtime.state
+        if workflow_runtime is not None
+        else session_handle.workflow
+        if session_handle is not None
+        else WorkflowState()
+    )
+    if permission_broker is not None:
+        permission_broker.set_handler(
+            lambda request, token: _cli_approval(
+                request, token, input_function, output_function
+            )
+        )
+    if workflow_runtime is not None:
+        workflow_runtime.set_interaction_handler(
+            lambda request: _cli_interaction(request, input_function, output_function)
+        )
     output_function(ready)
     if sandbox_runtime is not None:
         output_function(sandbox_runtime.status_text())
+    output_function(
+        _permissions_text(workflow_state, permission_broker, sandbox_runtime)
+    )
     if capability_runtime is not None:
         output_function(capability_runtime.summary())
         for warning in capability_runtime.warnings:
@@ -216,6 +256,58 @@ def chat(
                 if sandbox_runtime is not None
                 else "Sandbox: not configured"
             )
+            continue
+        if user_input == "/permissions":
+            output_function(
+                _permissions_text(workflow_state, permission_broker, sandbox_runtime)
+            )
+            continue
+        if user_input == "/mode":
+            output_function(f"Workflow mode: {workflow_state.mode.value}")
+            continue
+        if user_input.startswith("/mode "):
+            value = user_input.removeprefix("/mode ").strip()
+            try:
+                mode = CollaborationMode(value)
+                workflow_state.transition(mode)
+                _commit_workflow_state(session_handle, todo_state)
+            except (ValueError, SessionError) as error:
+                output_function(f"Error: {error}")
+            else:
+                output_function(f"Workflow mode: {mode.value}")
+                if mode is CollaborationMode.REVIEW and workflow_runtime is not None:
+                    output_function(workflow_runtime.review_text())
+            continue
+        if user_input == "/changes":
+            output_function(
+                workflow_runtime.status_text()
+                if workflow_runtime is not None
+                else "Change workflow is not active."
+            )
+            continue
+        if user_input == "/changes accept":
+            if workflow_runtime is None:
+                output_function("Change workflow is not active.")
+            else:
+                try:
+                    changes = workflow_runtime.accept()
+                    _commit_workflow_state(session_handle, todo_state)
+                except Exception as error:  # noqa: BLE001
+                    output_function(f"Error: {error}")
+                else:
+                    output_function(f"Accepted stage changes.\n{changes.text()}")
+            continue
+        if user_input == "/changes rollback":
+            if workflow_runtime is None:
+                output_function("Change workflow is not active.")
+            else:
+                try:
+                    changes = workflow_runtime.rollback()
+                    _commit_workflow_state(session_handle, todo_state)
+                except Exception as error:  # noqa: BLE001
+                    output_function(f"Error: {error}")
+                else:
+                    output_function(f"Rolled back stage changes.\n{changes.text()}")
             continue
         if user_input.startswith("/agent stop "):
             agent_id = user_input.removeprefix("/agent stop ").strip()
@@ -425,6 +517,15 @@ def chat(
             agent_manager=agent_manager,
             sandbox_runtime=sandbox_runtime,
         )
+        if workflow_runtime is not None:
+            registry = workflow_runtime.bind_registry(registry)
+        if (
+            workflow_runtime is not None
+            and workflow_state.mode is CollaborationMode.REVIEW
+        ):
+            request_context.append(
+                {"role": "user", "content": workflow_runtime.review_text()}
+            )
         overlays: tuple[str, ...] = (
             (sandbox_runtime.instruction_text(),) if sandbox_runtime is not None else ()
         )
@@ -467,6 +568,11 @@ def chat(
                 turn_options["todo_state"] = todo_state
             if "agent_manager" in parameters:
                 turn_options["agent_manager"] = agent_manager
+            if permission_broker is not None:
+                turn_options["permission_broker"] = permission_broker
+            if workflow_runtime is not None:
+                turn_options["workflow_state"] = workflow_state
+                turn_options["workflow_runtime"] = workflow_runtime
             if capability_runtime is not None and "instruction_overlays" in parameters:
                 turn_options["instruction_overlays"] = overlays
             answer = run_turn(
@@ -528,6 +634,111 @@ def _format_session(info: SessionInfo) -> str:
     )
 
 
+def _permissions_text(
+    workflow: WorkflowState,
+    broker: PermissionBroker | None,
+    sandbox: SandboxRuntime | None,
+) -> str:
+    approval = broker.policy.value if broker is not None else "not configured"
+    sandbox_mode = (
+        sandbox.config.mode.value if sandbox is not None else "not configured"
+    )
+    grants = len(broker.session_grants) if broker is not None else 0
+    return (
+        f"Workflow mode: {workflow.mode.value}\n"
+        f"Approval policy: {approval}\n"
+        f"Sandbox policy: {sandbox_mode}\n"
+        f"Session grants: {grants}"
+    )
+
+
+def _commit_workflow_state(
+    session_handle: SessionHandle | None, todo_state: TodoState
+) -> None:
+    if session_handle is None:
+        return
+    session_handle.todos = todo_state.items
+    session_handle.commit_state(kind="workflow_committed")
+
+
+def _cli_approval(
+    request: ApprovalRequest,
+    cancellation_token: Any,
+    input_function: InputFunction,
+    output_function: OutputFunction,
+) -> ApprovalResponse:
+    output_function(
+        f"[approval] {request.tool_name} ({request.effect.value})\n{request.summary}\n"
+        "1. Approve once  2. Approve matching action for this session  "
+        "3. Deny  4. Abort turn"
+    )
+    while True:
+        if cancellation_token is not None:
+            cancellation_token.raise_if_cancelled()
+        try:
+            choice = input_function("Approval> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return ApprovalResponse(ApprovalChoice.DENY, "Approval input unavailable")
+        if choice == "1":
+            return ApprovalResponse(ApprovalChoice.ONCE)
+        if choice == "2":
+            return ApprovalResponse(ApprovalChoice.SESSION)
+        if choice == "3":
+            try:
+                feedback = input_function("Feedback (optional)> ").strip() or None
+            except (EOFError, KeyboardInterrupt):
+                feedback = None
+            return ApprovalResponse(ApprovalChoice.DENY, feedback)
+        if choice == "4":
+            return ApprovalResponse(ApprovalChoice.ABORT)
+        output_function("Choose 1, 2, 3, or 4.")
+
+
+def _cli_interaction(
+    request: InteractionRequest,
+    input_function: InputFunction,
+    output_function: OutputFunction,
+) -> InteractionResponse:
+    if request.kind == "questions":
+        answers: list[str] = []
+        for item in request.payload["questions"]:
+            output_function(item["question"])
+            output_function(
+                "  ".join(
+                    f"{index}. {choice}"
+                    for index, choice in enumerate(item["choices"], start=1)
+                )
+            )
+            try:
+                value = input_function("Answer> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                return InteractionResponse("abort")
+            try:
+                answer = item["choices"][int(value) - 1]
+            except (ValueError, IndexError):
+                answer = value
+            answers.append(answer)
+        return InteractionResponse("answer", tuple(answers))
+    output_function(f"[proposed plan]\n{request.payload['plan']}")
+    output_function(
+        "1. Approve and keep context  2. Approve with fresh context  "
+        "3. Continue planning with feedback"
+    )
+    try:
+        choice = input_function("Plan> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return InteractionResponse("revise", feedback="Plan approval unavailable")
+    if choice == "1":
+        return InteractionResponse("approve")
+    if choice == "2":
+        return InteractionResponse("approve_fresh")
+    try:
+        feedback = input_function("Feedback> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        feedback = "Continue planning."
+    return InteractionResponse("revise", feedback=feedback)
+
+
 def _format_task_event(event: TaskEvent) -> str:
     suffix = f", exit {event.exit_code}" if event.exit_code is not None else ""
     return f"[task] {event.task_id} {event.status}{suffix}: {event.command}"
@@ -578,7 +789,12 @@ def _open_session(
         handle = session_store.resume(options.session_id)
     else:
         manager = ContextManager.capture(current)
-        handle = session_store.create(current, manager, [])
+        handle = session_store.create(
+            current,
+            manager,
+            [],
+            WorkflowState(CollaborationMode(options.collaboration_mode)),
+        )
     if handle.context.cwd != current.cwd:
         handle.close()
         raise SessionError(
@@ -638,12 +854,29 @@ def main(options: SessionOptions | None = None) -> None:
             context_window=handle.manager.budget.context_length,
             external_tools_enabled=not sandbox_runtime.restricted,
         )
+        managers: dict[str, Any] = {"background": background_tasks}
+        checkpoint_manager = CheckpointManager(
+            handle.context.project_root,
+            handle.store.project_dir / "checkpoints",
+            running_tasks=lambda: managers["background"].running_count,
+            running_agents=lambda: (
+                managers["agent"].running_count if "agent" in managers else 0
+            ),
+        )
+        workflow_runtime = WorkflowRuntime(handle.workflow, checkpoint_manager)
+        permission_broker = PermissionBroker(
+            ApprovalPolicy(selection.approval_policy), handle.workflow
+        )
         agent_manager = AgentManager(
             handle.context,
             handle.manager.budget,
             capability_runtime=capability_runtime,
             sandbox_runtime=sandbox_runtime,
+            permission_broker=permission_broker,
+            workflow_state=handle.workflow,
+            workflow_runtime=workflow_runtime,
         )
+        managers["agent"] = agent_manager
         if sys.stdin.isatty() and sys.stdout.isatty():
             from coding_kid.tui import run_tui
 
@@ -651,6 +884,10 @@ def main(options: SessionOptions | None = None) -> None:
                 "session_handle": handle,
                 "memory_manager": memory_manager,
             }
+            if "permission_broker" in inspect.signature(run_tui).parameters:
+                tui_options["permission_broker"] = permission_broker
+            if "workflow_runtime" in inspect.signature(run_tui).parameters:
+                tui_options["workflow_runtime"] = workflow_runtime
             if "sandbox_runtime" in inspect.signature(run_tui).parameters:
                 tui_options["sandbox_runtime"] = sandbox_runtime
             if "background_tasks" in inspect.signature(run_tui).parameters:
@@ -665,6 +902,10 @@ def main(options: SessionOptions | None = None) -> None:
                 "session_handle": handle,
                 "memory_manager": memory_manager,
             }
+            if "permission_broker" in inspect.signature(chat).parameters:
+                chat_options["permission_broker"] = permission_broker
+            if "workflow_runtime" in inspect.signature(chat).parameters:
+                chat_options["workflow_runtime"] = workflow_runtime
             if "sandbox_runtime" in inspect.signature(chat).parameters:
                 chat_options["sandbox_runtime"] = sandbox_runtime
             if "background_tasks" in inspect.signature(chat).parameters:

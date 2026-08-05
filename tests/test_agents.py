@@ -14,7 +14,16 @@ from coding_kid.agents import AgentError, AgentManager
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextBudget
 from coding_kid.events import CancellationToken, EventSink, TurnCancelled
+from coding_kid.checkpoints import CheckpointManager
+from coding_kid.permissions import (
+    ApprovalChoice,
+    ApprovalResponse,
+    PermissionBroker,
+)
+from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 from coding_kid.tools import TodoState
+from coding_kid.workflow import ApprovalPolicy, WorkflowState
+from coding_kid.workflow_runtime import WorkflowRuntime
 
 
 def text_response(text: str) -> SimpleNamespace:
@@ -53,6 +62,61 @@ def context(tmp_path: Path) -> SessionContext:
         project_root=tmp_path,
         project_instructions=(),
     )
+
+
+def test_child_mutation_approval_routes_through_shared_root_broker(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    target = tmp_path / "shared.txt"
+    target.write_text("before", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "shared.txt"], check=True)
+    responses = iter(
+        [
+            tool_response("write", {"path": "shared.txt", "content": "child"}),
+            text_response("The root denied the write."),
+        ]
+    )
+    prompt_threads: list[str] = []
+
+    def provider(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        return next(responses)
+
+    def approve(*_args: object) -> ApprovalResponse:
+        prompt_threads.append(threading.current_thread().name)
+        return ApprovalResponse(ApprovalChoice.DENY, "root policy")
+
+    state = WorkflowState()
+    broker = PermissionBroker(ApprovalPolicy.CAUTIOUS, state, handler=approve)
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, tmp_path, tmp_path)
+    )
+    runtime = WorkflowRuntime(
+        state, CheckpointManager(tmp_path, tmp_path.parent / "checkpoint-state")
+    )
+    agents = AgentManager(
+        context(tmp_path),
+        ContextBudget(None, "test"),
+        call_provider=provider,
+        stream_provider=None,
+        sandbox_runtime=sandbox,
+        permission_broker=broker,
+        workflow_state=state,
+        workflow_runtime=runtime,
+    )
+    try:
+        child = agents.start("guarded child", "change shared.txt")
+        finished, timed_out = agents.wait(child.agent_id, 2)
+    finally:
+        agents.close()
+
+    assert not timed_out
+    assert finished.status == "completed"
+    assert target.read_text(encoding="utf-8") == "before"
+    assert len(prompt_threads) == 1
+    assert prompt_threads[0].startswith("coding-kid-agent")
 
 
 def test_agents_run_in_parallel_and_enforce_the_running_limit(tmp_path: Path) -> None:

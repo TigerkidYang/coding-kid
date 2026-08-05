@@ -23,9 +23,12 @@ from coding_kid.events import (
     TurnStarted,
 )
 from coding_kid.provider import generate, generate_streaming
+from coding_kid.permissions import PermissionBroker
 from coding_kid.sandbox import SandboxRuntime
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TodoState
+from coding_kid.workflow import WorkflowState
+from coding_kid.workflow_runtime import WorkflowRuntime
 
 if TYPE_CHECKING:
     from coding_kid.capabilities import CapabilityRuntime
@@ -146,6 +149,9 @@ class AgentManager:
         max_running: int = MAX_RUNNING_AGENTS,
         max_retained: int = MAX_RETAINED_AGENTS,
         sandbox_runtime: SandboxRuntime | None = None,
+        permission_broker: PermissionBroker | None = None,
+        workflow_state: WorkflowState | None = None,
+        workflow_runtime: WorkflowRuntime | None = None,
     ) -> None:
         self.session_context = session_context
         self.budget = budget
@@ -153,6 +159,9 @@ class AgentManager:
         self.stream_provider = stream_provider
         self.capability_runtime = capability_runtime
         self.sandbox_runtime = sandbox_runtime
+        self.permission_broker = permission_broker
+        self.workflow_state = workflow_state
+        self.workflow_runtime = workflow_runtime
         self._child_runner = child_runner
         self._id_factory = id_factory or (lambda: f"agent_{secrets.token_hex(6)}")
         self._clock = clock
@@ -450,6 +459,9 @@ class AgentManager:
             todo_state=record.todos,
             max_tool_calls=MAX_CHILD_TOOL_CALLS,
             rollback_on_cancel=False,
+            permission_broker=self.permission_broker,
+            workflow_state=self.workflow_state,
+            workflow_runtime=self.workflow_runtime,
         )
 
     def _observe(self, record: _AgentRecord, event: Any) -> None:

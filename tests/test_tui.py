@@ -4,6 +4,7 @@ import asyncio
 import json
 import sys
 import time
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -16,9 +17,13 @@ from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import CancellationToken, EventSink, ToolCompleted
 from coding_kid.memory import MemoryManager
+from coding_kid.checkpoints import CheckpointManager
+from coding_kid.permissions import PermissionBroker
 from coding_kid.sessions import SessionStore
 from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 from coding_kid.tui import AssistantCell, CodingKidApp, Composer
+from coding_kid.workflow import ApprovalPolicy, WorkflowState
+from coding_kid.workflow_runtime import WorkflowRuntime
 
 
 def text_message(text: str) -> SimpleNamespace:
@@ -49,6 +54,8 @@ def make_app(
     background_tasks: BackgroundTaskManager | None = None,
     agent_manager: AgentManager | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
+    permission_broker: PermissionBroker | None = None,
+    workflow_runtime: WorkflowRuntime | None = None,
 ) -> CodingKidApp:
     context = SessionContext(
         cwd=tmp_path,
@@ -69,6 +76,8 @@ def make_app(
         background_tasks=background_tasks,
         agent_manager=agent_manager,
         sandbox_runtime=sandbox_runtime,
+        permission_broker=permission_broker,
+        workflow_runtime=workflow_runtime,
     )
 
 
@@ -122,7 +131,7 @@ def test_tui_displays_sandbox_status_command(tmp_path: Path) -> None:
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             header = content(app.query_one(".session-card", Static))
-            assert "v11" in header
+            assert "v12" in header
             assert "read-only" in header
             composer = app.query_one(Composer)
             composer.load_text("/sandbox")
@@ -133,6 +142,96 @@ def test_tui_displays_sandbox_status_command(tmp_path: Path) -> None:
             )
             assert "Backend: docker" in transcript
             assert "Network: disabled" in transcript
+
+    asyncio.run(exercise())
+
+
+def test_tui_displays_three_permission_axes_and_switches_mode(tmp_path: Path) -> None:
+    async def exercise() -> None:
+        state = WorkflowState()
+        broker = PermissionBroker(ApprovalPolicy.AUTO, state)
+        sandbox = SandboxRuntime(
+            SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, tmp_path, tmp_path)
+        )
+        app = make_app(tmp_path, sandbox_runtime=sandbox, permission_broker=broker)
+        async with app.run_test(size=(100, 28)) as pilot:
+            await pilot.pause()
+            composer = app.query_one(Composer)
+            composer.load_text("/permissions")
+            composer.action_submit()
+            await pilot.pause()
+            composer.load_text("/mode plan")
+            composer.action_submit()
+            await pilot.pause()
+            transcript = "\n".join(
+                content(item) for item in app.query(Static) if item.id is None
+            )
+            footer = content(app.query_one("#footer-left", Static))
+            assert "Approval policy: auto" in transcript
+            assert "Sandbox policy: danger-full-access" in transcript
+            assert "Workflow mode: plan" in transcript
+            assert "plan · auto · danger-full-access" in footer
+
+    asyncio.run(exercise())
+
+
+def test_tui_approval_denial_has_no_side_effect_and_accepts_feedback(
+    tmp_path: Path,
+) -> None:
+    async def exercise() -> None:
+        subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+        target = tmp_path / "guarded.txt"
+        target.write_text("before", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tmp_path), "add", "guarded.txt"], check=True)
+        state = WorkflowState()
+        broker = PermissionBroker(ApprovalPolicy.CAUTIOUS, state)
+        sandbox = SandboxRuntime(
+            SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, tmp_path, tmp_path)
+        )
+        workflow = WorkflowRuntime(
+            state, CheckpointManager(tmp_path, tmp_path / "app-state")
+        )
+        responses = iter(
+            [
+                response(
+                    tool_call(
+                        "call-1",
+                        "write",
+                        {"path": "guarded.txt", "content": "after"},
+                    )
+                ),
+                response(text_message("Permission handled.")),
+            ]
+        )
+        app = make_app(
+            tmp_path,
+            streaming_provider=lambda *args, **kwargs: next(responses),
+            sandbox_runtime=sandbox,
+            permission_broker=broker,
+            workflow_runtime=workflow,
+        )
+        async with app.run_test(size=(100, 30)) as pilot:
+            composer = app.query_one(Composer)
+            composer.load_text("change guarded file")
+            composer.action_submit()
+            for _ in range(100):
+                await pilot.pause(0.02)
+                if broker.pending:
+                    break
+            assert broker.pending
+            composer.load_text("3 keep the original")
+            composer.action_submit()
+            for _ in range(100):
+                await pilot.pause(0.02)
+                if not app.active_turn:
+                    break
+            assert not app.active_turn
+            assert target.read_text(encoding="utf-8") == "before"
+            transcript = "\n".join(
+                content(item) for item in app.query(Static) if item.id is None
+            )
+            assert "Permission required" in transcript
+            assert "keep the original" in transcript
 
     asyncio.run(exercise())
 

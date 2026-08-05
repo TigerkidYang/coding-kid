@@ -128,6 +128,32 @@ def test_main_rejects_session_options_for_historical_version() -> None:
         launcher.main(["v5", "--continue"])
 
 
+def test_main_passes_workflow_and_approval_to_version_12(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected: list[launcher.cli.SessionOptions] = []
+    monkeypatch.setattr(
+        launcher,
+        "launch_version",
+        lambda version, options: selected.append(options) or 0,
+    )
+
+    assert launcher.main(["v12", "--mode", "plan", "--approval", "auto"]) == 0
+    assert selected == [
+        launcher.cli.SessionOptions(collaboration_mode="plan", approval_policy="auto")
+    ]
+
+
+@pytest.mark.parametrize(
+    "arguments", [["v11", "--mode", "plan"], ["v11", "--approval", "auto"]]
+)
+def test_main_rejects_workflow_options_for_historical_versions(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        launcher.main(arguments)
+
+
 def test_main_lists_versions_without_launching(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

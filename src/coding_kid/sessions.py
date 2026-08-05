@@ -9,7 +9,7 @@ import socket
 import sqlite3
 import subprocess
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +22,7 @@ from coding_kid.context_manager import (
     ConversationSegment,
     normalize_protocol_value,
 )
+from coding_kid.workflow import WorkflowState
 
 SCHEMA_VERSION = 1
 LOG_SCHEMA_VERSION = 1
@@ -68,6 +69,7 @@ class SessionHandle:
     last_hash: str
     transcript_length: int
     dirty: bool = False
+    workflow: WorkflowState = field(default_factory=WorkflowState)
 
     def commit_state(self, *, kind: str = "state_committed") -> None:
         """Append one durable state transition after a successful mutation."""
@@ -85,6 +87,7 @@ class SessionHandle:
             ],
             "todos": [dict(item) for item in self.todos],
             "context_state": _context_state_to_json(self.manager),
+            "workflow": self.workflow.to_dict(),
         }
         try:
             record = self.store._append(self, payload)
@@ -258,7 +261,7 @@ class SessionStore:
                 header = records[0]
                 if header.get("project_identity") != self.project_identity:
                     continue
-                context, _, _ = _restore_records(records)
+                context, _, _, _ = _restore_records(records)
             except SessionCorruptError:
                 if indexed is not None:
                     with self._connect() as connection:
@@ -307,6 +310,7 @@ class SessionStore:
         context: SessionContext,
         manager: ContextManager,
         todos: list[dict[str, str]],
+        workflow: WorkflowState | None = None,
     ) -> SessionHandle:
         session_id = str(uuid.uuid4())
         owner = _owner_token()
@@ -320,6 +324,7 @@ class SessionStore:
             "session_context": _session_context_to_json(context),
             "budget": asdict(manager.budget),
             "todos": [dict(item) for item in todos],
+            "workflow": (workflow or WorkflowState()).to_dict(),
         }
         record = _make_record(0, "", timestamp, payload)
         _append_line(log_path, record)
@@ -353,6 +358,7 @@ class SessionStore:
             owner,
             record["hash"],
             0,
+            workflow=workflow or WorkflowState(),
         )
 
     def resume(self, session_id_or_prefix: str) -> SessionHandle:
@@ -558,7 +564,7 @@ class SessionStore:
             raise SessionError(f"Unknown session: {session_id}")
         try:
             records = _read_records(Path(row["log_path"]))
-            context, manager, todos = _restore_records(records)
+            context, manager, todos, workflow = _restore_records(records)
         except SessionCorruptError:
             with self._connect() as connection:
                 connection.execute(
@@ -589,6 +595,7 @@ class SessionStore:
             owner,
             last["hash"],
             len(manager.conversation.transcript),
+            workflow=workflow,
         )
 
 
@@ -803,7 +810,7 @@ def _context_state_to_json(manager: ContextManager) -> dict[str, Any]:
 
 def _restore_records(
     records: list[dict[str, Any]],
-) -> tuple[SessionContext, ContextManager, list[dict[str, str]]]:
+) -> tuple[SessionContext, ContextManager, list[dict[str, str]], WorkflowState]:
     header = records[0]
     if header.get("schema_version") != LOG_SCHEMA_VERSION:
         raise SessionCorruptError(
@@ -816,8 +823,13 @@ def _restore_records(
         ContextBudget(budget_data["context_length"], budget_data["source"]),
     )
     todos = [dict(item) for item in header.get("todos", [])]
+    workflow = WorkflowState.from_dict(header.get("workflow"))
     for record in records[1:]:
-        if record.get("kind") not in {"state_committed", "context_committed"}:
+        if record.get("kind") not in {
+            "state_committed",
+            "context_committed",
+            "workflow_committed",
+        }:
             continue
         manager.conversation.transcript.extend(
             _segment_from_json(item) for item in record["transcript_delta"]
@@ -839,7 +851,8 @@ def _restore_records(
             state["proactive_compaction_disabled"]
         )
         todos = [dict(item) for item in record["todos"]]
-    return context, manager, todos
+        workflow = WorkflowState.from_dict(record.get("workflow"))
+    return context, manager, todos, workflow
 
 
 def _title_from_payload(payload: dict[str, Any]) -> str:

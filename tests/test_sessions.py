@@ -22,6 +22,7 @@ from coding_kid.sessions import (
     _iso,
     _make_record,
 )
+from coding_kid.workflow import CollaborationMode, WorkflowState
 
 
 def make_runtime(project: Path) -> tuple[SessionContext, ContextManager]:
@@ -68,6 +69,28 @@ def test_session_round_trip_restores_all_canonical_state(tmp_path: Path) -> None
     assert resumed.manager.last_actual_input_tokens == 123
     assert resumed.todos == [{"content": "Keep ALPHA", "status": "in_progress"}]
     assert resumed.info.title == "Implement ALPHA"
+
+
+def test_session_restores_workflow_plan_and_checkpoint_without_approval_grants(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    context, manager = make_runtime(project)
+    store = SessionStore(project, home=tmp_path / "home")
+    workflow = WorkflowState(CollaborationMode.PLAN)
+    handle = store.create(context, manager, [], workflow)
+    workflow.approve_plan("Implement ALPHA", "checkpoint_abcdef")
+    workflow.enter_review()
+    handle.commit_state(kind="workflow_committed")
+    session_id = handle.info.session_id
+    handle.close()
+
+    resumed = store.resume(session_id)
+
+    assert resumed.workflow.mode is CollaborationMode.REVIEW
+    assert resumed.workflow.approved_plan == "Implement ALPHA"
+    assert resumed.workflow.checkpoint_id == "checkpoint_abcdef"
 
 
 def test_session_round_trip_normalizes_provider_items_for_replay(

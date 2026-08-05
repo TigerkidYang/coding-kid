@@ -431,7 +431,7 @@ def test_child_registry_excludes_agent_and_background_controls() -> None:
     assert "agent" not in registry.names
     assert "task" not in registry.names
     execute = next(item for item in registry.definitions() if item["name"] == "execute")
-    assert execute["parameters"]["required"] == ["command"]
+    assert execute["parameters"]["required"] == ["command", "reason"]
     assert "background" not in execute["parameters"]["properties"]
 
 

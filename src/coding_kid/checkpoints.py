@@ -287,6 +287,13 @@ class CheckpointManager:
             raise CheckpointError(
                 f"Checkpoint path escapes project: {relative}"
             ) from error
+        current = self.project_root
+        for component in Path(relative).parts[:-1]:
+            current /= component
+            if current.is_symlink():
+                raise CheckpointError(
+                    f"Checkpoint path crosses a symbolic-link directory: {relative}"
+                )
         return target
 
     def _directory(self, checkpoint_id: str) -> Path:

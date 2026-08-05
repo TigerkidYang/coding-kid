@@ -33,6 +33,7 @@ from coding_kid.events import (
     TurnEvent,
     emit,
 )
+from coding_kid.permissions import ToolEffect
 from coding_kid.plugins import Plugin, load_plugins
 from coding_kid.skills import SkillCatalog, SkillTurnState, discover_skills
 from coding_kid.tools import DEFAULT_TOOL_REGISTRY, ToolEntry, ToolRegistry
@@ -215,6 +216,7 @@ class CapabilityRuntime:
                     "additionalProperties": False,
                 },
                 "function": lambda name: self.load_skill(skill_state, name),
+                "effect": ToolEffect.READ_ONLY,
             },
         )
         for tool in self._tools:
@@ -223,6 +225,7 @@ class CapabilityRuntime:
                 "parameters": tool.parameters,
                 "strict": False,
                 "function": self._tool_function(tool, cancellation_token),
+                "effect": ToolEffect.EXTERNAL,
             }
             registry = registry.with_tool(tool.qualified_name, entry)
         return registry

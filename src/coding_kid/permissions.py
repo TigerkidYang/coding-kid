@@ -65,6 +65,12 @@ class ApprovalResolved:
     feedback: str | None = None
 
 
+@dataclass(frozen=True)
+class ApprovalCancelled:
+    request_id: str
+    reason: str
+
+
 ApprovalHandler = Callable[
     [ApprovalRequest, CancellationToken | None], ApprovalResponse
 ]
@@ -150,7 +156,7 @@ class PermissionBroker:
         event_sink: EventSink | None = None,
     ) -> AuthorizationResult:
         """Authorize before ToolStarted and before any actual side effect."""
-        mode_error = _mode_error(self.workflow.mode, effect)
+        mode_error = _mode_error(self.workflow.mode, tool_name, effect)
         if mode_error:
             return AuthorizationResult(False, mode_error)
         if hard_check is not None:
@@ -180,7 +186,11 @@ class PermissionBroker:
                     "No interactive approval channel is available.",
                 )
             else:
-                response = handler(request, cancellation_token)
+                try:
+                    response = handler(request, cancellation_token)
+                except TurnCancelled as error:
+                    emit(event_sink, ApprovalCancelled(request.request_id, str(error)))
+                    raise
             emit(
                 event_sink,
                 ApprovalResolved(
@@ -217,13 +227,19 @@ class PermissionBroker:
         return True
 
 
-def _mode_error(mode: CollaborationMode, effect: ToolEffect) -> str | None:
+def _mode_error(
+    mode: CollaborationMode, tool_name: str, effect: ToolEffect
+) -> str | None:
     if mode is CollaborationMode.IMPLEMENTATION:
         return None
-    allowed = {ToolEffect.READ_ONLY, ToolEffect.INTERACTION, ToolEffect.CONTROL}
-    if effect in allowed:
+    allowed_names = (
+        {"read", "search", "skill", "request_user_input", "propose_plan"}
+        if mode is CollaborationMode.PLAN
+        else {"read", "search", "skill"}
+    )
+    if tool_name in allowed_names:
         return None
-    return f"Workflow mode {mode.value} blocks {effect.value} tools"
+    return f"Workflow mode {mode.value} blocks tool {tool_name} ({effect.value})"
 
 
 def approval_key(tool_name: str, effect: ToolEffect, arguments: dict[str, Any]) -> str:
@@ -253,10 +269,20 @@ def approval_summary(
     if effect is ToolEffect.COMMAND:
         return (
             f"Command: {arguments.get('command', '')}\n"
-            f"Background: {bool(arguments.get('background', False))}"
+            f"Working directory: {Path.cwd()}\n"
+            f"Background: {bool(arguments.get('background', False))}\n"
+            f"Reason: {arguments.get('reason') or 'not provided'}"
         )
     if effect in {ToolEffect.PROJECT_WRITE, ToolEffect.DESTRUCTIVE}:
-        return f"Target: {arguments.get('path', '')}"
+        lines = [f"Target: {arguments.get('path', '')}"]
+        if tool_name == "write":
+            lines.append(
+                f"New content preview:\n{str(arguments.get('content', ''))[:2_000]}"
+            )
+        elif tool_name == "patch":
+            lines.append(f"Replace:\n{str(arguments.get('old_text', ''))[:1_000]}")
+            lines.append(f"With:\n{str(arguments.get('new_text', ''))[:1_000]}")
+        return "\n".join(lines)
     bounded = json.dumps(arguments, ensure_ascii=False, default=str)
     if len(bounded) > 2_000:
         bounded = f"{bounded[:2_000]}…"

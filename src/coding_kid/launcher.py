@@ -142,6 +142,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="allow network inside a restricted Version 12 sandbox",
     )
     parser.add_argument(
+        "--mode",
+        choices=("plan", "implementation", "review"),
+        default="implementation",
+        help="Version 12 workflow mode for a new session (default: implementation)",
+    )
+    parser.add_argument(
+        "--approval",
+        choices=("cautious", "auto", "full-access"),
+        default="cautious",
+        help="Version 12 approval policy (default: cautious)",
+    )
+    parser.add_argument(
         "--list-versions",
         action="store_true",
         help="list installed teaching versions and exit",
@@ -188,10 +200,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.sandbox_network,
         )
     )
+    uses_workflow_options = any(
+        (arguments.mode != "implementation", arguments.approval != "cautious")
+    )
     if selected_version != LATEST_VERSION and (
-        uses_session_options or uses_sandbox_options
+        uses_session_options or uses_sandbox_options or uses_workflow_options
     ):
-        parser.error("session and sandbox options are available only for Version 12")
+        parser.error(
+            "session, workflow, approval, and sandbox options are available only "
+            "for Version 12"
+        )
     options = cli.SessionOptions(
         mode=(
             "continue"
@@ -206,5 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         sandbox_mode=arguments.sandbox,
         sandbox_image=arguments.sandbox_image,
         sandbox_network=arguments.sandbox_network,
+        collaboration_mode=arguments.mode,
+        approval_policy=arguments.approval,
     )
     return launch_version(selected_version, options)

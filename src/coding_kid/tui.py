@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import inspect
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -45,12 +46,26 @@ from coding_kid.events import (
     TurnInterrupted,
 )
 from coding_kid.memory import MemoryManager, MemorySyncResult
+from coding_kid.permissions import (
+    ApprovalCancelled,
+    ApprovalChoice,
+    ApprovalRequested,
+    ApprovalResolved,
+    ApprovalResponse,
+    PermissionBroker,
+)
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.sandbox import SandboxRuntime
 from coding_kid.sessions import SessionError, SessionHandle
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import TodoState, build_tool_registry
 from coding_kid.turn_control import TurnController
+from coding_kid.workflow import CollaborationMode, WorkflowState
+from coding_kid.workflow_runtime import (
+    InteractionRequest,
+    InteractionResponse,
+    WorkflowRuntime,
+)
 
 Provider = Callable[..., Any]
 
@@ -204,6 +219,8 @@ class CodingKidApp(App[None]):
         todo_state: TodoState | None = None,
         agent_manager: AgentManager | None = None,
         sandbox_runtime: SandboxRuntime | None = None,
+        permission_broker: PermissionBroker | None = None,
+        workflow_runtime: WorkflowRuntime | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -214,6 +231,15 @@ class CodingKidApp(App[None]):
         self.memory_manager = memory_manager
         self.capability_runtime = capability_runtime
         self.sandbox_runtime = sandbox_runtime
+        self.workflow_state = (
+            workflow_runtime.state
+            if workflow_runtime is not None
+            else session_handle.workflow
+            if session_handle is not None
+            else WorkflowState()
+        )
+        self.permission_broker = permission_broker
+        self.workflow_runtime = workflow_runtime
         self.background_tasks = background_tasks or BackgroundTaskManager(
             sandbox_runtime=sandbox_runtime
         )
@@ -225,6 +251,9 @@ class CodingKidApp(App[None]):
             manager.budget,
             capability_runtime=capability_runtime,
             sandbox_runtime=sandbox_runtime,
+            permission_broker=permission_broker,
+            workflow_state=self.workflow_state,
+            workflow_runtime=workflow_runtime,
         )
         self._owns_agent_manager = agent_manager is None
         self._owns_background_tasks = background_tasks is None
@@ -235,6 +264,14 @@ class CodingKidApp(App[None]):
         self._status_label = "Working"
         self._status_started = 0.0
         self.turn_controller = TurnController()
+        self._pending_approval_id: str | None = None
+        self._interaction_request: InteractionRequest | None = None
+        self._interaction_response: InteractionResponse | None = None
+        self._interaction_condition = threading.Condition(threading.RLock())
+        if self.permission_broker is not None:
+            self.permission_broker.set_handler(self.permission_broker.wait_for_response)
+        if self.workflow_runtime is not None:
+            self.workflow_runtime.set_interaction_handler(self._tui_interaction)
 
     def compose(self) -> ComposeResult:
         yield VerticalScroll(id="transcript")
@@ -268,10 +305,12 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v11)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v12)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}\n"
+                f"[dim]mode:      [/]{escape(self.workflow_state.mode.value)}\n"
+                f"[dim]approval:  [/]{escape(self._approval_label())}\n"
                 f"[dim]sandbox:   [/]{escape(self._sandbox_label())}",
                 classes="session-card",
             )
@@ -279,7 +318,8 @@ class CodingKidApp(App[None]):
         self._append_cell(
             Static(
                 "[dim]  Describe a task, or use /agents, /tasks, /session, /sessions, "
-                "/sandbox, /context, /compact, or /exit.[/]",
+                "/permissions, /mode, /changes, /sandbox, /context, /compact, "
+                "or /exit.[/]",
                 classes="help-cell",
             )
         )
@@ -298,6 +338,12 @@ class CodingKidApp(App[None]):
 
     def on_composer_submitted(self, message: Composer.Submitted) -> None:
         text = message.text
+        if self._pending_approval_id is not None:
+            self._resolve_approval_input(text)
+            return
+        if self._interaction_request is not None:
+            self._resolve_interaction_input(text)
+            return
         if text in {"/exit", "/quit"}:
             self.exit()
             return
@@ -312,6 +358,24 @@ class CodingKidApp(App[None]):
             return
         if text == "/sandbox":
             self._show_sandbox()
+            return
+        if text == "/permissions":
+            self._show_permissions()
+            return
+        if text == "/mode":
+            self._show_mode()
+            return
+        if text.startswith("/mode "):
+            self._change_mode(text.removeprefix("/mode ").strip())
+            return
+        if text == "/changes":
+            self._show_changes()
+            return
+        if text == "/changes accept":
+            self._finish_changes(accept=True)
+            return
+        if text == "/changes rollback":
+            self._finish_changes(accept=False)
             return
         if text.startswith("/agent stop "):
             self._start_agent_stop(text.removeprefix("/agent stop ").strip())
@@ -436,6 +500,15 @@ class CodingKidApp(App[None]):
             self.agent_manager,
             self.sandbox_runtime,
         )
+        if self.workflow_runtime is not None:
+            registry = self.workflow_runtime.bind_registry(registry)
+        if (
+            self.workflow_runtime is not None
+            and self.workflow_state.mode is CollaborationMode.REVIEW
+        ):
+            request_context.append(
+                {"role": "user", "content": self.workflow_runtime.review_text()}
+            )
         overlays: tuple[str, ...] = (
             (self.sandbox_runtime.instruction_text(),)
             if self.sandbox_runtime is not None
@@ -481,6 +554,9 @@ class CodingKidApp(App[None]):
                 "instruction_overlays": overlays,
                 "todo_state": self.todo_state,
                 "agent_manager": self.agent_manager,
+                "permission_broker": self.permission_broker,
+                "workflow_state": self.workflow_state,
+                "workflow_runtime": self.workflow_runtime,
             }
             if "background_tasks" in inspect.signature(run_turn).parameters:
                 turn_options["background_tasks"] = self.background_tasks
@@ -499,7 +575,34 @@ class CodingKidApp(App[None]):
         return lambda event: self.call_from_thread(self.handle_turn_event, event)
 
     def handle_turn_event(self, event: TurnEvent) -> None:
-        if isinstance(event, AssistantTextDelta):
+        if isinstance(event, ApprovalRequested):
+            self._pending_approval_id = event.request.request_id
+            self._append_cell(
+                Static(
+                    "[b yellow]Permission required[/]\n"
+                    f"{escape(event.request.tool_name)} "
+                    f"({escape(event.request.effect.value)})\n"
+                    f"{escape(event.request.summary)}\n"
+                    "[dim]Enter 1 approve once, 2 approve matching action for "
+                    "this session, 3 [feedback] deny, or 4 abort turn.[/]",
+                    classes="notice-cell",
+                )
+            )
+            self._set_status("Waiting for approval")
+        elif isinstance(event, ApprovalCancelled):
+            if self._pending_approval_id == event.request_id:
+                self._pending_approval_id = None
+            self._append_cell(
+                Static(
+                    "[yellow]■ Approval cancelled; no tool was run.[/]",
+                    classes="notice-cell",
+                )
+            )
+        elif isinstance(event, ApprovalResolved):
+            if self._pending_approval_id == event.request_id:
+                self._pending_approval_id = None
+            self._set_status("Working")
+        elif isinstance(event, AssistantTextDelta):
             self._pending_deltas.append(event.delta)
         elif isinstance(event, AssistantStreamReset):
             self._discard_active_assistant()
@@ -690,6 +793,13 @@ class CodingKidApp(App[None]):
             return "not configured"
         return self.sandbox_runtime.config.mode.value
 
+    def _approval_label(self) -> str:
+        return (
+            self.permission_broker.policy.value
+            if self.permission_broker is not None
+            else "not configured"
+        )
+
     def _show_sandbox(self) -> None:
         rendered = (
             self.sandbox_runtime.status_text()
@@ -703,6 +813,198 @@ class CodingKidApp(App[None]):
                 classes="context-cell",
             )
         )
+
+    def _show_permissions(self) -> None:
+        grants = (
+            len(self.permission_broker.session_grants)
+            if self.permission_broker is not None
+            else 0
+        )
+        rendered = (
+            f"Workflow mode: {self.workflow_state.mode.value}\n"
+            f"Approval policy: {self._approval_label()}\n"
+            f"Sandbox policy: {self._sandbox_label()}\n"
+            f"Session grants: {grants}"
+        )
+        self._append_cell(
+            Static(
+                f"[b]• Permissions[/]\n  "
+                f"{escape(rendered).replace(chr(10), chr(10) + '  ')}",
+                classes="context-cell",
+            )
+        )
+
+    def _show_mode(self) -> None:
+        self._append_cell(
+            Static(
+                f"[b]• Workflow mode[/]\n  {self.workflow_state.mode.value}",
+                classes="context-cell",
+            )
+        )
+
+    def _change_mode(self, value: str) -> None:
+        if self.active_turn:
+            self._append_cell(
+                Static(
+                    "■ Cannot change mode during an active turn.", classes="error-cell"
+                )
+            )
+            return
+        try:
+            mode = CollaborationMode(value)
+            self.workflow_state.transition(mode)
+            self._commit_workflow()
+        except (ValueError, SessionError) as error:
+            self._append_cell(Static(f"■ {escape(str(error))}", classes="error-cell"))
+            return
+        self._append_cell(
+            Static(f"[dim]• Workflow mode: {mode.value}[/]", classes="context-cell")
+        )
+        if mode is CollaborationMode.REVIEW and self.workflow_runtime is not None:
+            self._append_cell(
+                Static(
+                    Text(self.workflow_runtime.review_text()), classes="context-cell"
+                )
+            )
+        self._refresh_footer()
+
+    def _show_changes(self) -> None:
+        rendered = (
+            self.workflow_runtime.status_text()
+            if self.workflow_runtime is not None
+            else "Change workflow is not active."
+        )
+        self._append_cell(Static(Text(rendered), classes="context-cell", markup=False))
+
+    def _finish_changes(self, *, accept: bool) -> None:
+        if self.active_turn:
+            self._append_cell(
+                Static(
+                    "■ Cannot accept or roll back during an active turn.",
+                    classes="error-cell",
+                )
+            )
+            return
+        if self.workflow_runtime is None:
+            self._show_changes()
+            return
+        try:
+            changes = (
+                self.workflow_runtime.accept()
+                if accept
+                else self.workflow_runtime.rollback()
+            )
+            self._commit_workflow()
+        except Exception as error:  # noqa: BLE001
+            self._append_cell(Static(f"■ {escape(str(error))}", classes="error-cell"))
+            return
+        action = "Accepted" if accept else "Rolled back"
+        self._append_cell(
+            Static(
+                Text(f"• {action} stage changes\n{changes.text()}"),
+                classes="notice-cell",
+                markup=False,
+            )
+        )
+        self._refresh_footer()
+
+    def _commit_workflow(self) -> None:
+        if self.session_handle is None:
+            return
+        self.session_handle.todos = self.todo_state.items
+        self.session_handle.commit_state(kind="workflow_committed")
+
+    def _resolve_approval_input(self, text: str) -> None:
+        assert self._pending_approval_id is not None
+        choice, _, feedback = text.partition(" ")
+        mapping = {
+            "1": ApprovalChoice.ONCE,
+            "2": ApprovalChoice.SESSION,
+            "3": ApprovalChoice.DENY,
+            "4": ApprovalChoice.ABORT,
+        }
+        selected = mapping.get(choice)
+        if selected is None:
+            self._append_cell(
+                Static(
+                    "■ Approval input must begin with 1, 2, 3, or 4.",
+                    classes="error-cell",
+                )
+            )
+            return
+        request_id = self._pending_approval_id
+        if self.permission_broker is None or not self.permission_broker.resolve(
+            request_id,
+            ApprovalResponse(selected, feedback.strip() or None),
+        ):
+            self._append_cell(
+                Static("■ Approval request is no longer active.", classes="error-cell")
+            )
+
+    def _tui_interaction(self, request: InteractionRequest) -> InteractionResponse:
+        self.call_from_thread(self._show_interaction_request, request)
+        with self._interaction_condition:
+            while self._interaction_response is None:
+                token = self.cancellation_token
+                if token is not None and token.cancelled:
+                    self._interaction_request = None
+                    return InteractionResponse("abort")
+                self._interaction_condition.wait(0.05)
+            response = self._interaction_response
+            self._interaction_response = None
+            self._interaction_request = None
+            return response
+
+    def _show_interaction_request(self, request: InteractionRequest) -> None:
+        self._interaction_request = request
+        if request.kind == "plan":
+            rendered = (
+                f"Proposed plan\n{request.payload['plan']}\n\n"
+                "Enter 1 to approve and keep context, 2 to approve with a fresh "
+                "context, or 3 followed by feedback to continue planning."
+            )
+        else:
+            lines = ["Structured questions"]
+            for index, item in enumerate(request.payload["questions"], start=1):
+                choices = ", ".join(
+                    f"{choice_index}={choice}"
+                    for choice_index, choice in enumerate(item["choices"], start=1)
+                )
+                lines.append(f"{index}. {item['question']} ({choices})")
+            lines.append("Enter answers separated by semicolons.")
+            rendered = "\n".join(lines)
+        self._append_cell(Static(Text(rendered), classes="notice-cell", markup=False))
+        self._set_status("Waiting for user input")
+
+    def _resolve_interaction_input(self, text: str) -> None:
+        request = self._interaction_request
+        if request is None:
+            return
+        if request.kind == "plan":
+            choice, _, feedback = text.partition(" ")
+            response = (
+                InteractionResponse("approve")
+                if choice == "1"
+                else InteractionResponse("approve_fresh")
+                if choice == "2"
+                else InteractionResponse("revise", feedback=feedback.strip() or text)
+            )
+        else:
+            raw_values = tuple(item.strip() for item in text.split(";"))
+            questions = request.payload["questions"]
+            values: list[str] = []
+            for index, question in enumerate(questions):
+                raw = raw_values[index] if index < len(raw_values) else ""
+                try:
+                    value = question["choices"][int(raw) - 1]
+                except (ValueError, IndexError):
+                    value = raw
+                values.append(value)
+            response = InteractionResponse("answer", tuple(values))
+        with self._interaction_condition:
+            self._interaction_response = response
+            self._interaction_condition.notify_all()
+        self._set_status("Working")
 
     def _session_label(self) -> str:
         if self.session_handle is None:
@@ -970,7 +1272,8 @@ class CodingKidApp(App[None]):
 
     def _refresh_footer(self) -> None:
         left = (
-            f"{self.session_context.model} · {self._sandbox_label()} · "
+            f"{self.session_context.model} · {self.workflow_state.mode.value} · "
+            f"{self._approval_label()} · {self._sandbox_label()} · "
             f"{self.session_context.cwd}"
         )
         remaining = self.manager.context_remaining_percent()
@@ -1178,6 +1481,8 @@ def run_tui(
     todo_state: TodoState | None = None,
     agent_manager: AgentManager | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
+    permission_broker: PermissionBroker | None = None,
+    workflow_runtime: WorkflowRuntime | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -1192,4 +1497,6 @@ def run_tui(
         todo_state=todo_state,
         agent_manager=agent_manager,
         sandbox_runtime=sandbox_runtime,
+        permission_broker=permission_broker,
+        workflow_runtime=workflow_runtime,
     ).run()

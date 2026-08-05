@@ -8,6 +8,7 @@ import pytest
 
 from coding_kid.events import CancellationToken, TurnCancelled
 from coding_kid.permissions import (
+    ApprovalCancelled,
     ApprovalChoice,
     ApprovalRequest,
     ApprovalResponse,
@@ -68,6 +69,26 @@ def test_mode_denial_happens_without_approval_prompt() -> None:
     assert not result.allowed
     assert "plan" in result.message
     assert not called
+
+
+@pytest.mark.parametrize(
+    ("mode", "tool", "effect"),
+    [
+        (CollaborationMode.PLAN, "todo", ToolEffect.CONTROL),
+        (CollaborationMode.PLAN, "spawn_agent", ToolEffect.EXTERNAL),
+        (CollaborationMode.REVIEW, "request_user_input", ToolEffect.INTERACTION),
+        (CollaborationMode.REVIEW, "task", ToolEffect.READ_ONLY),
+    ],
+)
+def test_hidden_tool_name_cannot_bypass_mode(
+    mode: CollaborationMode, tool: str, effect: ToolEffect
+) -> None:
+    result = PermissionBroker(
+        ApprovalPolicy.FULL_ACCESS, WorkflowState(mode)
+    ).authorize(tool, effect, {})
+
+    assert not result.allowed
+    assert tool in result.message
 
 
 def test_hard_rule_precedes_cached_session_grant() -> None:
@@ -184,6 +205,32 @@ def test_wait_queue_is_cancellable() -> None:
     assert not broker.pending
 
 
+def test_cancellation_emits_a_matching_approval_event() -> None:
+    token = CancellationToken()
+    token.cancel()
+    broker = PermissionBroker(
+        ApprovalPolicy.CAUTIOUS,
+        WorkflowState(),
+        handler=lambda request, active_token: broker.wait_for_response(
+            request, active_token
+        ),
+    )
+    events: list[object] = []
+
+    with pytest.raises(TurnCancelled):
+        broker.authorize(
+            "write",
+            ToolEffect.PROJECT_WRITE,
+            {"path": "x"},
+            cancellation_token=token,
+            event_sink=events.append,
+        )
+
+    cancelled = [event for event in events if isinstance(event, ApprovalCancelled)]
+    assert len(cancelled) == 1
+    assert cancelled[0].request_id.startswith("approval_")
+
+
 def _capture_error(errors: list[BaseException], action) -> None:
     try:
         action()
@@ -214,6 +261,42 @@ def test_protected_metadata_is_hard_blocked_in_danger_full_access(
 
     result = registry.authorize(
         "write", {"path": ".git/config", "content": "x"}, broker
+    )
+
+    assert not result.allowed
+    assert "protected" in result.message
+
+
+def test_file_tool_cannot_target_external_application_state(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, project, project)
+    )
+    registry = build_tool_registry(sandbox_runtime=sandbox)
+    broker = PermissionBroker(ApprovalPolicy.FULL_ACCESS, WorkflowState())
+
+    result = registry.authorize(
+        "write",
+        {"path": str(tmp_path / ".coding-kid" / "state"), "content": "x"},
+        broker,
+    )
+
+    assert not result.allowed
+    assert "protected" in result.message
+
+
+@pytest.mark.parametrize("target", [".git/config", ".coding-kid/checkpoint"])
+def test_shell_cannot_explicitly_target_protected_metadata(
+    tmp_path: Path, target: str
+) -> None:
+    registry = build_tool_registry(task_manager=None)
+    broker = PermissionBroker(ApprovalPolicy.FULL_ACCESS, WorkflowState())
+
+    result = registry.authorize(
+        "execute",
+        {"command": f"Remove-Item {target}", "background": False, "reason": None},
+        broker,
     )
 
     assert not result.allowed

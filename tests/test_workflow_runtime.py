@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
+import threading
 from types import SimpleNamespace
 from typing import Any
 
 from coding_kid.agent import run_turn
 from coding_kid.checkpoints import CheckpointManager
 from coding_kid.events import ToolCompleted, ToolStarted
-from coding_kid.permissions import PermissionBroker
+from coding_kid.permissions import PermissionBroker, ToolEffect
 from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 from coding_kid.tools import build_tool_registry
 from coding_kid.workflow import ApprovalPolicy, CollaborationMode, WorkflowState
@@ -161,3 +162,32 @@ def test_direct_implementation_creates_checkpoint_before_first_write(
     assert runtime.checkpoints.changes(state.checkpoint_id).modified == ("a.txt",)
     runtime.rollback()
     assert (project / "a.txt").read_text(encoding="utf-8") == "before"
+
+
+def test_sensitive_effects_are_serialized_across_workers(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    state = WorkflowState()
+    checkpoints = CheckpointManager(project, tmp_path / "state")
+    checkpoint = checkpoints.create()
+    state.ensure_checkpoint(checkpoint)
+    runtime = WorkflowRuntime(state, checkpoints)
+    errors: list[BaseException] = []
+
+    def worker(index: int) -> None:
+        try:
+            runtime.before_effect(ToolEffect.PROJECT_WRITE)
+            (project / f"worker-{index}.txt").write_text(str(index), encoding="utf-8")
+            runtime.after_effect(ToolEffect.PROJECT_WRITE)
+        except BaseException as error:  # noqa: BLE001
+            errors.append(error)
+
+    threads = [threading.Thread(target=worker, args=(index,)) for index in range(10)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert not errors
+    assert checkpoints.changes(checkpoint).created == tuple(
+        f"worker-{index}.txt" for index in range(10)
+    )

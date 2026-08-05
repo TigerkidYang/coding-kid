@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from threading import RLock
+from threading import Lock, RLock
 from typing import Any, Callable
 
 from coding_kid.checkpoints import ChangeSummary, CheckpointManager
@@ -44,6 +44,7 @@ class WorkflowRuntime:
         self._interaction_handler = interaction_handler
         self._clear_context_requested = False
         self._lock = RLock()
+        self._effect_lock = Lock()
 
     def set_interaction_handler(self, handler: InteractionHandler | None) -> None:
         self._interaction_handler = handler
@@ -147,19 +148,27 @@ class WorkflowRuntime:
     def before_effect(self, effect: ToolEffect) -> None:
         if effect in {ToolEffect.READ_ONLY, ToolEffect.INTERACTION, ToolEffect.CONTROL}:
             return
-        checkpoint_id = self.state.checkpoint_id
-        if checkpoint_id is None:
-            checkpoint_id = self.checkpoints.create()
-            self.state.ensure_checkpoint(checkpoint_id)
-        self.checkpoints.prepare_effect(checkpoint_id)
+        self._effect_lock.acquire()
+        try:
+            checkpoint_id = self.state.checkpoint_id
+            if checkpoint_id is None:
+                checkpoint_id = self.checkpoints.create()
+                self.state.ensure_checkpoint(checkpoint_id)
+            self.checkpoints.prepare_effect(checkpoint_id)
+        except BaseException:
+            self._effect_lock.release()
+            raise
 
     def after_effect(self, effect: ToolEffect) -> ChangeSummary | None:
         if effect in {ToolEffect.READ_ONLY, ToolEffect.INTERACTION, ToolEffect.CONTROL}:
             return None
-        checkpoint_id = self.state.checkpoint_id
-        if checkpoint_id is None:
-            raise RuntimeError("A side effect completed without a checkpoint")
-        return self.checkpoints.record_effect(checkpoint_id)
+        try:
+            checkpoint_id = self.state.checkpoint_id
+            if checkpoint_id is None:
+                raise RuntimeError("A side effect completed without a checkpoint")
+            return self.checkpoints.record_effect(checkpoint_id)
+        finally:
+            self._effect_lock.release()
 
     def consume_clear_context(self) -> bool:
         with self._lock:
