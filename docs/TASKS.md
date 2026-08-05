@@ -1,99 +1,66 @@
 # Tasks
 
-## Current Core Version: 13 — Continuous Execution Environment
+## Current Core Version: 14 — Isolated Collaboration and Web Research
 
-Completion status: complete, archived, tagged, and ready for normal push. The
-user confirmed stage completion on 2026-08-06. The user selected the
-supplementary improvement "Rich, continuous execution environment," approved
-the implementation plan, and explicitly delegated implementation,
-deterministic verification, and bounded real installed-wheel terminal
-verification to the assistant.
+Completion status: implementation in progress. The user selected both remaining
+supplementary research topics, approved the combined plan, and explicitly
+delegated implementation. The assistant owns deterministic, security, stress,
+packaging, and direct terminal verification within the standing USD 1.00 live
+model allowance. SWE-bench and paid batch evaluation are not authorized.
 
 ### Goal
 
-Replace one-shot foreground/background command ownership with one bounded,
-application-owned execution-session system. A command that outlives its initial
-wait remains addressable; an interactive session can accept later input,
-interrupts, and health checks without being restarted.
+Let child Agents develop in independently reviewable Git worktrees and return
+only their own changes through a parent-governed integration workflow, while
+adding bounded, attributable Web search and fetch tools under the existing
+workflow, approval, and network policies.
 
 ### Included Scope
 
-- One execution-session manager for short commands, yielded commands, explicit
-  background work, interactive terminals, incremental output, and cleanup.
-- `execute` options for `interactive` and `yield_time_ms`; long foreground work
-  automatically yields a stable session ID.
-- `task` actions for list, poll, wait, write, interrupt, stop, and an explicitly
-  evidenced same-environment health check.
-- Windows ConPTY and Unix PTY support with Unicode, newline, Ctrl+C, and
-  whole-process-tree lifecycle handling.
-- Bounded memory/log retention, session limits, deterministic pruning, and
-  process-local expired-session behavior after restart.
-- Predictable host and Docker behavior under the V11 sandbox, including
-  continuing restricted containers and in-container health checks.
-- V12 workflow/approval/checkpoint enforcement for every new action, scoped
-  child-Agent ownership, CLI/TUI controls, state, and notifications.
-- Frozen V12 runtime plus installed V1-V13 selection.
+- Application-owned Git worktrees that preserve the root's initial dirty state
+  as a private baseline and isolate each child's later delta.
+- Explicit bounded parent-context forks, cwd-bound child commands and terminals,
+  durable workspace manifests, diff, reconcile, integrate, and discard actions.
+- V12 checkpoint-aware integration: rollback restores pending work and acceptance
+  finalizes workspace cleanup.
+- Bounded Brave Web Search plus public-text Web fetch with source attribution,
+  external-content labeling, public-address validation, pinned connections, and
+  safe redirects.
+- Plan/Implementation/Review, Cautious/Auto/Full Access, all sandbox modes,
+  CLI/TUI state, child ownership, cancellation, and bounded parallelism.
+- Frozen V13 runtime plus installed V1-V14 selection.
 
 ### Excluded Scope
 
-- Reconnecting operating-system processes after Coding Kid restarts.
-- Remote execution environments, browser or GUI automation, automatic package
-  installation, automatic image builds, or a general service supervisor.
-- Inferring readiness merely because a process is alive or a log line looks
-  promising.
-- Isolated Agent worktrees, persistent permission grants, or a new benchmark.
+- Browser/GUI automation, JavaScript rendering, screenshots, forms, uploads,
+  cookies, authenticated URLs, binary/PDF persistence, or arbitrary downloads.
+- Remote or nested Agents, custom VCS hooks, non-Git workspace isolation, or
+  persistent child conversations.
+- Automatic changes to a conflicted root worktree, automatic merge commits,
+  autonomous model wake-up, or a new benchmark.
 
 ### Completion Criteria
 
-- The same Python/shell terminal accepts multiple inputs across model turns,
-  preserves state, handles Unicode, and remains usable after Ctrl+C.
-- A long command yields without restarting, exposes non-duplicated incremental
-  output, and is safely interruptible/stoppable with complete descendant and
-  container cleanup.
-- Service readiness is demonstrated by a bounded check in the same execution
-  environment and remains distinct from liveness.
-- Plan/Implementation/Review, Cautious/Auto/Full Access, and all three sandbox
-  modes retain their independent guarantees for start, write, check,
-  interrupt, and stop operations.
-- Root/child ownership, cancellation, checkpointing, CLI/TUI presentation,
-  session limits, restart expiry, and failure races are deterministically
-  covered.
-- Pytest, Ruff, ten cleanup/concurrency stress rounds, wheel inspection,
-  V12 source fidelity, clean-install V1-V13 launches, and real terminal/TUI
-  trials pass. Any live model verification stays below the standing USD 1.00
-  task allowance; SWE-bench and paid batch evaluation do not run.
+- Concurrent Agents can edit overlapping paths without seeing each other's
+  unintegrated changes or changing the root worktree.
+- A dirty root snapshot is visible to children, but integration applies only the
+  child's delta and remains reversible through the V12 stage checkpoint.
+- Conflicts are reproduced and resolved inside isolation; restart preserves
+  unfinished workspace evidence; cleanup never touches unowned Git state.
+- Search returns fresh titled URLs/snippets and fetch returns bounded readable
+  text with continuation; both obey approval, network, SSRF, cancellation,
+  external-content, and source-attribution rules.
+- Pytest, Ruff, ten worktree and Docker stress rounds, wheel inspection, V13
+  fidelity, clean-install V1-V14 launches, and direct installed terminal/TUI
+  trials pass within the authorized live-spend boundary.
 
 ### Implementation Sequence
 
-1. Freeze V12, advance the launcher, and record the Version 13 boundary.
-2. Unify non-interactive foreground/background lifecycle and output handling.
-3. Add portable PTY sessions and continuing input/interrupt support.
-4. Extend tool, CLI/TUI, notifications, sandbox, health-check, permission, and
-   child-Agent integrations.
-5. Complete deterministic, stress, packaging, clean-install, and bounded real
-   terminal verification; update durable architecture and decisions.
-
-The completed teaching checkpoint is stored under
-`versions/13-continuous-execution-environment/` with annotated tag
-`version-13-continuous-execution-environment`.
-
-### Verification Record
-
-- Full suite: 397 passed, one Windows symlink test skipped.
-- Ruff lint and formatting: passed over 245 Python files.
-- Ten real Docker concurrency/cleanup rounds: passed with no residual
-  containers or reader threads.
-- Wheel inspection, clean installation, and explicit V1-V13 launches: passed.
-- Real host ConPTY, installed CLI, installed full-screen TUI launch/exit, and
-  continuing Docker terminal/check/cleanup trials: passed.
-- Real `openai/gpt-5.6-luna` workflows: passed one REPL across three model
-  turns, same-container HTTP readiness evidence, Ctrl+C recovery, and Cautious
-  denial followed by continued use and separately approved stop.
-- All live attempts retained 54 completed model responses; estimated aggregate
-  spend remained below USD 0.75 and within the USD 1.00 allowance.
-- Standalone archive: 338 passed and one Windows symlink test skipped on both
-  Python 3.11 and Python 3.13; Ruff passed over 56 Python files; its 32-entry
-  wheel and clean installation launched without bundled runtimes or generated
-  content.
-
-See `docs/reports/v13-live-verification.md` for the complete evidence.
+1. Freeze V13, advance the launcher, and record the V14 boundary.
+2. Build the worktree lifecycle, dirty snapshot baseline, cwd-bound execution,
+   persistence, and safe cleanup.
+3. Add context forks and parent-controlled diff/reconcile/integrate/discard
+   operations with workflow/checkpoint and CLI/TUI integration.
+4. Add the secure Web runtime, tools, permissions, UI, and child integration.
+5. Complete deterministic, security, stress, packaging, installed-terminal, and
+   bounded live-model verification; update durable documentation.
