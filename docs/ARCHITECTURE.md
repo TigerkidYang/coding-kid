@@ -174,6 +174,9 @@ bounded byte pipes and Windows Job/POSIX process-group cleanup. Interactive
 commands use pinned pywinpty/ConPTY on Windows and a system PTY on Unix; output
 is a combined terminal stream, input can be submitted later, ANSI transport
 codes are removed from model-visible text, and Ctrl+C is distinct from stop.
+Interactive environments set `PYTHON_BASIC_REPL=1` because Python 3.13's new
+REPL corrupts non-BMP input such as emoji through ConPTY; ordinary programs
+ignore the variable and Python retains its Unicode-safe basic REPL.
 
 Each stream preserves a bounded head and tail plus an independent recent window
 for incremental cursors. All bytes also enter per-session temporary logs until

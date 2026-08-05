@@ -16,6 +16,11 @@ bypass V12 approval; Ctrl+C is not stop; liveness is not readiness. Root IDs do
 not survive restart, and child Agents receive private managers that are always
 closed when the child run ends.
 
+On Windows, set `PYTHON_BASIC_REPL=1` for interactive environments. Python
+3.13's enhanced REPL corrupts non-BMP input through ConPTY, while the basic
+REPL preserves the same Unicode behavior verified on Python 3.11. Other
+interactive programs ignore this Python-specific compatibility variable.
+
 ## Keep Version 12 collaboration, approval, and sandbox policies independent
 
 Decision:

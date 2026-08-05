@@ -77,8 +77,11 @@ without explicit permission.
   clean-install V1-V13 launches, direct installed-wheel terminal trials, and
   real `openai/gpt-5.6-luna` REPL/service/Cautious workflows. The live work
   retained 54 completed model responses and remained conservatively below USD
-  0.75. The version is not yet archived or tagged pending the user's explicit
-  stage-completion confirmation.
+  0.75. Its standalone archive passes 338 tests with one Windows symlink skip
+  on Python 3.11 and 3.13, Ruff, wheel inspection, and clean installation. The
+  user confirmed completion on 2026-08-06; it is archived under
+  `versions/13-continuous-execution-environment/` with annotated tag
+  `version-13-continuous-execution-environment`.
 - Version 12 permission-governed workflow is complete and archived under
   `versions/12-permission-governed-workflow/` with annotated tag
   `version-12-permission-governed-workflow`. It

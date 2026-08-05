@@ -2,8 +2,8 @@
 
 ## Current Core Version: 13 — Continuous Execution Environment
 
-Completion status: implementation and verification complete; awaiting the
-user's explicit stage-completion confirmation. The user selected the
+Completion status: complete, archived, tagged, and ready for normal push. The
+user confirmed stage completion on 2026-08-06. The user selected the
 supplementary improvement "Rich, continuous execution environment," approved
 the implementation plan, and explicitly delegated implementation,
 deterministic verification, and bounded real installed-wheel terminal
@@ -73,8 +73,9 @@ interrupts, and health checks without being restarted.
 5. Complete deterministic, stress, packaging, clean-install, and bounded real
    terminal verification; update durable architecture and decisions.
 
-The version is archived and tagged only after the user explicitly confirms
-stage completion.
+The completed teaching checkpoint is stored under
+`versions/13-continuous-execution-environment/` with annotated tag
+`version-13-continuous-execution-environment`.
 
 ### Verification Record
 
@@ -90,6 +91,9 @@ stage completion.
   denial followed by continued use and separately approved stop.
 - All live attempts retained 54 completed model responses; estimated aggregate
   spend remained below USD 0.75 and within the USD 1.00 allowance.
+- Standalone archive: 338 passed and one Windows symlink test skipped on both
+  Python 3.11 and Python 3.13; Ruff passed over 56 Python files; its 32-entry
+  wheel and clean installation launched without bundled runtimes or generated
+  content.
 
-See `docs/reports/v13-live-verification.md` for the complete evidence. Archival,
-tagging, and normal push remain gated on the user's explicit confirmation.
+See `docs/reports/v13-live-verification.md` for the complete evidence.

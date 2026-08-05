@@ -143,5 +143,17 @@ USD 1.00 task allowance. Exact per-request cost is not persisted.
 
 All Version 13 implementation, deterministic, stress, packaging,
 historical-version, direct terminal, and live-model completion criteria pass.
-The version remains unarchived and untagged pending the user's explicit
-stage-completion confirmation.
+
+After the user confirmed completion on 2026-08-06, the standalone teaching
+archive passed 338 tests with one Windows symlink skip on Python 3.11.2. An
+exploratory Python 3.13 run initially exposed that its new enhanced REPL
+corrupted non-BMP input through ConPTY. Interactive environments now select
+Python's Unicode-safe basic REPL; the complete Python 3.13 archive suite then
+also passed 338 tests with one skip. Ruff passed over all 56 archive Python
+files. Its wheel contains 32 entries, pins pywinpty, excludes the cross-version
+launcher, bundled historical runtimes, tests, and generated files, and launches
+from a clean Python 3.11 installation.
+
+The completed checkpoint is archived at
+`versions/13-continuous-execution-environment/` with annotated tag
+`version-13-continuous-execution-environment`.
