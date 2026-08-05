@@ -45,6 +45,39 @@ Research notes should support two outcomes:
   - What should be shown to users.
   - How to design a more suitable terminal UI.
 
+## Supplementary Improvements
+
+These items do not add new research topics or reopen the completed versions.
+They record deeper improvements within topics whose first implementations were
+intentionally narrower than the mature capabilities found in the two source
+snapshots.
+
+- Permission-governed change workflow. This extends both loop/workflow control
+  and sandbox control into one coherent user-facing system: automatic approval,
+  approval for every sensitive action, and full access should be distinct from
+  Plan, Implementation, and Review modes. The sandbox limits what an action can
+  affect, approval determines who may authorize it, and the collaboration mode
+  determines what kind of work the Agent may attempt; Plan mode is therefore
+  not merely a read-only sandbox and also needs structured questions, diffs,
+  checkpoints, and controlled transition into implementation or rollback.
+- Rich, continuous execution environment. This deepens the existing Executor,
+  terminal-command, terminal-output, background-task, and sandbox topics beyond
+  one-shot command execution. It should support interactive process sessions
+  such as PTY/stdin continuation, project-native tools and dependencies,
+  long-running services with readiness evidence, and predictable host/container
+  semantics while preserving bounded output, cancellation, and cleanup.
+- Isolated multi-Agent development collaboration. This extends the existing
+  multi-Agent workflow topic beyond parallel children that share one working
+  directory. Agents should be able to work in isolated workspaces or worktrees,
+  carry an intentional context fork, own independently reviewable diffs or
+  commits, and return work through an explicit merge and conflict-resolution
+  process governed by the parent Agent.
+- Web search and fetch tools. This is a focused expansion of Agent tool calling
+  and the practical SWE Agent tool set, not a browser-automation or extension-
+  marketplace project. Search should discover relevant sources and fetch should
+  retrieve bounded, attributable content under the active network policy so the
+  Agent can use current external information without requiring a general browser.
+
 ## Version 11 Sandbox-Control Source Reading
 
 Version 11 uses the local Claude Code and Codex snapshots to add one explicit,
