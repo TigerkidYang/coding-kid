@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 
@@ -163,3 +164,34 @@ def test_non_repository_and_invalid_agent_id_fail_closed(tmp_path: Path) -> None
     manager = WorktreeManager(project, state)
     with pytest.raises(WorktreeError, match="Invalid Agent ID"):
         manager.create("../escape")
+
+
+def test_ten_round_overlapping_worktree_stress_isolated_and_cleans_up(
+    tmp_path: Path,
+) -> None:
+    root, state = repository(tmp_path)
+    target = root / "overlap.txt"
+    target.write_text("root\n", encoding="utf-8")
+    git(root, "add", "overlap.txt")
+    git(root, "commit", "-m", "add overlap")
+    manager = WorktreeManager(root, state)
+
+    for round_index in range(10):
+        agent_ids = [f"stress_{round_index}_{worker}" for worker in range(4)]
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            records = tuple(executor.map(manager.create, agent_ids))
+        for worker, record in enumerate(records):
+            Path(record.path, "overlap.txt").write_text(
+                f"round {round_index} worker {worker}\n", encoding="utf-8"
+            )
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            ready = tuple(executor.map(manager.finalize, agent_ids))
+        assert all(record.status == "ready" for record in ready)
+        assert target.read_text(encoding="utf-8") == "root\n"
+        assert len({manager.diff_text(agent_id) for agent_id in agent_ids}) == 4
+        for agent_id in agent_ids:
+            discarded = manager.discard(agent_id, confirmed=True)
+            assert discarded.status == "discarded"
+
+    assert target.read_text(encoding="utf-8") == "root\n"
+    assert not tuple((state / "workspaces").iterdir())
