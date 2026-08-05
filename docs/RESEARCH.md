@@ -78,6 +78,49 @@ snapshots.
   retrieve bounded, attributable content under the active network policy so the
   Agent can use current external information without requiring a general browser.
 
+## Version 13 Continuous-Execution Source Reading
+
+Version 13 uses the local Claude Code and Codex snapshots to identify the
+foundations shared by mature long-running command systems and the point at
+which their designs differ.
+
+Claude Code paths studied include `src/tools/BashTool/BashTool.tsx`,
+`src/utils/Shell.ts`, `src/utils/ShellCommand.ts`,
+`src/tasks/LocalShellTask/`, and `src/utils/task/TaskOutput.ts`. Its public Bash
+path has mature foreground-to-background transfer, bounded file-backed output,
+notifications, prompt-stall hints, process-tree cleanup, and reconstructed
+shell continuity. It does not expose a general public write-stdin/PTY re-entry
+contract; the tmux-backed virtual terminal referenced by internal builds is not
+part of the available public Bash implementation.
+
+Codex paths studied include `codex-rs/core/src/unified_exec/`,
+`codex-rs/core/src/tools/handlers/unified_exec/`, and
+`codex-rs/utils/pty/src/`. Its unified manager registers a process before the
+initial wait, yields a stable ID, accepts later TTY input, preserves sessions
+across turn end/interruption, bounds output with head/tail retention, and uses
+Unix PTYs or Windows ConPTY. Its environment abstraction also carries cwd,
+shell, sandbox, and remote identity, but process liveness is not application
+service readiness.
+
+The implementation invariants carried into Coding Kid are:
+
+- Decouple process lifetime from any one tool call and register ownership
+  before waiting.
+- Keep cwd, shell, environment, sandbox, approval, and Agent ownership attached
+  to the session for its whole lifetime.
+- Treat output as a separately bounded incremental stream with durable overflow
+  evidence.
+- Make Ctrl+C different from termination, and reclaim the complete process tree
+  on every terminal path.
+- Preserve one permission and sandbox boundary after yielding; continuing input
+  cannot become an ungoverned side channel.
+- Present one state to the model and user, and require an explicit health check
+  before claiming that a service is ready.
+
+Version 13 intentionally does not add automatic dependency installation,
+automatic image construction, remote execution, or process reconnection after
+application restart.
+
 ## Version 12 Permission-Governed Workflow Source Reading
 
 Version 12 uses the local Claude Code and Codex snapshots to separate
