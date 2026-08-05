@@ -2,9 +2,8 @@
 
 ## Current Core Version: 13 — Continuous Execution Environment
 
-Completion status: implementation and non-model verification complete; final
-live-model verification is unavailable because the current environment has no
-model credentials. The user selected the
+Completion status: implementation and verification complete; awaiting the
+user's explicit stage-completion confirmation. The user selected the
 supplementary improvement "Rich, continuous execution environment," approved
 the implementation plan, and explicitly delegated implementation,
 deterministic verification, and bounded real installed-wheel terminal
@@ -86,8 +85,11 @@ stage completion.
 - Wheel inspection, clean installation, and explicit V1-V13 launches: passed.
 - Real host ConPTY, installed CLI, installed full-screen TUI launch/exit, and
   continuing Docker terminal/check/cleanup trials: passed.
-- Minimal paid model workflow: not run because `OPENROUTER_API_KEY` and
-  `OPENROUTER_MODEL` are unavailable; spend is USD 0.00.
+- Real `openai/gpt-5.6-luna` workflows: passed one REPL across three model
+  turns, same-container HTTP readiness evidence, Ctrl+C recovery, and Cautious
+  denial followed by continued use and separately approved stop.
+- All live attempts retained 54 completed model responses; estimated aggregate
+  spend remained below USD 0.75 and within the USD 1.00 allowance.
 
-See `docs/reports/v13-live-verification.md` for the evidence and remaining
-completion gate.
+See `docs/reports/v13-live-verification.md` for the complete evidence. Archival,
+tagging, and normal push remain gated on the user's explicit confirmation.

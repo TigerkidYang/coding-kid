@@ -9,11 +9,10 @@ Date: 2026-08-06
 - Host terminal backend: Windows ConPTY through `pywinpty 3.x`
 - Restricted backend: Docker Desktop with
   `python:3.11-slim-bookworm`
-- Model-backed trial: not run because neither `OPENROUTER_API_KEY` nor
-  `OPENROUTER_MODEL` was available in the verification environment
+- Model-backed trial: `openai/gpt-5.6-luna`, using the user-level Windows
+  environment configuration injected into the isolated verification process
 
-No SWE-bench run or paid batch evaluation was authorized or performed. No paid
-model request was made, so verification spend was USD 0.00.
+No SWE-bench run or paid batch evaluation was authorized or performed.
 
 ## Deterministic Results
 
@@ -78,17 +77,71 @@ with `docker exec` in that exact continuing container and returned
 installed-wheel trials, the matching host-process count and managed-container
 count were both zero.
 
-## Remaining Live-Model Trial
+## Live-Model Trials
 
-The requested final minimal model-driven REPL, service-check, and interruption
-recovery workflow could not be started without model credentials. This is an
-environmental verification gap, not a skipped deterministic check or a known
-implementation failure. When credentials are available, it remains the only
-unexecuted completion item and must stay within the standing USD 1.00 limit.
+The initial environment inspection checked only process-level variables and
+incorrectly concluded that model credentials were unavailable. The configured
+key and model were present as Windows user-level environment variables. They
+were injected into isolated child processes without printing or persisting the
+key, and the earlier conclusion was corrected.
+
+### Continuing host REPL
+
+Across three separate user/model turns, the installed V13 CLI and
+`openai/gpt-5.6-luna` operated one session, `task_2bd82c9dd9de`. The model:
+
+1. started one interactive Python REPL and printed `连续终端🐯`;
+2. found and reused that session, produced the expected `ValueError`, and then
+   printed the retained Unicode value; and
+3. sent Ctrl+C, observed `KeyboardInterrupt`, printed
+   `continued-after-ctrl-c 连续终端🐯`, and exited the same REPL.
+
+The durable transcript contains the unchanged session ID, traceback, retained
+value, interrupt evidence, recovery output, and final process exit. No command
+was silently restarted.
+
+### Same-container service check
+
+Under `workspace-write`, the model started a background HTTP server in the
+continuing Docker container. Its `task check` result records
+`readiness_check: explicit`, exit code 0, and stdout `200`. The subsequent
+server log contains `GET / HTTP/1.1\" 200`. The model then stopped the session;
+the final managed-container count was zero.
+
+### Cautious denial without process loss
+
+In Cautious mode, the user approved the REPL start and initial assignment
+`cautious_value = 41`, then denied a later write of `99`. The durable record
+contains `User denied task` with the supplied feedback. The model listed the
+same still-running session, obtained separate approval for a new input, and
+observed `cautious-still-alive 42`, proving that denial neither killed the
+process nor changed its state. A final, separate stop approval reclaimed it.
+
+### Driver corrections and usage bound
+
+Two verification-driver mistakes were rejected rather than counted as passes:
+
+- A nested ConPTY driver initially searched for a completion marker that was
+  also visible in its own prompt. The corrected check showed that raw-key
+  injection had not submitted the TUI input, so the process was stopped and the
+  reliable redirected plain CLI was used for model turns.
+- A literal emoji in redirected Windows stdin arrived as invalid surrogate
+  characters. The prompt was changed to ASCII and the model constructed the
+  same Unicode value inside the real ConPTY REPL. Direct ConPTY Unicode and
+  emoji behavior was already covered by the installed and deterministic trials.
+
+Across successful trials and these bounded exploratory attempts, durable logs
+contain 54 completed model responses in 13 committed user turns plus one
+terminal turn. At most two started transient responses were not retained. The
+largest final request contained 5,918 input tokens. Using the
+[OpenRouter model page](https://openrouter.ai/openai/gpt-5.6-luna-20260709)'s
+listed standard price ceiling and conservatively allowing for the short
+intermediate outputs, estimated total spend remained below USD 0.75, within the
+USD 1.00 task allowance. Exact per-request cost is not persisted.
 
 ## Outcome
 
-The Version 13 implementation, deterministic suite, stress suite, packaging,
-historical-version launches, and direct real-terminal scenarios pass. The
-version remains unarchived and untagged pending the minimal live-model trial
-and the user's explicit stage-completion confirmation.
+All Version 13 implementation, deterministic, stress, packaging,
+historical-version, direct terminal, and live-model completion criteria pass.
+The version remains unarchived and untagged pending the user's explicit
+stage-completion confirmation.

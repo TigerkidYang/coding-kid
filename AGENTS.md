@@ -219,7 +219,7 @@ In particular:
 
 ## Current State
 
-- Version 13 implementation and non-model verification are complete. One
+- Version 13 implementation and verification are complete. One
   bounded execution-session manager owns short, yielded, background, and
   interactive commands; ConPTY/PTY sessions retain state across input and
   Ctrl+C; output is incremental with bounded memory and complete temporary
@@ -228,9 +228,11 @@ In particular:
   new actions. V12 is frozen and the launcher selects V1-V13 with V13 as the
   default. It passes 397 tests with one Windows symlink skip, Ruff, ten real
   Docker stress rounds, wheel inspection, clean-install V1-V13 launches, and
-  direct installed-wheel terminal trials. The final minimal live-model workflow
-  remains unexecuted because no model credentials are available. V13 is not yet
-  archived or tagged; see `docs/reports/v13-live-verification.md`.
+  direct installed-wheel terminal trials, and real `openai/gpt-5.6-luna`
+  REPL/service/Cautious workflows. Live work retained 54 completed model
+  responses and remained conservatively below USD 0.75. V13 is not yet archived
+  or tagged pending the user's explicit stage-completion confirmation; see
+  `docs/reports/v13-live-verification.md`.
 - Version 12 is complete and archived under
   `versions/12-permission-governed-workflow/` with annotated tag
   `version-12-permission-governed-workflow`. Independent Plan/Implementation/
