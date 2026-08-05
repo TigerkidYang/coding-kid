@@ -38,6 +38,7 @@ from coding_kid.workflow_runtime import WorkflowRuntime
 if TYPE_CHECKING:
     from coding_kid.capabilities import CapabilityRuntime
     from coding_kid.worktrees import WorkspaceRecord, WorktreeManager
+    from coding_kid.web import WebRuntime
 
 MAX_RUNNING_AGENTS = 4
 MAX_RETAINED_AGENTS = 16
@@ -185,6 +186,7 @@ class AgentManager:
         workflow_runtime: WorkflowRuntime | None = None,
         root_manager: ContextManager | None = None,
         workspace_manager: WorktreeManager | None = None,
+        web_runtime: WebRuntime | None = None,
     ) -> None:
         self.session_context = session_context
         self.budget = budget
@@ -197,6 +199,7 @@ class AgentManager:
         self.workflow_runtime = workflow_runtime
         self.root_manager = root_manager
         self.workspace_manager = workspace_manager
+        self.web_runtime = web_runtime
         self._child_runner = child_runner
         self._id_factory = id_factory or (lambda: f"agent_{secrets.token_hex(6)}")
         self._clock = clock
@@ -537,6 +540,7 @@ class AgentManager:
                 record.token,
                 child_tasks,
                 child_sandbox,
+                self.web_runtime,
             )
             if self.capability_runtime is not None:
                 skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)

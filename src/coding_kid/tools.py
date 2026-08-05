@@ -13,6 +13,7 @@ from coding_kid.permissions import PermissionBroker, ToolEffect
 from coding_kid.sandbox import SandboxRuntime, SandboxViolation
 from coding_kid.terminal import run_command
 from coding_kid.workflow import CollaborationMode
+from coding_kid.web import WebRuntime
 
 if TYPE_CHECKING:
     from coding_kid.agents import AgentManager
@@ -208,6 +209,25 @@ def agent(
     return snapshot.model_text(wait_timed_out=timed_out)
 
 
+def web_search(
+    query: str,
+    count: int = 5,
+    *,
+    web_runtime: WebRuntime | None = None,
+) -> str:
+    """Search the public web through the configured Brave API."""
+    if web_runtime is None:
+        raise RuntimeError("Web research runtime is not active")
+    return web_runtime.search(query, count)
+
+
+def web_fetch(url: str, *, web_runtime: WebRuntime | None = None) -> str:
+    """Fetch bounded text from one public HTTP(S) URL."""
+    if web_runtime is None:
+        raise RuntimeError("Web research runtime is not active")
+    return web_runtime.fetch(url)
+
+
 def read(path: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
     """Read a UTF-8 text file."""
     file_path = _tool_path(path, sandbox_runtime)
@@ -329,6 +349,17 @@ def _tool_path(
     if sandbox_runtime is None:
         return Path(path)
     return sandbox_runtime.resolve_path(path, write=write)
+
+
+def _require_web_network(sandbox_runtime: SandboxRuntime | None) -> None:
+    if (
+        sandbox_runtime is not None
+        and sandbox_runtime.restricted
+        and not sandbox_runtime.config.network_enabled
+    ):
+        raise RuntimeError(
+            "Web research is disabled by the startup sandbox network policy"
+        )
 
 
 VALID_TODO_STATUSES = {"pending", "in_progress", "completed"}
@@ -675,6 +706,46 @@ TOOLS: dict[str, ToolEntry] = {
         },
         "function": agent,
     },
+    "web_search": {
+        "effect": ToolEffect.EXTERNAL,
+        "description": (
+            "Search the public web with Brave Search. Returns bounded titles, "
+            "snippets, numbered source URLs, and explicit untrusted-content "
+            "provenance. Requires BRAVE_SEARCH_API_KEY."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "minLength": 1, "maxLength": 400},
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 5,
+                },
+            },
+            "required": ["query", "count"],
+            "additionalProperties": False,
+        },
+        "function": web_search,
+    },
+    "web_fetch": {
+        "effect": ToolEffect.EXTERNAL,
+        "description": (
+            "Fetch bounded public text from one HTTP(S) URL. Redirects are "
+            "revalidated; private, local, credentialed, nonstandard-port, binary, "
+            "oversized, and encoded responses are blocked."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "minLength": 1, "maxLength": 2048}
+            },
+            "required": ["url"],
+            "additionalProperties": False,
+        },
+        "function": web_fetch,
+    },
     "task": {
         "effect": lambda arguments: (
             ToolEffect.READ_ONLY
@@ -792,13 +863,15 @@ class ToolRegistry:
             {
                 "read",
                 "search",
+                "web_search",
+                "web_fetch",
                 "skill",
                 "task",
                 "request_user_input",
                 "propose_plan",
             }
             if mode is CollaborationMode.PLAN
-            else {"read", "search", "skill", "task"}
+            else {"read", "search", "web_search", "web_fetch", "skill", "task"}
         )
         definitions = [
             definition
@@ -888,6 +961,7 @@ def build_tool_registry(
     todo_state: TodoState | None = None,
     agent_manager: AgentManager | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
+    web_runtime: WebRuntime | None = None,
 ) -> ToolRegistry:
     """Bind process-local task state to one immutable per-turn registry."""
     if (
@@ -895,6 +969,7 @@ def build_tool_registry(
         and todo_state is None
         and agent_manager is None
         and sandbox_runtime is None
+        and web_runtime is None
     ):
         return DEFAULT_TOOL_REGISTRY
     entries = {name: dict(entry) for name, entry in TOOLS.items()}
@@ -980,6 +1055,17 @@ def build_tool_registry(
                 cancellation_token=cancellation_token,
             )
         )
+    if web_runtime is not None:
+        entries["web_search"]["function"] = lambda query, count=5: web_search(
+            query, count, web_runtime=web_runtime
+        )
+        entries["web_fetch"]["function"] = lambda url: web_fetch(
+            url, web_runtime=web_runtime
+        )
+        for name in ("web_search", "web_fetch"):
+            entries[name]["sandbox_check"] = lambda _arguments: (
+                _require_web_network(sandbox_runtime)
+            )
     return ToolRegistry(entries)
 
 
@@ -988,6 +1074,7 @@ def build_child_tool_registry(
     cancellation_token: CancellationToken,
     task_manager: BackgroundTaskManager,
     sandbox_runtime: SandboxRuntime | None = None,
+    web_runtime: WebRuntime | None = None,
 ) -> ToolRegistry:
     """Build a child-only registry with Agent-scoped execution sessions."""
     excluded = {"spawn_agent", "agent"}
@@ -1050,6 +1137,20 @@ def build_child_tool_registry(
         )
     )
     entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
+    if web_runtime is not None:
+        entries["web_search"]["function"] = lambda query, count=5: web_search(
+            query, count, web_runtime=web_runtime
+        )
+        entries["web_fetch"]["function"] = lambda url: web_fetch(
+            url, web_runtime=web_runtime
+        )
+        for name in ("web_search", "web_fetch"):
+            entries[name]["sandbox_check"] = lambda _arguments: (
+                _require_web_network(sandbox_runtime)
+            )
+    else:
+        entries.pop("web_search")
+        entries.pop("web_fetch")
     return ToolRegistry(entries)
 
 

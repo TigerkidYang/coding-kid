@@ -253,9 +253,17 @@ def _mode_error(
     if mode is CollaborationMode.IMPLEMENTATION:
         return None
     allowed_names = (
-        {"read", "search", "skill", "request_user_input", "propose_plan"}
+        {
+            "read",
+            "search",
+            "web_search",
+            "web_fetch",
+            "skill",
+            "request_user_input",
+            "propose_plan",
+        }
         if mode is CollaborationMode.PLAN
-        else {"read", "search", "skill"}
+        else {"read", "search", "web_search", "web_fetch", "skill"}
     )
     if tool_name in allowed_names or (
         tool_name == "task" and effect is ToolEffect.READ_ONLY
@@ -288,6 +296,13 @@ def approval_key(tool_name: str, effect: ToolEffect, arguments: dict[str, Any]) 
         interactive = bool(arguments.get("interactive", False))
         return f"{tool_name}:command:{background}:{interactive}:{command}"
     if effect is ToolEffect.EXTERNAL:
+        if tool_name == "web_fetch":
+            from urllib.parse import urlsplit
+
+            hostname = (urlsplit(str(arguments.get("url", ""))).hostname or "").casefold()
+            return f"external:web_fetch:{hostname}"
+        if tool_name == "web_search":
+            return "external:web_search:api.search.brave.com"
         server = str(arguments.get("_server", "dynamic"))
         return f"external:{server}:{tool_name}"
     if tool_name in {"spawn_agent", "agent"}:

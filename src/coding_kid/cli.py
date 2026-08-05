@@ -22,6 +22,7 @@ from coding_kid.permissions import (
     ApprovalRequest,
     ApprovalResponse,
     PermissionBroker,
+    ToolEffect,
 )
 from coding_kid.provider import generate
 from coding_kid.sandbox import (
@@ -39,6 +40,7 @@ from coding_kid.workflow_runtime import (
     InteractionResponse,
     WorkflowRuntime,
 )
+from coding_kid.web import WebRuntime
 from coding_kid.worktrees import WorktreeError, WorktreeManager
 
 InputFunction = Callable[[str], str]
@@ -158,6 +160,7 @@ def chat(
     sandbox_runtime: SandboxRuntime | None = None,
     permission_broker: PermissionBroker | None = None,
     workflow_runtime: WorkflowRuntime | None = None,
+    web_runtime: WebRuntime | None = None,
 ) -> None:
     """Keep accepting user messages until the user exits."""
     output_function = _safe_output_function(output_function)
@@ -197,6 +200,7 @@ def chat(
             if session_handle is not None
             else None
         ),
+        web_runtime=web_runtime,
     )
     workflow_state = (
         workflow_runtime.state
@@ -225,6 +229,8 @@ def chat(
         output_function(capability_runtime.summary())
         for warning in capability_runtime.warnings:
             output_function(f"[capability] warning: {warning}")
+    if web_runtime is not None:
+        output_function(web_runtime.status_text())
     if (
         memory_manager is not None
         and memory_manager.mode == "auto"
@@ -327,6 +333,49 @@ def chat(
                 else:
                     output_function(f"Rolled back stage changes.\n{changes.text()}")
             continue
+        if user_input.startswith("/agent "):
+            parts = user_input.split()
+            action = parts[1] if len(parts) > 1 else ""
+            if action in {"diff", "integrate", "reconcile", "discard"}:
+                if len(parts) < 3:
+                    output_function(f"Usage: /agent {action} <id>")
+                    continue
+                agent_id = parts[2]
+                confirmed = len(parts) == 4 and parts[3] == "--confirm"
+                if action == "discard" and not confirmed:
+                    output_function("Usage: /agent discard <id> --confirm")
+                    continue
+                effect = (
+                    ToolEffect.READ_ONLY
+                    if action == "diff"
+                    else ToolEffect.DESTRUCTIVE
+                )
+                prepared = False
+                try:
+                    if workflow_runtime is not None:
+                        workflow_runtime.before_effect(effect)
+                        prepared = effect is ToolEffect.DESTRUCTIVE
+                    if action == "diff":
+                        rendered = agent_manager.diff(agent_id)
+                    elif action == "integrate":
+                        rendered = agent_manager.integrate(agent_id).model_text()
+                    elif action == "reconcile":
+                        rendered = agent_manager.reconcile(agent_id).model_text()
+                    else:
+                        rendered = agent_manager.discard(
+                            agent_id, confirmed=confirmed
+                        ).model_text()
+                except Exception as error:
+                    output_function(f"Error: {error}")
+                else:
+                    output_function(rendered)
+                finally:
+                    if prepared and workflow_runtime is not None:
+                        try:
+                            workflow_runtime.after_effect(effect)
+                        except Exception as error:
+                            output_function(f"Error: {error}")
+                continue
         if user_input.startswith("/agent stop "):
             agent_id = user_input.removeprefix("/agent stop ").strip()
             try:
@@ -398,6 +447,7 @@ def chat(
                 todo_state=todo_state,
                 agent_manager=agent_manager,
                 sandbox_runtime=sandbox_runtime,
+                web_runtime=web_runtime,
             )
             definitions = base_registry.definitions()
             context_overlays: tuple[str, ...] = (
@@ -524,6 +574,7 @@ def chat(
                 todo_state=todo_state,
                 agent_manager=agent_manager,
                 sandbox_runtime=sandbox_runtime,
+                web_runtime=web_runtime,
             )
             definitions = base_registry.definitions()
             compact_overlays: tuple[str, ...] = (
@@ -576,6 +627,7 @@ def chat(
             todo_state=todo_state,
             agent_manager=agent_manager,
             sandbox_runtime=sandbox_runtime,
+            web_runtime=web_runtime,
         )
         if workflow_runtime is not None:
             registry = workflow_runtime.bind_registry(registry)
@@ -914,6 +966,7 @@ def main(options: SessionOptions | None = None) -> None:
             context_window=handle.manager.budget.context_length,
             external_tools_enabled=not sandbox_runtime.restricted,
         )
+        web_runtime = WebRuntime()
         managers: dict[str, Any] = {"background": background_tasks}
         checkpoint_manager = CheckpointManager(
             handle.context.project_root,
@@ -937,6 +990,7 @@ def main(options: SessionOptions | None = None) -> None:
             workflow_runtime=workflow_runtime,
             root_manager=handle.manager,
             workspace_manager=_worktree_manager(handle),
+            web_runtime=web_runtime,
         )
         managers["agent"] = agent_manager
         if sys.stdin.isatty() and sys.stdout.isatty():
@@ -958,6 +1012,8 @@ def main(options: SessionOptions | None = None) -> None:
                 tui_options["capability_runtime"] = capability_runtime
             if "agent_manager" in inspect.signature(run_tui).parameters:
                 tui_options["agent_manager"] = agent_manager
+            if "web_runtime" in inspect.signature(run_tui).parameters:
+                tui_options["web_runtime"] = web_runtime
             run_tui(handle.context, handle.manager, **tui_options)
         else:
             chat_options: dict[str, Any] = {
@@ -976,6 +1032,8 @@ def main(options: SessionOptions | None = None) -> None:
                 chat_options["capability_runtime"] = capability_runtime
             if "agent_manager" in inspect.signature(chat).parameters:
                 chat_options["agent_manager"] = agent_manager
+            if "web_runtime" in inspect.signature(chat).parameters:
+                chat_options["web_runtime"] = web_runtime
             chat(**chat_options)
     except RuntimeError as error:
         print(f"Error: {error}")

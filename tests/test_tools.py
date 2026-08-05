@@ -226,6 +226,8 @@ def test_every_tool_has_model_visible_metadata() -> None:
         "task",
         "spawn_agent",
         "agent",
+        "web_search",
+        "web_fetch",
     }
     for name, tool in TOOLS.items():
         assert tool["description"]

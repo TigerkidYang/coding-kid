@@ -53,6 +53,7 @@ from coding_kid.permissions import (
     ApprovalResolved,
     ApprovalResponse,
     PermissionBroker,
+    ToolEffect,
 )
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.sandbox import SandboxRuntime
@@ -66,6 +67,7 @@ from coding_kid.workflow_runtime import (
     InteractionResponse,
     WorkflowRuntime,
 )
+from coding_kid.web import WebRuntime
 
 Provider = Callable[..., Any]
 
@@ -221,6 +223,7 @@ class CodingKidApp(App[None]):
         sandbox_runtime: SandboxRuntime | None = None,
         permission_broker: PermissionBroker | None = None,
         workflow_runtime: WorkflowRuntime | None = None,
+        web_runtime: WebRuntime | None = None,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -240,6 +243,7 @@ class CodingKidApp(App[None]):
         )
         self.permission_broker = permission_broker
         self.workflow_runtime = workflow_runtime
+        self.web_runtime = web_runtime
         self.background_tasks = background_tasks or BackgroundTaskManager(
             sandbox_runtime=sandbox_runtime
         )
@@ -254,6 +258,7 @@ class CodingKidApp(App[None]):
             permission_broker=permission_broker,
             workflow_state=self.workflow_state,
             workflow_runtime=workflow_runtime,
+            web_runtime=web_runtime,
         )
         self._owns_agent_manager = agent_manager is None
         self._owns_background_tasks = background_tasks is None
@@ -332,6 +337,13 @@ class CodingKidApp(App[None]):
                     classes="context-cell",
                 )
             )
+        if self.web_runtime is not None:
+            self._append_cell(
+                Static(
+                    f"[dim]• {escape(self.web_runtime.status_text())}[/]",
+                    classes="context-cell",
+                )
+            )
 
     def _append_cell(self, widget: Static | Markdown | Horizontal) -> None:
         transcript = self.query_one("#transcript", VerticalScroll)
@@ -379,6 +391,25 @@ class CodingKidApp(App[None]):
         if text == "/changes rollback":
             self._finish_changes(accept=False)
             return
+        if text.startswith("/agent "):
+            parts = text.split()
+            action = parts[1] if len(parts) > 1 else ""
+            if action in {"diff", "integrate", "reconcile", "discard"}:
+                if len(parts) < 3 or (
+                    action == "discard"
+                    and not (len(parts) == 4 and parts[3] == "--confirm")
+                ):
+                    suffix = " --confirm" if action == "discard" else ""
+                    self._show_task_stop_error(
+                        f"Usage: /agent {action} <id>{suffix}"
+                    )
+                else:
+                    self._start_agent_action(
+                        action,
+                        parts[2],
+                        confirmed=action == "discard",
+                    )
+                return
         if text.startswith("/agent stop "):
             self._start_agent_stop(text.removeprefix("/agent stop ").strip())
             return
@@ -529,6 +560,7 @@ class CodingKidApp(App[None]):
             self.todo_state,
             self.agent_manager,
             self.sandbox_runtime,
+            self.web_runtime,
         )
         if self.workflow_runtime is not None:
             registry = self.workflow_runtime.bind_registry(registry)
@@ -764,6 +796,7 @@ class CodingKidApp(App[None]):
             todo_state=self.todo_state,
             agent_manager=self.agent_manager,
             sandbox_runtime=self.sandbox_runtime,
+            web_runtime=self.web_runtime,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
@@ -1249,6 +1282,7 @@ class CodingKidApp(App[None]):
             self.todo_state,
             self.agent_manager,
             self.sandbox_runtime,
+            self.web_runtime,
         )
         definitions = base_registry.definitions()
         task_summary = self.background_tasks.prompt_summary()
@@ -1404,6 +1438,55 @@ class CodingKidApp(App[None]):
             exit_on_error=False,
         )
 
+    def _start_agent_action(
+        self, action: str, agent_id: str, *, confirmed: bool
+    ) -> None:
+        if self.active_turn:
+            return
+        self._begin_activity(f"Agent {action}: {agent_id}")
+        self.run_worker(
+            lambda: self._run_agent_action(action, agent_id, confirmed),
+            name=f"agent-{action}",
+            group="agent",
+            thread=True,
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _run_agent_action(
+        self, action: str, agent_id: str, confirmed: bool
+    ) -> None:
+        effect = (
+            ToolEffect.READ_ONLY if action == "diff" else ToolEffect.DESTRUCTIVE
+        )
+        prepared = False
+        try:
+            if self.workflow_runtime is not None:
+                self.workflow_runtime.before_effect(effect)
+                prepared = effect is ToolEffect.DESTRUCTIVE
+            if action == "diff":
+                rendered = self.agent_manager.diff(agent_id)
+            elif action == "integrate":
+                rendered = self.agent_manager.integrate(agent_id).model_text()
+            elif action == "reconcile":
+                rendered = self.agent_manager.reconcile(agent_id).model_text()
+            else:
+                rendered = self.agent_manager.discard(
+                    agent_id, confirmed=confirmed
+                ).model_text()
+        except BaseException as error:
+            self.call_from_thread(self._show_task_stop_error, str(error))
+        else:
+            self.call_from_thread(self._show_task_action_result, rendered)
+        finally:
+            try:
+                if prepared and self.workflow_runtime is not None:
+                    self.workflow_runtime.after_effect(effect)
+            except BaseException as error:
+                self.call_from_thread(self._show_task_stop_error, str(error))
+            finally:
+                self.call_from_thread(self._finish_activity)
+
     def _run_agent_stop(self, agent_id: str) -> None:
         try:
             self.agent_manager.stop(agent_id)
@@ -1558,6 +1641,10 @@ def _tool_description(name: str, arguments: dict[str, Any]) -> str:
         query = _bounded(arguments.get("query", "?"))
         path = _bounded(arguments.get("path") or ".")
         return f"• Explored\n  └ Search {query} in {path}"
+    if name == "web_search":
+        return f"• Searched the web\n  └ {_bounded(arguments.get('query', '?'))}"
+    if name == "web_fetch":
+        return f"• Fetched web source\n  └ {_bounded(arguments.get('url', '?'))}"
     if name == "read":
         return f"• Explored\n  └ Read {_bounded(arguments.get('path', '?'))}"
     if name in {"write", "patch", "delete"}:
@@ -1596,6 +1683,7 @@ def run_tui(
     sandbox_runtime: SandboxRuntime | None = None,
     permission_broker: PermissionBroker | None = None,
     workflow_runtime: WorkflowRuntime | None = None,
+    web_runtime: WebRuntime | None = None,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -1612,4 +1700,5 @@ def run_tui(
         sandbox_runtime=sandbox_runtime,
         permission_broker=permission_broker,
         workflow_runtime=workflow_runtime,
+        web_runtime=web_runtime,
     ).run()
