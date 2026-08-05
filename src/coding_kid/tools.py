@@ -8,7 +8,7 @@ import re
 from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
-from coding_kid.events import CancellationToken
+from coding_kid.events import CancellationToken, TurnCancelled
 from coding_kid.permissions import PermissionBroker, ToolEffect
 from coding_kid.sandbox import SandboxRuntime, SandboxViolation
 from coding_kid.terminal import run_command
@@ -53,12 +53,20 @@ def execute(
         started = task_manager.start(command, interactive=interactive)
         if background:
             return started.model_text()
-        snapshot, _ = task_manager.wait(
-            started.task_id,
-            yield_time_ms / 1000,
-            cancellation_token,
-            incremental=True,
-        )
+        try:
+            snapshot, _ = task_manager.wait(
+                started.task_id,
+                yield_time_ms / 1000,
+                cancellation_token,
+                incremental=True,
+            )
+        except TurnCancelled:
+            snapshot = task_manager.settle(started.task_id)
+            return (
+                snapshot.model_text(wait_timed_out=snapshot.status == "running")
+                + "\nturn_interrupted: true\n"
+                "The execution session was retained; inspect or stop it later."
+            )
         return snapshot.model_text(wait_timed_out=snapshot.status == "running")
     if background or interactive:
         raise RuntimeError("Execution-session runtime is not active")
@@ -915,10 +923,11 @@ def build_tool_registry(
 def build_child_tool_registry(
     todo_state: TodoState,
     cancellation_token: CancellationToken,
+    task_manager: BackgroundTaskManager,
     sandbox_runtime: SandboxRuntime | None = None,
 ) -> ToolRegistry:
-    """Build a child-only registry without Agent or background task controls."""
-    excluded = {"task", "spawn_agent", "agent"}
+    """Build a child-only registry with Agent-scoped execution sessions."""
+    excluded = {"spawn_agent", "agent"}
     entries = {
         name: dict(entry) for name, entry in TOOLS.items() if name not in excluded
     }
@@ -943,33 +952,40 @@ def build_child_tool_registry(
             entries[name]["hard_check"] = lambda arguments: _protect_metadata_path(
                 arguments["path"], sandbox_runtime
             )
-    entries["execute"] = {
-        "effect": ToolEffect.COMMAND,
-        "description": (
-            "Run one non-interactive POSIX shell command inside the active Linux "
-            "sandbox container. Use project-relative paths. Output is bounded "
-            "and the process tree is terminated on timeout or Agent cancellation."
-            if sandbox_runtime is not None and sandbox_runtime.restricted
-            else "Run one non-interactive Windows PowerShell command in the shared "
-            "working directory. Output is bounded and the process tree is "
-            "terminated on timeout or Agent cancellation."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "command": {"type": "string", "minLength": 1},
-                "reason": {"type": ["string", "null"], "default": None},
-            },
-            "required": ["command", "reason"],
-            "additionalProperties": False,
-        },
-        "function": lambda command, reason=None: run_command(
-            command,
-            cancellation_token=cancellation_token,
-            sandbox_runtime=sandbox_runtime,
-        ).model_text(),
-        "hard_check": lambda arguments: _protect_command(arguments["command"]),
-    }
+    entries["execute"]["description"] = (
+        "Run a POSIX command in the Agent's continuing sandbox session."
+        if sandbox_runtime is not None and sandbox_runtime.restricted
+        else "Run a command in the Agent's continuing host execution session."
+    )
+    entries["execute"]["function"] = (
+        lambda command, background=False, interactive=False, yield_time_ms=10_000, reason=None: (
+            execute(
+                command,
+                background,
+                interactive,
+                yield_time_ms,
+                reason,
+                task_manager=task_manager,
+                cancellation_token=cancellation_token,
+                sandbox_runtime=sandbox_runtime,
+            )
+        )
+    )
+    entries["task"]["function"] = (
+        lambda action, task_id=None, input=None, submit=True, command=None, timeout_seconds=10, reason=None: (
+            task(
+                action,
+                task_id,
+                timeout_seconds,
+                input,
+                submit,
+                command,
+                reason,
+                task_manager=task_manager,
+                cancellation_token=cancellation_token,
+            )
+        )
+    )
     entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     return ToolRegistry(entries)
 

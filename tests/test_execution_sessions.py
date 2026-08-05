@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import time
 
 import pytest
 
 from coding_kid.background_tasks import BackgroundTaskError, BackgroundTaskManager
+from coding_kid.sandbox import SandboxConfig, SandboxError, SandboxMode, SandboxRuntime
 from coding_kid.tools import build_tool_registry
 
 
@@ -147,3 +150,68 @@ def test_unknown_id_reports_expired_session() -> None:
             manager.poll("task_from_old_process")
     finally:
         manager.close()
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker is unavailable")
+@pytest.mark.parametrize(
+    ("mode", "write_succeeds"),
+    [
+        (SandboxMode.WORKSPACE_WRITE, True),
+        (SandboxMode.READ_ONLY, False),
+    ],
+)
+def test_real_sandbox_interactive_session_check_and_cleanup(
+    tmp_path: Path, mode: SandboxMode, write_succeeds: bool
+) -> None:
+    suffix = "write" if write_succeeds else "read"
+    container_token = "a13000000001" if write_succeeds else "a13000000002"
+    container_name = f"coding-kid-{container_token}"
+    runtime = SandboxRuntime(
+        SandboxConfig(mode, tmp_path, tmp_path),
+        docker_executable="docker",
+        id_factory=lambda: container_token,
+    )
+    try:
+        runtime.check_available()
+    except SandboxError as error:
+        pytest.skip(str(error))
+
+    manager = BackgroundTaskManager(
+        id_factory=lambda: f"task_docker_{suffix}", sandbox_runtime=runtime
+    )
+    try:
+        task_id = manager.start("/bin/sh", interactive=True).task_id
+        ready = manager.check(task_id, "printf ready; test -d /workspace", 15)
+        assert ready.exit_code == 0
+        assert ready.stdout == "ready"
+
+        manager.write(task_id, "printf sandbox-data > session-file.txt")
+        evidence = manager.check(
+            task_id,
+            (
+                "test -f session-file.txt && cat session-file.txt"
+                if write_succeeds
+                else "test ! -e session-file.txt"
+            ),
+            10,
+        )
+        assert evidence.exit_code == 0
+        if write_succeeds:
+            assert evidence.stdout == "sandbox-data"
+        assert (tmp_path / "session-file.txt").exists() is write_succeeds
+
+        manager.write(task_id, "exit")
+        final, timed_out = manager.wait(task_id, 10)
+        assert timed_out is False
+        assert final.status in {"completed", "failed"}
+    finally:
+        manager.close()
+
+    listed = subprocess.run(
+        ["docker", "ps", "-aq", "--filter", f"name=^{container_name}$"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert listed.stdout.strip() == ""

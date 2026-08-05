@@ -424,15 +424,17 @@ def test_agent_tools_bind_one_manager_and_use_strict_schemas() -> None:
     ]
 
 
-def test_child_registry_excludes_agent_and_background_controls() -> None:
-    registry = build_child_tool_registry(TodoState(), CancellationToken())
+def test_child_registry_excludes_agents_but_scopes_execution_sessions() -> None:
+    tasks = BackgroundTaskManager()
+    registry = build_child_tool_registry(TodoState(), CancellationToken(), tasks)
 
     assert "spawn_agent" not in registry.names
     assert "agent" not in registry.names
-    assert "task" not in registry.names
+    assert "task" in registry.names
     execute = next(item for item in registry.definitions() if item["name"] == "execute")
-    assert execute["parameters"]["required"] == ["command", "reason"]
-    assert "background" not in execute["parameters"]["properties"]
+    assert "background" in execute["parameters"]["properties"]
+    assert "interactive" in execute["parameters"]["properties"]
+    tasks.close()
 
 
 def test_todo_can_clear_a_finished_checklist() -> None:

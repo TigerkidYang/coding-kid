@@ -11,6 +11,7 @@ import time
 from typing import Any, Literal, TYPE_CHECKING
 
 from coding_kid.context import SessionContext
+from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.context_manager import ContextBudget, ContextManager
 from coding_kid.events import (
     AssistantMessageCompleted,
@@ -54,11 +55,12 @@ ChildRunner = Callable[
 
 WORKER_INSTRUCTIONS = """
 You are a child worker Agent, not the user-facing root Agent. Complete only the
-delegated task. You cannot spawn other Agents or create background shell tasks.
+delegated task. You cannot spawn other Agents. You may use continuing execution
+sessions, but they are private to this Agent and are stopped when your run ends.
 You share the root Agent's working directory and user permissions, so inspect
-current files before editing and do not overlap writes assigned to other
-workers. Use tools directly, verify proportionally, and return a concise report
-with evidence. Do not ask the user questions or propose unrelated next steps.
+current files before editing and do not overlap writes assigned to other workers.
+Use tools directly, verify proportionally, and return a concise report with
+evidence. Do not ask the user questions or propose unrelated next steps.
 """.strip()
 
 
@@ -420,49 +422,64 @@ class AgentManager:
 
         request_context: list[Any] = []
         overlays = [WORKER_INSTRUCTIONS]
-        registry = build_child_tool_registry(
-            record.todos,
-            record.token,
-            self.sandbox_runtime,
-        )
-        if self.capability_runtime is not None:
-            skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
-            for skill_name in explicit_skill_names(
-                message, self.capability_runtime.snapshot.skills
-            ):
-                request_context.append(
-                    {
-                        "role": "user",
-                        "content": self.capability_runtime.load_skill(
-                            skill_state, skill_name, explicit=True
-                        ),
-                    }
-                )
-            registry = self.capability_runtime.registry_for_turn(
-                skill_state,
+        child_tasks = BackgroundTaskManager(sandbox_runtime=self.sandbox_runtime)
+        try:
+            registry = build_child_tool_registry(
+                record.todos,
                 record.token,
-                base_registry=registry,
+                child_tasks,
+                self.sandbox_runtime,
             )
-            metadata = self.capability_runtime.skill_metadata()
-            if metadata:
-                overlays.append(metadata)
-        return run_turn(
-            record.manager,
-            self.call_provider,
-            max_steps=MAX_CHILD_STEPS,
-            stream_provider=self.stream_provider,
-            event_sink=lambda event: self._observe(record, event),
-            cancellation_token=record.token,
-            request_context=request_context,
-            tool_registry=registry,
-            instruction_overlays=tuple(overlays),
-            todo_state=record.todos,
-            max_tool_calls=MAX_CHILD_TOOL_CALLS,
-            rollback_on_cancel=False,
-            permission_broker=self.permission_broker,
-            workflow_state=self.workflow_state,
-            workflow_runtime=self.workflow_runtime,
-        )
+            if self.capability_runtime is not None:
+                skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
+                for skill_name in explicit_skill_names(
+                    message, self.capability_runtime.snapshot.skills
+                ):
+                    request_context.append(
+                        {
+                            "role": "user",
+                            "content": self.capability_runtime.load_skill(
+                                skill_state, skill_name, explicit=True
+                            ),
+                        }
+                    )
+                registry = self.capability_runtime.registry_for_turn(
+                    skill_state,
+                    record.token,
+                    base_registry=registry,
+                )
+                metadata = self.capability_runtime.skill_metadata()
+                if metadata:
+                    overlays.append(metadata)
+            return run_turn(
+                record.manager,
+                self.call_provider,
+                max_steps=MAX_CHILD_STEPS,
+                stream_provider=self.stream_provider,
+                event_sink=lambda event: self._observe(record, event),
+                cancellation_token=record.token,
+                request_context=request_context,
+                tool_registry=registry,
+                instruction_overlays=tuple(overlays),
+                background_tasks=child_tasks,
+                todo_state=record.todos,
+                max_tool_calls=MAX_CHILD_TOOL_CALLS,
+                rollback_on_cancel=False,
+                permission_broker=self.permission_broker,
+                workflow_state=self.workflow_state,
+                workflow_runtime=self.workflow_runtime,
+            )
+        finally:
+            child_tasks.close()
+            if record.token.cancelled:
+                snapshots = child_tasks.list()
+                if snapshots:
+                    evidence = "\n\n".join(item.model_text() for item in snapshots)
+                    _replace_latest_tool_output(
+                        record.manager,
+                        evidence + "\nturn_interrupted: true\n"
+                        "The child Agent's private execution sessions were stopped.",
+                    )
 
     def _observe(self, record: _AgentRecord, event: Any) -> None:
         with record.condition:
@@ -585,3 +602,10 @@ def _latest_tool_output(manager: ContextManager) -> str | None:
             output = item.get("output")
             return output if isinstance(output, str) else str(output)
     return None
+
+
+def _replace_latest_tool_output(manager: ContextManager, output: str) -> None:
+    for item in reversed(manager.conversation.active_items()):
+        if isinstance(item, dict) and item.get("type") == "function_call_output":
+            item["output"] = output
+            return

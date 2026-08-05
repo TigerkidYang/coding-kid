@@ -94,38 +94,54 @@ class TaskSnapshot:
 
 
 class _OutputBytes:
-    """Keep a bounded tail while assigning every byte an absolute position."""
+    """Keep useful head/tail evidence and an incremental absolute cursor."""
 
     def __init__(self, limit: int) -> None:
         self.limit = limit
-        self.data = bytearray()
+        self._head_limit = limit // 2
+        self._tail_limit = limit - self._head_limit
+        self.head = bytearray()
+        self.tail = bytearray()
+        self.recent = bytearray()
         self.total = 0
 
     @property
     def omitted(self) -> int:
-        return self.total - len(self.data)
+        return self.total - len(self.head) - len(self.tail)
 
     def append(self, chunk: bytes) -> None:
         self.total += len(chunk)
-        self.data.extend(chunk)
-        overflow = len(self.data) - self.limit
+        self.recent.extend(chunk)
+        recent_overflow = len(self.recent) - self.limit
+        if recent_overflow > 0:
+            del self.recent[:recent_overflow]
+        head_remaining = self._head_limit - len(self.head)
+        if head_remaining > 0:
+            self.head.extend(chunk[:head_remaining])
+            chunk = chunk[head_remaining:]
+        if not chunk:
+            return
+        self.tail.extend(chunk)
+        overflow = len(self.tail) - self._tail_limit
         if overflow > 0:
-            del self.data[:overflow]
+            del self.tail[:overflow]
 
     def render(self) -> bytes:
         if not self.omitted:
-            return bytes(self.data)
+            return bytes(self.head + self.tail)
         marker = f"... {self.omitted} earlier output bytes omitted ...\n".encode()
-        return marker + bytes(self.data)
+        return bytes(self.head) + b"\n" + marker + bytes(self.tail)
 
     def since(self, cursor: int) -> tuple[bytes, int, bool]:
-        start = self.omitted
-        lost = cursor < start
-        available_cursor = max(cursor, start)
-        offset = max(0, available_cursor - start)
-        output = bytes(self.data[offset:])
+        if cursor == 0:
+            return self.render(), self.total, bool(self.omitted)
+        recent_start = self.total - len(self.recent)
+        lost = cursor < recent_start
+        available_cursor = max(cursor, recent_start)
+        offset = max(0, available_cursor - recent_start)
+        output = bytes(self.recent[offset:])
         if lost:
-            marker = f"... {start - cursor} unread output bytes omitted ...\n".encode()
+            marker = f"... {recent_start - cursor} unread output bytes omitted ...\n".encode()
             output = marker + output
         return output, self.total, lost
 
@@ -269,6 +285,22 @@ class BackgroundTaskManager:
     def poll(self, task_id: str, *, incremental: bool = False) -> TaskSnapshot:
         record = self._get(task_id)
         return self._consume(record) if incremental else self._snapshot(record)
+
+    def settle(self, task_id: str, timeout_seconds: float = 0.25) -> TaskSnapshot:
+        """Briefly drain evidence at a turn-interruption boundary."""
+        record = self._get(task_id)
+        deadline = self._clock() + max(0.0, timeout_seconds)
+        with record.condition:
+            before = record.stdout.total + record.stderr.total
+            while (
+                record.status == "running"
+                and record.stdout.total + record.stderr.total == before
+            ):
+                remaining = deadline - self._clock()
+                if remaining <= 0:
+                    break
+                record.condition.wait(min(_WAIT_SLICE_SECONDS, remaining))
+        return self._consume(record)
 
     def wait(
         self,

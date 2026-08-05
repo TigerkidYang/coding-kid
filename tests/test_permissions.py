@@ -103,6 +103,29 @@ def test_hidden_tool_name_cannot_bypass_mode(
     assert tool in result.message
 
 
+def test_plan_and_review_allow_only_read_only_session_actions() -> None:
+    registry = ToolRegistry()
+    for mode in (CollaborationMode.PLAN, CollaborationMode.REVIEW):
+        broker = PermissionBroker(ApprovalPolicy.FULL_ACCESS, WorkflowState(mode))
+        read_result = registry.authorize(
+            "task", {"action": "poll", "task_id": "task_one"}, broker
+        )
+        write_result = registry.authorize(
+            "task",
+            {"action": "write", "task_id": "task_one", "input": "run"},
+            broker,
+        )
+        check_result = registry.authorize(
+            "task",
+            {"action": "check", "task_id": "task_one", "command": "true"},
+            broker,
+        )
+
+        assert read_result.allowed
+        assert not write_result.allowed
+        assert not check_result.allowed
+
+
 def test_hard_rule_precedes_cached_session_grant() -> None:
     responses = iter([ApprovalResponse(ApprovalChoice.SESSION)])
     broker = PermissionBroker(

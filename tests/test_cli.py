@@ -89,6 +89,39 @@ def test_chat_reports_completed_task_at_prompt_boundary(tmp_path: Path) -> None:
     assert any(f"[task] {task_id} completed" in line for line in outputs)
 
 
+def test_chat_controls_interactive_session_and_runs_readiness_check() -> None:
+    tasks = BackgroundTaskManager(id_factory=lambda: "task_cli_terminal")
+    task_id = tasks.start(f'& "{sys.executable}" -i -u', interactive=True).task_id
+    deadline = time.monotonic() + 8
+    while ">>>" not in tasks.poll(task_id).stdout and time.monotonic() < deadline:
+        time.sleep(0.05)
+    inputs = iter(
+        [
+            f"/task input {task_id} print('cli-input-ok')",
+            f"/task poll {task_id}",
+            f'/task check {task_id} & "{sys.executable}" -c "print(\'cli-ready\')"',
+            f"/task interrupt {task_id}",
+            f"/task stop {task_id}",
+            "/exit",
+        ]
+    )
+    outputs: list[str] = []
+    try:
+        cli.chat(
+            input_function=lambda prompt: next(inputs),
+            output_function=outputs.append,
+            background_tasks=tasks,
+        )
+    finally:
+        tasks.close()
+
+    rendered = "\n".join(outputs)
+    assert "cli-input-ok" in rendered
+    assert "Readiness check evidence" in rendered
+    assert "cli-ready" in rendered
+    assert "interactive: true" in rendered
+
+
 def test_chat_lists_stops_and_notifies_about_child_agents(tmp_path: Path) -> None:
     entered = threading.Event()
 

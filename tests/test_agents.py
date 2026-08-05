@@ -351,7 +351,7 @@ def test_default_children_use_the_real_loop_in_parallel_with_restricted_tools(
     for messages, names in calls:
         assert "spawn_agent" not in names
         assert "agent" not in names
-        assert "task" not in names
+        assert "task" in names
         execute = next(tool for tool in names if tool == "execute")
         assert execute == "execute"
         user_prompts = [
@@ -382,6 +382,61 @@ def test_provider_failure_becomes_a_bounded_failed_snapshot(tmp_path: Path) -> N
     assert failed.status == "failed"
     assert failed.error == "provider unavailable"
     agents.close()
+
+
+def test_child_execution_sessions_are_private_and_cleaned_on_completion(
+    tmp_path: Path,
+) -> None:
+    ready = tmp_path / "child-ready.txt"
+    late = tmp_path / "child-late.txt"
+    script = tmp_path / "child-session.py"
+    script.write_text(
+        "import pathlib, time\n"
+        f"pathlib.Path({str(ready)!r}).write_text('ready')\n"
+        "time.sleep(2)\n"
+        f"pathlib.Path({str(late)!r}).write_text('late')\n",
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def provider(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return tool_response(
+                "execute",
+                {
+                    "command": f'& "{sys.executable}" "{script}"',
+                    "background": True,
+                    "interactive": False,
+                    "yield_time_ms": 10_000,
+                    "reason": None,
+                },
+            )
+        deadline = time.monotonic() + 5
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return text_response("child finished without exposing its session")
+
+    agents = AgentManager(
+        context(tmp_path),
+        ContextBudget(None, "test"),
+        call_provider=provider,
+        stream_provider=None,
+    )
+    try:
+        child = agents.start("private session", "start and finish")
+        finished, timed_out = agents.wait(child.agent_id, 5)
+        assert timed_out is False
+        assert finished.status == "completed"
+        deadline = time.monotonic() + 1
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists()
+        time.sleep(2.1)
+        assert not late.exists()
+    finally:
+        agents.close()
 
 
 def test_stopping_foreground_command_retains_partial_tool_evidence(
@@ -422,7 +477,7 @@ def test_stopping_foreground_command_retains_partial_tool_evidence(
     assert stopped.status == "stopped"
     assert stopped.result is not None
     assert "partial child evidence" in stopped.result
-    assert "cancelled: true" in stopped.result
+    assert "turn_interrupted: true" in stopped.result
     time.sleep(0.1)
     assert not late.exists()
     assert calls == 1

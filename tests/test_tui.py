@@ -268,6 +268,54 @@ def test_tui_shows_background_events_tasks_and_running_count(tmp_path: Path) -> 
         tasks.close()
 
 
+def test_tui_controls_interactive_terminal_and_readiness_check(tmp_path: Path) -> None:
+    tasks = BackgroundTaskManager(id_factory=lambda: "task_tui_terminal")
+    task_id = tasks.start(f'& "{sys.executable}" -i -u', interactive=True).task_id
+    deadline = time.monotonic() + 8
+    while ">>>" not in tasks.poll(task_id).stdout and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    async def exercise() -> None:
+        app = make_app(tmp_path, background_tasks=tasks)
+        async with app.run_test(size=(90, 28)) as pilot:
+            await pilot.pause()
+            composer = app.query_one(Composer)
+            composer.load_text(f"/task input {task_id} print('tui-input-ok')")
+            await pilot.press("enter")
+            await pilot.pause(1.5)
+
+            composer.load_text(
+                f'/task check {task_id} & "{sys.executable}" -c "print(\'tui-ready\')"'
+            )
+            await pilot.press("enter")
+            await pilot.pause(1.5)
+
+            composer.load_text(f"/task interrupt {task_id}")
+            await pilot.press("enter")
+            await pilot.pause(1.5)
+            assert tasks.poll(task_id).status == "running"
+
+            contexts = "\n".join(
+                content(widget) for widget in app.query(".context-cell")
+            )
+            assert "tui-input-ok" in contexts
+            assert "Readiness check evidence" in contexts
+            assert "tui-ready" in contexts
+
+            composer.load_text(f"/task stop {task_id}")
+            await pilot.press("enter")
+            for _ in range(20):
+                await pilot.pause(0.25)
+                if tasks.poll(task_id).status == "stopped":
+                    break
+            assert tasks.poll(task_id).status == "stopped"
+
+    try:
+        asyncio.run(exercise())
+    finally:
+        tasks.close()
+
+
 def test_tui_shows_agent_events_list_stop_and_running_count(tmp_path: Path) -> None:
     def runner(
         manager: Any,
