@@ -185,10 +185,12 @@ class BackgroundTaskManager:
         id_factory: IdFactory | None = None,
         clock: Clock = time.monotonic,
         sandbox_runtime: SandboxRuntime | None = None,
+        cwd: Path | None = None,
     ) -> None:
         self._id_factory = id_factory or (lambda: f"task_{secrets.token_hex(6)}")
         self._clock = clock
         self.sandbox_runtime = sandbox_runtime
+        self.cwd = cwd.resolve() if cwd is not None else None
         self._tasks: dict[str, _TaskRecord] = {}
         self._events: deque[TaskEvent] = deque(maxlen=MAX_TASK_EVENTS)
         self._lock = threading.RLock()
@@ -210,12 +212,14 @@ class BackgroundTaskManager:
             task_id = self._new_task_id()
             if interactive:
                 process = spawn_interactive_command(
-                    command, sandbox_runtime=self.sandbox_runtime
+                    command, sandbox_runtime=self.sandbox_runtime, cwd=self.cwd
                 )
             else:
                 spawn_options: dict[str, object] = {"process_job": True}
                 if self.sandbox_runtime is not None:
                     spawn_options["sandbox_runtime"] = self.sandbox_runtime
+                if self.cwd is not None:
+                    spawn_options["cwd"] = self.cwd
                 process = spawn_command(command, **spawn_options)
             record = _TaskRecord(
                 task_id,

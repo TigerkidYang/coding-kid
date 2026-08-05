@@ -6,6 +6,7 @@ import base64
 from dataclasses import dataclass
 import locale
 import os
+from pathlib import Path
 import re
 import signal
 import subprocess
@@ -106,6 +107,7 @@ def run_command(
     timeout_seconds: float = COMMAND_TIMEOUT_SECONDS,
     cancellation_token: CancellationToken | None = None,
     sandbox_runtime: SandboxRuntime | None = None,
+    cwd: Path | None = None,
 ) -> CommandResult:
     """Run a non-interactive command with bounded byte capture and cleanup."""
     if not command:
@@ -118,6 +120,7 @@ def run_command(
         command,
         process_job=True,
         sandbox_runtime=sandbox_runtime,
+        cwd=cwd,
     )
     assert process.stdout is not None
     assert process.stderr is not None
@@ -191,6 +194,7 @@ def spawn_command(
     *,
     process_job: bool = False,
     sandbox_runtime: SandboxRuntime | None = None,
+    cwd: Path | None = None,
 ) -> subprocess.Popen[bytes]:
     """Start one non-interactive command using the shared terminal boundary."""
     if not command:
@@ -221,6 +225,7 @@ def spawn_command(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=environment,
+        cwd=None if restricted else cwd,
         **process_options,
     )
     if container_name is not None:
@@ -242,6 +247,7 @@ def spawn_interactive_command(
     command: str,
     *,
     sandbox_runtime: SandboxRuntime | None = None,
+    cwd: Path | None = None,
 ) -> InteractiveProcess:
     """Start a continuing command behind a real host/container terminal."""
     if not command:
@@ -261,9 +267,9 @@ def spawn_interactive_command(
     )
     try:
         process: InteractiveProcess = (
-            _WindowsPtyProcess.spawn(argv, environment)
+            _WindowsPtyProcess.spawn(argv, environment, cwd)
             if os.name == "nt"
-            else _UnixPtyProcess.spawn(argv, environment)
+            else _UnixPtyProcess.spawn(argv, environment, cwd)
         )
     except BaseException:
         if container_name is not None:
@@ -356,14 +362,16 @@ class _WindowsPtyProcess:
         self._released = False
 
     @classmethod
-    def spawn(cls, argv: list[str], environment: dict[str, str]):
+    def spawn(
+        cls, argv: list[str], environment: dict[str, str], cwd: Path | None = None
+    ):
         try:
             from winpty import PtyProcess
         except ImportError as error:  # pragma: no cover - dependency diagnostic
             raise RuntimeError(
                 "Interactive Windows terminals require pywinpty"
             ) from error
-        return cls(PtyProcess.spawn(argv, cwd=os.getcwd(), env=environment))
+        return cls(PtyProcess.spawn(argv, cwd=str(cwd or Path.cwd()), env=environment))
 
     def read(self, size: int = 8192) -> bytes:
         return self._process.read(size).encode("utf-8")  # type: ignore[attr-defined]
@@ -422,7 +430,9 @@ class _UnixPtyProcess:
         self._released = False
 
     @classmethod
-    def spawn(cls, argv: list[str], environment: dict[str, str]):
+    def spawn(
+        cls, argv: list[str], environment: dict[str, str], cwd: Path | None = None
+    ):
         import pty
 
         master_fd, slave_fd = pty.openpty()
@@ -433,6 +443,7 @@ class _UnixPtyProcess:
                 stdout=slave_fd,
                 stderr=slave_fd,
                 env=environment,
+                cwd=cwd,
                 start_new_session=True,
             )
         except BaseException:
