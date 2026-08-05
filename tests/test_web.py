@@ -5,6 +5,7 @@ from typing import Mapping
 
 import pytest
 
+from coding_kid.events import CancellationToken, TurnCancelled
 from coding_kid.permissions import PermissionBroker
 from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 from coding_kid.tools import build_tool_registry
@@ -172,3 +173,33 @@ def test_web_tools_are_mode_visible_but_sandbox_network_governed(
     )
     assert authorization.allowed is False
     assert "sandbox network policy" in authorization.message
+
+
+def test_search_and_redirect_fetch_honor_turn_cancellation() -> None:
+    token = CancellationToken()
+    token.cancel()
+    requested = False
+
+    def should_not_request(*_args: object) -> HttpResponse:
+        nonlocal requested
+        requested = True
+        return HttpResponse(200, {}, b"{}")
+
+    runtime = WebRuntime(brave_api_key="token", requester=should_not_request)
+    with pytest.raises(TurnCancelled):
+        runtime.search("cancelled", cancellation_token=token)
+    assert requested is False
+
+    redirect_token = CancellationToken()
+
+    def cancel_on_redirect(*_args: object) -> HttpResponse:
+        redirect_token.cancel()
+        return HttpResponse(302, {"location": "/next"}, b"")
+
+    with pytest.raises(TurnCancelled):
+        WebRuntime(
+            resolver=public_resolver, requester=cancel_on_redirect
+        ).fetch(
+            "https://example.com/start",
+            cancellation_token=redirect_token,
+        )

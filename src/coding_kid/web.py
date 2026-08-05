@@ -14,6 +14,8 @@ import ssl
 from typing import Any
 from urllib.parse import quote_plus, urljoin, urlsplit, urlunsplit
 
+from coding_kid.events import CancellationToken
+
 
 BRAVE_SEARCH_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
 MAX_QUERY_CHARS = 400
@@ -116,7 +118,7 @@ class WebRuntime:
             else os.environ.get("BRAVE_SEARCH_API_KEY", "")
         ).strip()
         self._resolver = resolver or _resolve
-        self._requester = requester or self._request
+        self._requester = requester
 
     @property
     def search_available(self) -> bool:
@@ -126,7 +128,12 @@ class WebRuntime:
         search = "ready" if self.search_available else "missing BRAVE_SEARCH_API_KEY"
         return f"Web research: search {search}; public-text fetch ready."
 
-    def search(self, query: str, count: int = 5) -> str:
+    def search(
+        self,
+        query: str,
+        count: int = 5,
+        cancellation_token: CancellationToken | None = None,
+    ) -> str:
         query = " ".join(query.split())
         if not query or len(query) > MAX_QUERY_CHARS:
             raise ValueError(f"query must contain 1-{MAX_QUERY_CHARS} characters")
@@ -139,12 +146,13 @@ class WebRuntime:
                 "web_search requires BRAVE_SEARCH_API_KEY in the process environment"
             )
         url = f"{BRAVE_SEARCH_ENDPOINT}?q={quote_plus(query)}&count={count}"
-        response = self._requester(
+        response = self._perform_request(
             url,
             {
                 "Accept": "application/json",
                 "X-Subscription-Token": self.brave_api_key,
             },
+            cancellation_token,
         )
         _require_bounded_response(response)
         if response.status != 200:
@@ -180,15 +188,21 @@ class WebRuntime:
         lines.append("\nCite claims with the numbered source URLs above.")
         return "\n".join(lines)
 
-    def fetch(self, url: str) -> str:
+    def fetch(
+        self,
+        url: str,
+        cancellation_token: CancellationToken | None = None,
+    ) -> str:
+        _raise_if_cancelled(cancellation_token)
         current = _normalized_public_url(url, self._resolver)
         response: HttpResponse | None = None
         for _ in range(MAX_REDIRECTS + 1):
-            response = self._requester(
+            response = self._perform_request(
                 current,
                 {
                     "Accept": "text/html, text/plain, application/xhtml+xml",
                 },
+                cancellation_token,
             )
             _require_bounded_response(response)
             response_headers = {
@@ -201,6 +215,7 @@ class WebRuntime:
                 current = _normalized_public_url(
                     urljoin(current, location), self._resolver
                 )
+                _raise_if_cancelled(cancellation_token)
                 continue
             break
         else:
@@ -233,7 +248,26 @@ class WebRuntime:
             f"{decoded}\n\nCitation: [1] {current}"
         )
 
-    def _request(self, url: str, headers: Mapping[str, str]) -> HttpResponse:
+    def _perform_request(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        cancellation_token: CancellationToken | None,
+    ) -> HttpResponse:
+        _raise_if_cancelled(cancellation_token)
+        if self._requester is None:
+            response = self._request(url, headers, cancellation_token)
+        else:
+            response = self._requester(url, headers)
+        _raise_if_cancelled(cancellation_token)
+        return response
+
+    def _request(
+        self,
+        url: str,
+        headers: Mapping[str, str],
+        cancellation_token: CancellationToken | None,
+    ) -> HttpResponse:
         split = urlsplit(url)
         assert split.hostname is not None
         port = split.port or (443 if split.scheme == "https" else 80)
@@ -248,6 +282,7 @@ class WebRuntime:
         }
         last_error: OSError | None = None
         for address in addresses:
+            _raise_if_cancelled(cancellation_token)
             connection: http.client.HTTPConnection
             if split.scheme == "https":
                 connection = _PinnedHTTPSConnection(split.hostname, address, port)
@@ -258,11 +293,18 @@ class WebRuntime:
                 assert connection.sock is not None
                 connection.sock.settimeout(READ_TIMEOUT_SECONDS)
                 raw = connection.getresponse()
-                body = raw.read(MAX_RESPONSE_BYTES + 1)
-                if len(body) > MAX_RESPONSE_BYTES:
-                    raise WebError(
-                        f"Response exceeds {MAX_RESPONSE_BYTES} bytes"
-                    )
+                chunks: list[bytes] = []
+                received = 0
+                while received <= MAX_RESPONSE_BYTES:
+                    _raise_if_cancelled(cancellation_token)
+                    chunk = raw.read(min(65_536, MAX_RESPONSE_BYTES + 1 - received))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    received += len(chunk)
+                body = b"".join(chunks)
+                if received > MAX_RESPONSE_BYTES:
+                    raise WebError(f"Response exceeds {MAX_RESPONSE_BYTES} bytes")
                 encoding = raw.getheader("Content-Encoding", "identity").lower()
                 if encoding not in {"", "identity"}:
                     raise WebError(f"Unsupported content encoding: {encoding}")
@@ -360,3 +402,8 @@ def _charset(content_type: str) -> str:
 def _one_line(value: Any, limit: int) -> str:
     rendered = " ".join(str(value).split())
     return rendered if len(rendered) <= limit else f"{rendered[: limit - 3]}..."
+
+
+def _raise_if_cancelled(token: CancellationToken | None) -> None:
+    if token is not None:
+        token.raise_if_cancelled()

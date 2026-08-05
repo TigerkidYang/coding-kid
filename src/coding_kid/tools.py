@@ -214,18 +214,24 @@ def web_search(
     count: int = 5,
     *,
     web_runtime: WebRuntime | None = None,
+    cancellation_token: CancellationToken | None = None,
 ) -> str:
     """Search the public web through the configured Brave API."""
     if web_runtime is None:
         raise RuntimeError("Web research runtime is not active")
-    return web_runtime.search(query, count)
+    return web_runtime.search(query, count, cancellation_token)
 
 
-def web_fetch(url: str, *, web_runtime: WebRuntime | None = None) -> str:
+def web_fetch(
+    url: str,
+    *,
+    web_runtime: WebRuntime | None = None,
+    cancellation_token: CancellationToken | None = None,
+) -> str:
     """Fetch bounded text from one public HTTP(S) URL."""
     if web_runtime is None:
         raise RuntimeError("Web research runtime is not active")
-    return web_runtime.fetch(url)
+    return web_runtime.fetch(url, cancellation_token)
 
 
 def read(path: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
@@ -1057,10 +1063,15 @@ def build_tool_registry(
         )
     if web_runtime is not None:
         entries["web_search"]["function"] = lambda query, count=5: web_search(
-            query, count, web_runtime=web_runtime
+            query,
+            count,
+            web_runtime=web_runtime,
+            cancellation_token=cancellation_token,
         )
         entries["web_fetch"]["function"] = lambda url: web_fetch(
-            url, web_runtime=web_runtime
+            url,
+            web_runtime=web_runtime,
+            cancellation_token=cancellation_token,
         )
         for name in ("web_search", "web_fetch"):
             entries[name]["sandbox_check"] = lambda _arguments: (
@@ -1139,10 +1150,15 @@ def build_child_tool_registry(
     entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
     if web_runtime is not None:
         entries["web_search"]["function"] = lambda query, count=5: web_search(
-            query, count, web_runtime=web_runtime
+            query,
+            count,
+            web_runtime=web_runtime,
+            cancellation_token=cancellation_token,
         )
         entries["web_fetch"]["function"] = lambda url: web_fetch(
-            url, web_runtime=web_runtime
+            url,
+            web_runtime=web_runtime,
+            cancellation_token=cancellation_token,
         )
         for name in ("web_search", "web_fetch"):
             entries[name]["sandbox_check"] = lambda _arguments: (
