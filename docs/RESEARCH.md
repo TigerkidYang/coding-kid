@@ -78,6 +78,43 @@ snapshots.
   retrieve bounded, attributable content under the active network policy so the
   Agent can use current external information without requiring a general browser.
 
+## Version 12 Permission-Governed Workflow Source Reading
+
+Version 12 uses the local Claude Code and Codex snapshots to separate
+collaboration intent, user authorization, and sandbox enforcement.
+
+Claude Code paths studied:
+
+- `research/repos/claude-code/src/utils/permissions/`
+- `research/repos/claude-code/src/hooks/toolPermission/`
+- `research/repos/claude-code/src/components/permissions/`
+- `research/repos/claude-code/src/tools/EnterPlanModeTool/`
+- `research/repos/claude-code/src/tools/ExitPlanModeTool/`
+- `research/repos/claude-code/src/utils/plans.ts`
+
+Codex paths studied:
+
+- `research/repos/codex/codex-rs/protocol/src/protocol.rs`
+- `research/repos/codex/codex-rs/protocol/src/request_permissions.rs`
+- `research/repos/codex/codex-rs/core/src/tools/sandboxing.rs`
+- `research/repos/codex/codex-rs/core/src/exec_policy.rs`
+- `research/repos/codex/codex-rs/collaboration-mode-templates/templates/`
+- `research/repos/codex/codex-rs/core/src/session/review.rs`
+- `research/repos/codex/codex-rs/tui/src/chatwidget/plan_implementation.rs`
+
+Useful invariants:
+
+- Collaboration mode, approval policy, and sandbox policy answer different
+  questions and must remain separate enforcement layers.
+- Deny and hard-safety decisions precede cached grants or permissive modes.
+- Approval is a cancellable lifecycle boundary before execution, with explicit
+  one-shot, session, deny-feedback, and abort outcomes.
+- Plan approval is a committed transition into implementation, not a prompt
+  suggestion; Review is non-mutating and targets concrete change evidence.
+- Headless workers must route approval to an interactive owner or fail closed.
+- Persistent checkpoints may support local rollback, but cannot truthfully undo
+  ignored artifacts, remote effects, or conflicting concurrent user edits.
+
 ## Version 11 Sandbox-Control Source Reading
 
 Version 11 uses the local Claude Code and Codex snapshots to add one explicit,

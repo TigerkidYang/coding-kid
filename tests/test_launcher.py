@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
         ("09", "v9"),
         ("v10", "v10"),
         ("11", "v11"),
+        ("v12", "v12"),
     ],
 )
 def test_normalize_version_accepts_documented_aliases(
@@ -36,7 +37,7 @@ def test_normalize_version_accepts_documented_aliases(
     assert launcher.normalize_version(value) == expected
 
 
-@pytest.mark.parametrize("value", ["", "latest", "v0", "v12", "one"])
+@pytest.mark.parametrize("value", ["", "latest", "v0", "v13", "one"])
 def test_normalize_version_rejects_unknown_values(value: str) -> None:
     with pytest.raises(ValueError):
         launcher.normalize_version(value)
@@ -76,10 +77,10 @@ def test_main_passes_resume_selection_to_latest(
         lambda version, options: selected.append((version, options)) or 0,
     )
 
-    assert launcher.main(["v11", "--resume", "abc123"]) == 0
+    assert launcher.main(["v12", "--resume", "abc123"]) == 0
     assert selected == [
         (
-            "v11",
+            "v12",
             launcher.cli.SessionOptions(mode="resume", session_id="abc123"),
         )
     ]
@@ -98,7 +99,7 @@ def test_main_passes_explicit_sandbox_selection_to_latest(
     assert (
         launcher.main(
             [
-                "v11",
+                "v12",
                 "--sandbox",
                 "read-only",
                 "--sandbox-image",
@@ -148,7 +149,8 @@ def test_main_lists_versions_without_launching(
         "v8",
         "v9",
         "v10",
-        "v11 (latest, default)",
+        "v11",
+        "v12 (latest, default)",
     ]
 
 
@@ -165,7 +167,7 @@ def test_main_rejects_unknown_version_before_launch(
         launcher.main(["v99"])
 
     assert (
-        "available versions: v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11"
+        "available versions: v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12"
         in capsys.readouterr().err
     )
 
@@ -174,7 +176,7 @@ def test_latest_version_runs_in_process(monkeypatch: pytest.MonkeyPatch) -> None
     called: list[bool] = []
     monkeypatch.setattr(launcher.cli, "main", lambda options=None: called.append(True))
 
-    assert launcher.launch_version("v11") == 0
+    assert launcher.launch_version("v12") == 0
     assert called == [True]
 
 
@@ -217,6 +219,7 @@ def test_historical_version_runs_isolated_and_preserves_cwd(
         ("v08", "08-background-tasks"),
         ("v09", "09-multi-agent-workflows"),
         ("v10", "10-controllable-turn-runtime"),
+        ("v11", "11-sandbox-control"),
     ],
 )
 def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
@@ -224,7 +227,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     bundled_root = ROOT / "src" / "coding_kid" / "_runtimes" / version / "coding_kid"
     excluded = (
         {"__main__.py", "launcher.py"}
-        if version in {"v04", "v05", "v06", "v07", "v08", "v09", "v10"}
+        if version in {"v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11"}
         else set()
     )
     archived_files = {
@@ -252,6 +255,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
         "v9",
         "v10",
         "v11",
+        "v12",
     ],
 )
 def test_module_launcher_starts_from_unrelated_project(
@@ -260,7 +264,7 @@ def test_module_launcher_starts_from_unrelated_project(
     command = [sys.executable, "-m", "coding_kid"]
     if version is not None:
         command.append(version)
-    if version in {None, "v11"}:
+    if version in {None, "v12"}:
         command.extend(["--sandbox", "danger-full-access"])
     environment = os.environ.copy()
     existing_pythonpath = environment.get("PYTHONPATH")

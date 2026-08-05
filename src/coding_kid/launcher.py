@@ -11,7 +11,7 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v11"
+LATEST_VERSION = "v12"
 AVAILABLE_VERSIONS = (
     "v1",
     "v2",
@@ -23,6 +23,7 @@ AVAILABLE_VERSIONS = (
     "v8",
     "v9",
     "v10",
+    "v11",
     LATEST_VERSION,
 )
 BUNDLED_RUNTIME_DIRS = {
@@ -36,6 +37,7 @@ BUNDLED_RUNTIME_DIRS = {
     "v8": "v08",
     "v9": "v09",
     "v10": "v10",
+    "v11": "v11",
 }
 RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 
@@ -102,7 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sessions = parser.add_mutually_exclusive_group()
     sessions.add_argument(
-        "--new", action="store_true", help="start a new Version 11 session"
+        "--new", action="store_true", help="start a new Version 12 session"
     )
     sessions.add_argument(
         "--continue",
@@ -116,28 +118,28 @@ def build_parser() -> argparse.ArgumentParser:
     sessions.add_argument(
         "--list-sessions",
         action="store_true",
-        help="list Version 11 sessions for the current project",
+        help="list Version 12 sessions for the current project",
     )
     sessions.add_argument(
         "--delete-session",
         metavar="SESSION",
-        help="soft-delete a Version 11 session while retaining evidence",
+        help="soft-delete a Version 12 session while retaining evidence",
     )
     parser.add_argument(
         "--sandbox",
         choices=("read-only", "workspace-write", "danger-full-access"),
         default="workspace-write",
-        help="Version 11 local-tool policy (default: workspace-write)",
+        help="Version 12 local-tool policy (default: workspace-write)",
     )
     parser.add_argument(
         "--sandbox-image",
         default=cli.DEFAULT_SANDBOX_IMAGE,
-        help="Docker image for a restricted Version 11 sandbox",
+        help="Docker image for a restricted Version 12 sandbox",
     )
     parser.add_argument(
         "--sandbox-network",
         action="store_true",
-        help="allow network inside a restricted Version 11 sandbox",
+        help="allow network inside a restricted Version 12 sandbox",
     )
     parser.add_argument(
         "--list-versions",
@@ -189,7 +191,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if selected_version != LATEST_VERSION and (
         uses_session_options or uses_sandbox_options
     ):
-        parser.error("session and sandbox options are available only for Version 11")
+        parser.error("session and sandbox options are available only for Version 12")
     options = cli.SessionOptions(
         mode=(
             "continue"

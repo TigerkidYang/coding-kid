@@ -1,5 +1,35 @@
 # Decisions
 
+## Keep Version 12 collaboration, approval, and sandbox policies independent
+
+Decision:
+Represent collaboration mode (`plan`, `implementation`, or `review`), approval
+policy (`cautious`, `auto`, or `full-access`), and the Version 11 sandbox policy
+as separate session inputs. Enforce collaboration restrictions and hard safety
+checks before consulting approval state; an approval may authorize an action but
+can never widen its sandbox.
+
+Consequence:
+Plan and Review cannot mutate the project even under `full-access` approval, and
+`read-only` remains non-writable even when no approval prompt is required. V12
+can explain every denial in terms of the correct layer instead of treating Plan
+mode as a sandbox alias.
+
+## Make Version 12 approval and rollback application-owned
+
+Decision:
+Place a single permission broker before tool dispatch and keep one-shot/session
+grants process-local. Store approved plans and bounded project checkpoints in
+the durable session/application control plane, never in model-writable project
+paths. Refuse rollback on recorded external conflicts or while child/background
+work is active.
+
+Consequence:
+No model tool executes while its approval is pending, stale prompt responses are
+harmless, and process restart clears implicit trust. Rollback preserves the
+pre-stage dirty worktree but intentionally excludes ignored output, external
+effects, and conflicting concurrent edits.
+
 This file records decisions that govern current and future work. Replace or
 remove entries when they no longer describe the project.
 

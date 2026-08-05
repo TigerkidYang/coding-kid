@@ -1,5 +1,62 @@
 # Tasks
 
+## Current Core Version: 12 — Permission-Governed Workflow
+
+Completion status: in progress. The user selected the supplementary improvement
+"Permission-governed change workflow," approved the implementation plan, and
+explicitly delegated development, deterministic verification, and bounded real
+installed-wheel TUI verification to the assistant.
+
+### Goal
+
+Add a user-governed change workflow above the Version 11 sandbox. Collaboration
+mode determines what kind of work the Agent may attempt, approval policy decides
+which proposed effects require authorization, and sandbox policy remains the
+independent hard boundary on what an authorized action can affect.
+
+### Included Scope
+
+- Session-level `plan`, `implementation`, and `review` collaboration modes with
+  runtime-enforced tool availability, structured questions, plan proposal, and
+  an explicit approved transition into implementation.
+- Immutable startup approval policies `cautious`, `auto`, and `full-access`,
+  with `cautious` as the default, plus one-shot and process-session grants.
+- One application-owned permission broker for built-in, child-Agent, background,
+  and dynamically supplied tools, with CLI/TUI prompts and fail-closed headless
+  behavior.
+- Application-owned project checkpoints, bounded change inspection, acceptance,
+  conflict-aware rollback, and persistence of mode/plan/checkpoint state.
+- V11 runtime freezing plus installed V1-V12 selection.
+- Deterministic, stress, packaging, clean-install, and bounded real-TUI
+  verification.
+
+### Excluded Scope
+
+- Persistent permission rules, enterprise policy distribution, remote approval,
+  model-based safety classifiers, Guardian-style automatic reviewers, or a
+  general workflow DSL.
+- Guaranteed rollback of ignored build output, project-external effects, remote
+  MCP effects, or concurrent edits that conflict with recorded Agent output.
+- Interactive PTY/stdin command sessions, worktree isolation, browser tools,
+  SWE-bench, or another paid batch evaluation.
+
+### Completion Criteria
+
+- Plan and Review structurally prevent project mutation; Implementation gates
+  every sensitive effect before `ToolStarted` and before any side effect.
+- Approval grants never bypass sandbox or hard safety denials, remain bounded,
+  and do not survive process restart; headless requests fail closed.
+- Approved plans create a recoverable checkpoint before mutation, Review exposes
+  bounded changes, and rollback restores the baseline without overwriting a
+  detected external edit.
+- Mode, approved plan, and checkpoint state survive session resume while pending
+  prompts and grants do not.
+- Root and child Agents, background tasks, dynamic capabilities, cancellation,
+  parallel reads, and shutdown retain their existing bounded lifecycle.
+- Pytest, Ruff, race/cleanup stress, wheel inspection, V11 fidelity,
+  clean-install V1-V12 launches, and real TUI workflow trials pass within the
+  standing USD 1.00 live-verification allowance.
+
 ## Current Core Version: 11 — Sandbox Control
 
 Completion status: complete and archived under `versions/11-sandbox-control/`
