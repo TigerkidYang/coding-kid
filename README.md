@@ -4,8 +4,8 @@ Coding Kid is a small Python coding agent built for learning. The current
 version shows the complete loop, persistent project sessions, layered
 long-term memory, pluggable Skills and MCP tools, process-local background shell
 tasks and child Agents, a controllable bounded turn loop, a session todo
-checklist, bounded conversation context, streamed model output, and a
-full-screen terminal interface:
+checklist, a fail-closed local sandbox, bounded conversation context, streamed
+model output, and a full-screen terminal interface:
 
 ```text
 session context + project instructions + Skill metadata + recalled memory
@@ -30,6 +30,8 @@ instruction changes.
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/)
+- Docker Desktop or another reachable Docker daemon for the default restricted
+  Version 11 modes
 - `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` environment variables
 
 The API key must stay in the environment. Do not put it in this repository or
@@ -66,7 +68,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v10; new session)
+coding-kid       # latest living core version (currently v11; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -77,6 +79,7 @@ coding-kid v7    # Skills, Plugins, and MCP tools
 coding-kid v8    # process-local background shell tasks
 coding-kid v9    # process-local multi-Agent workflows
 coding-kid v10   # controllable turn runtime and active-turn steering
+coding-kid v11   # fail-closed sandbox control
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -86,9 +89,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–10
+The command preserves the directory from which it was invoked. Versions 03–11
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 10 is
+Versions 01 and 02 retain their original historical behavior. Version 11 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -99,7 +102,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 10 session selection is explicit:
+Living Version 11 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -112,7 +115,7 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 10 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 11 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. Submitting while work is active queues a steer
 instruction FIFO and stops the current step before continuing with retained
 completed evidence. Up to eight pending inputs are kept; a ninth remains in the
@@ -120,7 +123,41 @@ composer. `Esc` requests a hard interruption instead. `Ctrl+C` exits while
 idle. `/context` shows the current window status, `/compact` creates a manual
 context checkpoint, and `/session` or `/sessions` inspect persistence.
 `/capabilities` reports loaded Skills and Plugins plus MCP server/tool status
-without displaying environment values.
+without displaying environment values. `/sandbox` reports the effective mode,
+backend, project root, image, and network state.
+
+## Sandbox Control
+
+Version 11 selects one immutable startup policy. The default is a Docker-backed
+workspace sandbox with network disabled:
+
+```powershell
+coding-kid                                      # workspace-write
+coding-kid --sandbox read-only
+coding-kid --sandbox workspace-write --sandbox-network
+coding-kid --sandbox workspace-write --sandbox-image python:3.11-slim-bookworm
+coding-kid --sandbox danger-full-access         # explicit host execution
+```
+
+Restricted startup fails if Docker is unavailable or the selected image has
+not already been pulled; Coding Kid never retries the command on the host. Pull
+the default image explicitly with `docker pull python:3.11-slim-bookworm`.
+`workspace-write` mounts only the project into the command container and keeps
+`.git` and `.coding-kid` read-only. `read-only` mounts the whole project
+read-only. Built-in file tools apply the same project-root, link-resolution,
+and metadata policy before touching the host filesystem.
+
+Container commands receive a small fixed environment, bounded CPU, memory,
+process count, and temporary storage. They do not inherit provider credentials,
+mount the Docker socket, or receive network access unless
+`--sandbox-network` is present. Foreground commands, background tasks, and
+child Agents inherit the same policy. Restricted modes suppress MCP servers and
+MCP tools because their local or remote effects cannot be enforced by this
+Docker boundary; inert Skills and Plugin Skill metadata remain available.
+
+`danger-full-access` retains the Version 10 host behavior and permissions. It
+is intentionally explicit and is not a sandbox. The provider, session store,
+and Skill loader remain trusted host-side control-plane services in every mode.
 
 ## Turn and Workflow Control
 
@@ -398,19 +435,19 @@ discarding incomplete streaming text and temporary failed-turn projections.
 
 This teaching version intentionally has no vector memory, remote memory sync,
 encryption at rest, persistent or remote jobs, nested or remote Agents,
-Agent file isolation, sandbox, approval flow, path restriction, marketplace, Plugin downloader,
-OAuth, MCP Resources/Prompts, or provider abstraction. The TUI has no queued
-attachments, mentions, reasoning display, mouse workflow,
-themes, or trace files. It supports only project `AGENTS.md` files: no global
-instructions, override files, fallback names, includes, or rules. It has no
-Hooks, Apps, or LSP. Built-in and MCP tools run with the permissions of the
-current user. Use it only in a local test project you control.
+Agent worktrees, approval flow, per-command escalation, marketplace, Plugin
+downloader, OAuth, MCP Resources/Prompts, or provider abstraction. The TUI has
+no queued attachments, mentions, reasoning display, mouse workflow, themes, or
+trace files. It supports only project `AGENTS.md` files: no global instructions,
+override files, fallback names, includes, or rules. It has no Hooks, Apps, or
+LSP. Docker and the configured image remain trusted; this version does not
+claim protection from a compromised daemon or kernel escape.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
 Completed checkpoints V1–V10 are preserved under `versions/` and by matching
-annotated tags. Version 10 remains the living implementation. The installed
-launcher bundles V1–V9 runtime source and shares one Python environment and one
-set of third-party dependencies across all versions.
+annotated tags. Version 11 is the living implementation pending its completion
+archive. The installed launcher bundles V1–V10 runtime source and shares one
+Python environment and one set of third-party dependencies across all versions.

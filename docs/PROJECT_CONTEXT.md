@@ -66,13 +66,15 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 11 sandbox control is in progress. The user selected the research
-  topic, approved a Docker-backed fail-closed design, and delegated
-  implementation, testing, and real installed-wheel TUI verification. The
-  default `workspace-write` policy will confine model-controlled file and
-  process work to the project; `read-only` and explicit
-  `danger-full-access` modes complete the startup policy surface. V10 will be
-  frozen before the living runtime changes.
+- Version 11 sandbox-control implementation and verification are complete and
+  await the user's stage-completion confirmation before archive, tag, and push.
+  The Docker-backed default `workspace-write`, `read-only`, and explicit
+  `danger-full-access` policies cover built-in file tools, foreground commands,
+  background tasks, and child Agents without changing the V10 loop. V10 is
+  frozen in the installed runtime; 309 tests, Ruff, Docker probes and cleanup
+  stress, wheel inspection, clean-install V1-V11 launches, and real installed-
+  wheel TUI trials pass. Eleven paid responses remained conservatively below
+  USD 0.05; no benchmark was run.
 - Version 10 controllable-turn-runtime is complete and archived under
   `versions/10-controllable-turn-runtime/` with annotated tag
   `version-10-controllable-turn-runtime`. It makes
@@ -157,8 +159,8 @@ without explicit permission.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
 - An unnumbered cross-version launcher improvement is complete. Each version
-  transition extends its registry; Version 10 selects Versions 01–10, bundles
-  frozen V01–V09, and defaults to the living Version 10 runtime. The original
+  transition extends its registry; Version 11 selects Versions 01–11, bundles
+  frozen V01–V10, and defaults to the living Version 11 runtime. The original
   V1–V3 increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.

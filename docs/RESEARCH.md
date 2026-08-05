@@ -39,7 +39,7 @@ Research notes should support two outcomes:
 - How to implement context auto-compression.
 - How to better control the whole loop and workflow. (Implemented in Version
   10.)
-- How to control the sandbox environment.
+- How to control the sandbox environment. (Implemented in Version 11.)
 - How to design freely configurable MCP support. (Implemented in Version 07.)
 - How to initially implement visualization and observability:
   - What should be shown to users.

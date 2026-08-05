@@ -2,10 +2,12 @@
 
 ## Current Core Version: 11 — Sandbox Control
 
-Completion status: in progress. The user selected the final incomplete research
-topic, "How to control the sandbox environment," approved the implementation
-plan, and explicitly delegated development, deterministic verification, and a
-real installed-wheel TUI trial to the assistant.
+Completion status: implementation and verification complete; awaiting the
+user's stage-completion confirmation before archive, tag, and push. The user
+selected the final incomplete research topic, "How to control the sandbox
+environment," approved the implementation plan, and explicitly delegated
+development, deterministic verification, and a real installed-wheel TUI trial
+to the assistant.
 
 ### Goal
 
@@ -57,6 +59,31 @@ the host when isolation is unavailable.
 - Pytest, Ruff, isolation probes, cleanup stress, wheel inspection, V10
   fidelity, clean-install V1-V11 launches, and a real TUI trial pass within the
   standing USD 1.00 live-verification allowance.
+
+### Verification Result
+
+- The maintained suite passes **309 tests** in 109.37 seconds. Ruff lint and
+  formatting checks pass over all maintained `src/` and `tests/` sources.
+- Real Docker probes pass workspace Unicode writes, read-only denial,
+  project-external and metadata protection, host-secret filtering, default
+  network denial, explicit network access, and timeout cleanup. Ten rounds of
+  foreground timeout plus immediate background stop leave zero labeled
+  containers; the run exposed and then verified a fixed container-registration
+  cleanup race.
+- The wheel contains **166 files / 162 Python files**, including frozen V10 and
+  living V11, with no tests, evaluations, `showcase/`, caches, or bytecode. A
+  clean Python environment launches explicit V1-V11 and default V11 from an
+  unrelated directory without a provider call.
+- Real installed-wheel `openai/gpt-5.6-luna` TUI sessions pass all three modes.
+  Default `workspace-write` writes and reads Unicode inside the project while
+  blocking an outside read, `.git` mutation, host-secret inheritance, and
+  network. `read-only` blocks both the file tool and shell redirection.
+  `danger-full-access` visibly reports the host backend and host network.
+- The two paid TUI sessions used **11 provider responses**. Exact provider cost
+  is not persisted; based on their short bounded inputs and outputs, total spend
+  is conservatively below **USD 0.05**, within the USD 1.00 allowance. No
+  SWE-bench or paid batch evaluation was run. See
+  `docs/reports/v11-live-verification.md`.
 
 ## Current Core Version: 10 — Controllable Turn Runtime
 

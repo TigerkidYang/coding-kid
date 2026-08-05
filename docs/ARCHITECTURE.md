@@ -2,19 +2,20 @@
 
 ## Overview
 
-Version 10 makes the synchronous root model/tool loop controllable without
-turning it into a workflow engine. `TurnController` owns active-step
-cancellation and a bounded FIFO steer queue; `run_turn` owns explicit step,
-recovery, budget, stall, and terminal transitions. Existing application-owned
-Agent, background-task, capability, session, and memory managers remain intact.
+Version 11 places one immutable, application-owned sandbox policy around every
+model-controlled local effect without changing Version 10's synchronous turn
+runtime. `SandboxRuntime` owns project path decisions, restricted Docker command
+construction, availability checks, and container cleanup. The root Agent,
+children, and background tasks receive the same runtime.
 
 ```text
 launcher.py
-  |-- v1-v9 -> isolated bundled runtime process
-  `-- v10/default -> cli.py
+  |-- v1-v10 -> isolated bundled runtime process
+  `-- v11/default -> cli.py
                      |-- SessionStore / MemoryManager
-                     |-- AgentManager -> child run_turn workers
-                     |-- BackgroundTaskManager -> shell process trees
+                     |-- SandboxRuntime -> path policy / Docker boundary
+                     |-- AgentManager -> sandboxed child run_turn workers
+                     |-- BackgroundTaskManager -> sandboxed process trees
                      |-- CapabilityRuntime
                      |     |-- Skill + Plugin metadata snapshot
                      |     `-- MCP asyncio thread -> stdio / Streamable HTTP
@@ -30,6 +31,38 @@ rounds and todo effects, discard incomplete assistant streams, and write a
 reasoned durable transition. Temporary compaction projections are rolled back
 on failure while newly completed transcript rounds are preserved. Already
 started child Agents and background tasks remain discoverable.
+
+## Sandbox Control Plane
+
+`sandbox.py` defines `read-only`, `workspace-write`, and
+`danger-full-access`. Restricted startup verifies both the Docker daemon and a
+pre-existing image. Any failure aborts startup; no command parser, model output,
+or tool error can select a broader policy or trigger an unsandboxed retry.
+
+Built-in file tools resolve absolute targets before use, require containment
+under the resolved project root, and therefore reject traversal plus symlink or
+junction escape. Writes are denied globally in `read-only`; `workspace-write`
+also protects `.git` and `.coding-kid`. The command side mounts the project at
+`/workspace`, overlays those metadata paths read-only, uses a read-only
+container root plus bounded tmpfs, drops capabilities, enables
+`no-new-privileges`, and bounds PIDs, memory, and CPUs. It passes only fixed
+Unicode and home variables. Network is `none` unless explicitly enabled, and
+the Docker socket is never mounted.
+
+Every restricted invocation receives a random named and labeled container.
+Normal completion relies on `docker run --rm`; timeout, cancellation, task or
+Agent stop, and shutdown terminate the Docker client and issue an idempotent
+forced removal. Termination cleanup retries the short race in which an
+immediately cancelled `docker run` has not registered its name yet. The same
+terminal boundary retains bounded stdout/stderr evidence.
+
+The provider, durable session/memory stores, project-instruction loader, and
+inert Skills remain host-side application control-plane components. Restricted
+sessions do not start or advertise MCP tools because neither local MCP
+subprocesses nor arbitrary remote effects fit the Docker boundary. The TUI and
+plain CLI expose the effective mode, backend, image, root, and network state.
+`danger-full-access` deliberately bypasses Docker and retains the historical
+host behavior.
 
 ## Controllable Turn Runtime
 
@@ -298,7 +331,10 @@ Storage directories and files receive restrictive permissions where the host
 supports them. Raw logs may contain prompts and tool results, so users must
 treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Version 10 does not add encryption at rest, remote synchronization, vector
-search, persistent or remote jobs, nested/remote Agent graphs, sandboxing,
-approvals, a workflow DSL, a Plugin marketplace, OAuth, or non-tool MCP
-primitives. All tools still run with the current user's permissions.
+Version 11 does not add encryption at rest, remote synchronization, vector
+search, persistent or remote jobs, nested/remote Agent graphs, approvals,
+per-command escalation, a workflow DSL, a Plugin marketplace, OAuth, or
+non-tool MCP primitives. Docker, its daemon, its image, and the host-side
+control plane remain trusted; the sandbox does not defend against a compromised
+daemon or container-kernel escape. `danger-full-access` tools still run with
+the current user's permissions.
