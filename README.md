@@ -1,12 +1,12 @@
 # Coding Kid
 
 Coding Kid is a small Python coding agent built for learning. The current
-version shows the complete loop, persistent project sessions, layered
-long-term memory, pluggable Skills and MCP tools, continuous process-local
-terminal sessions and child Agents, a controllable bounded turn loop, a session todo
-  checklist, a permission-governed change workflow, a fail-closed local sandbox,
-  bounded conversation context, streamed model output, and a full-screen
-  terminal interface:
+version shows the complete loop, persistent project sessions, layered long-term
+memory, pluggable Skills and MCP tools, continuous process-local terminal
+sessions, worktree-isolated child Agents, bounded Web research, a controllable
+turn loop, a session todo checklist, a permission-governed change workflow, a
+fail-closed local sandbox, bounded conversation context, streamed model output,
+and a full-screen terminal interface:
 
 ```text
 session context + project instructions + Skill metadata + recalled memory
@@ -34,6 +34,7 @@ instruction changes.
 - Docker Desktop or another reachable Docker daemon for the default restricted
   Version 13 sandbox modes
 - `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` environment variables
+- Optional `BRAVE_SEARCH_API_KEY` for `web_search`; `web_fetch` needs no key
 
 The API key must stay in the environment. Do not put it in this repository or
 in a committed `.env` file. After setting a user-level environment variable on
@@ -69,7 +70,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v13; new session)
+coding-kid       # latest living core version (currently v14; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -83,6 +84,7 @@ coding-kid v10   # controllable turn runtime and active-turn steering
 coding-kid v11   # fail-closed sandbox control
 coding-kid v12   # permission-governed change workflow
 coding-kid v13   # continuous interactive execution sessions
+coding-kid v14   # isolated Agent collaboration and bounded Web research
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -92,9 +94,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–13
+The command preserves the directory from which it was invoked. Versions 03–14
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 13 is
+Versions 01 and 02 retain their original historical behavior. Version 14 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -105,7 +107,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 13 session selection is explicit:
+Living Version 14 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -118,7 +120,7 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 13 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 14 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. Submitting while work is active queues a steer
 instruction FIFO and stops the current step before continuing with retained
 completed evidence. Up to eight pending inputs are kept; a ninth remains in the
@@ -132,7 +134,7 @@ control their respective layers.
 
 ## Permission-Governed Change Workflow
 
-Version 13 retains Version 12's permission workflow and defaults to
+Version 14 retains Version 12's permission workflow and defaults to
 Implementation mode, Cautious approval, and the existing
 `workspace-write` sandbox. These three settings are independent:
 
@@ -164,7 +166,7 @@ effects, and remote MCP effects are not rollback promises.
 
 ## Sandbox Control
 
-Version 13 retains Version 11's immutable startup policy. The default is a Docker-backed
+Version 14 retains Version 11's immutable startup policy. The default is a Docker-backed
 workspace sandbox with network disabled:
 
 ```powershell
@@ -210,24 +212,43 @@ tools remain exclusive unless their registry metadata explicitly opts in.
 
 ## Multi-Agent Workflows
 
-Version 09 lets the root model start independent child Agents with
-`spawn_agent`, then use `agent` to list, poll, wait, follow up, or stop them.
-Children can genuinely overlap and keep their own conversation, compaction,
-todo state, cancellation, and tool budget. They share the cwd and current user
-permissions, so parallel delegation must use non-overlapping files or ranges.
+Version 14 retains Version 09's bounded child lifecycle and defaults writing
+children to application-owned Git worktrees. `spawn_agent` selects `worktree`
+or explicit `shared` isolation and may fork up to eight recent visible turns.
+The `agent` tool lists, polls, waits, follows up, stops, reviews diffs,
+reconciles conflicts, integrates changes, or explicitly discards a workspace.
+Concurrent worktree children may edit the same path because neither sees
+another child's unintegrated delta and the root remains unchanged.
 
-A child receives a self-contained task prompt, project `AGENTS.md`, file tools,
-Skills, MCP, and a private execution-session manager. It does not receive the
-parent transcript, long-term memory, nested-Agent tools, or the root's terminal
-IDs. Child processes and containers are stopped when that child run finishes.
-Up to four children run at once; 16 records remain available and waits are
-capped at 30 seconds. Results enter the parent transcript only when the parent
-explicitly polls or waits.
+A child receives its task prompt, project `AGENTS.md`, cwd-bound file and
+terminal tools, Web research, Skills, MCP, and a private execution-session
+manager. It does not receive long-term memory; an optional context fork excludes
+tool calls, outputs, and hidden reasoning. Child processes and containers stop
+when that run finishes, while a successful worktree and its manifest remain for
+review.
 
-Use `/agents` to inspect the process-local records and `/agent stop <id>` to
-request cancellation without a model call. A resumed persistent session starts
-with an empty Agent manager, so IDs from an earlier process are explicitly
-unknown/expired.
+Use `/agents` to inspect records and `/agent diff <id>`, `/agent integrate <id>`,
+`/agent reconcile <id>`, `/agent discard <id> --confirm`, or `/agent stop <id>`
+without a model call. Integration enters the normal stage checkpoint:
+`/changes rollback` restores the root and makes the workspace reviewable again,
+while `/changes accept` finalizes its cleanup. Interrupted application-owned
+workspaces become orphaned evidence on restart instead of being deleted.
+
+## Web Research
+
+`web_search` queries Brave's fixed Search API and returns up to ten numbered
+titles, snippets, and source URLs. Set `BRAVE_SEARCH_API_KEY` in the process
+environment to enable it; the token is sent only in the provider header and is
+never included in tool output. `web_fetch` needs no key and retrieves one public
+text or HTML page with a 1 MB transfer limit, 30,000-character text limit, and
+five-redirect limit.
+
+Fetch accepts only HTTP(S) standard ports without embedded credentials. Every
+DNS answer and redirect must remain globally routable, and connections are
+pinned to a validated address. Local, private, reserved, mixed-address, binary,
+compressed, and oversized responses fail closed. Page content is labeled
+untrusted and carries its final URL for citation. In restricted sandboxes,
+`--sandbox-network` is required; approval policy still governs both tools.
 
 ## Continuous Execution Sessions
 

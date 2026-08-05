@@ -66,17 +66,59 @@ snapshots.
   such as PTY/stdin continuation, project-native tools and dependencies,
   long-running services with readiness evidence, and predictable host/container
   semantics while preserving bounded output, cancellation, and cleanup.
-- Isolated multi-Agent development collaboration. This extends the existing
+- Isolated multi-Agent development collaboration. (Implemented in Version 14.)
+  This extends the existing
   multi-Agent workflow topic beyond parallel children that share one working
   directory. Agents should be able to work in isolated workspaces or worktrees,
   carry an intentional context fork, own independently reviewable diffs or
   commits, and return work through an explicit merge and conflict-resolution
   process governed by the parent Agent.
-- Web search and fetch tools. This is a focused expansion of Agent tool calling
+- Web search and fetch tools. (Implemented in Version 14.) This is a focused
+  expansion of Agent tool calling
   and the practical SWE Agent tool set, not a browser-automation or extension-
   marketplace project. Search should discover relevant sources and fetch should
   retrieve bounded, attributable content under the active network policy so the
   Agent can use current external information without requiring a general browser.
+
+## Version 14 Isolated-Collaboration and Web Source Reading
+
+Version 14 compared the local Claude Code and Codex snapshots only where the
+two selected topics required concrete implementation decisions.
+
+Claude Code worktree paths studied include `src/tools/EnterWorktreeTool/`,
+`src/tools/ExitWorktreeTool/`, and `src/utils/worktree.ts`. Its useful boundary
+is the distinction between a stable repository root and an Agent's effective
+cwd, plus explicit enter/exit cleanup and failure handling. Coding Kid carries
+that boundary into an application-owned manager, but additionally snapshots a
+dirty root into a private baseline and separates review, reconcile, integrate,
+accept, rollback, and confirmed discard.
+
+Codex multi-Agent and Web paths studied include its spawn context construction,
+external-context events, `ext/web-search`, and `core/web_search.rs`. The useful
+invariants are bounded, intentional context inheritance; visible provenance for
+external material; and a search capability that remains distinct from general
+browser automation.
+
+Claude Code's WebSearch/WebFetch implementation reinforces fixed provider
+credentials, GET-only retrieval, domain-aware authorization, redirect limits,
+bounded output, and untrusted-content labeling. Brave's official Search API
+contract fixes the endpoint and `X-Subscription-Token` header and bounds a query
+to 400 characters / 50 words.
+
+The resulting Coding Kid invariants are:
+
+- Child writes default to private Git worktrees; shared cwd is an explicit
+  compatibility option.
+- A context fork contains only a bounded number of user/visible-assistant
+  rounds, never tool calls, tool outputs, or hidden reasoning.
+- Integration applies only the child delta and enters the existing V12 stage
+  checkpoint; root conflicts never trigger an automatic partial merge.
+- Search uses only the fixed Brave endpoint. Fetch is GET-only, public-text-only,
+  byte/character/redirect bounded, and revalidates every destination.
+- Every resolved address must be globally routable, and the socket is pinned to
+  a validated address so DNS rebinding cannot redirect the connection inward.
+- Web output is explicitly untrusted and carries numbered source URLs for
+  citation; no page text can become an instruction by declaration.
 
 ## Version 13 Continuous-Execution Source Reading
 

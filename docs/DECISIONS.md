@@ -513,3 +513,44 @@ A model cannot turn a simple overview into an unbounded recursive inspection or
 large parallel batch. Skipped calls preserve the provider's function-call
 protocol without appearing in the terminal as completed work. Planning with
 `todo` does not reduce the budget available for real work.
+## Isolate writing child Agents in application-owned Git worktrees
+
+Decision:
+Version 14 defaults child Agents to Git worktrees managed under protected
+session state. Capture the root's tracked and non-ignored dirty content as a
+private baseline, commit only the child's later delta, and require parent-owned
+diff, reconcile, integrate, or confirmed discard operations. Keep explicit
+`shared` isolation only for compatibility and intentionally safe tasks.
+
+Consequence:
+Parallel children may modify overlapping paths without cross-contamination or
+root mutation. Integration is a whole-patch action under the existing stage
+checkpoint; conflicts stay in isolation, rollback preserves retryable work, and
+acceptance cleans only validated application-owned paths and branches.
+
+## Fork only bounded visible conversation context to children
+
+Decision:
+Let a spawn request select zero to eight recent user/visible-assistant rounds,
+bounded to 24,000 characters. Never fork tool calls, tool outputs, hidden
+reasoning, long-term memory, or pending protocol state.
+
+Consequence:
+Children can inherit just enough intent for a delegated task without cloning
+unsafe provider protocol or silently expanding context and privacy scope.
+
+## Keep Web research GET-only, public-only, and attributable
+
+Decision:
+Use a fixed Brave Search endpoint for discovery and an application-owned
+public-text fetcher for HTTP(S) standard ports. Validate every DNS answer and
+redirect as globally routable, pin the socket to the validated address, bound
+bytes/text/redirects/results, reject encoded and binary bodies, and label all
+external content as untrusted with source URLs.
+
+Consequence:
+Current external information becomes available in all collaboration modes under
+external-effect approval and the immutable sandbox network policy, without
+introducing browser automation, authenticated browsing, arbitrary downloads,
+or an SSRF path. Environments whose DNS intentionally maps public names to
+reserved addresses fail closed.

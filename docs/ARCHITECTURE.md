@@ -2,20 +2,23 @@
 
 ## Overview
 
-Version 13 adds a continuous execution plane beneath Version 12's permission
-workflow and Version 11's immutable sandbox. Short, yielded, background, and
-interactive commands now have one owner and one lifecycle; later input and
-health checks remain subject to the original workflow and sandbox boundaries.
+Version 14 adds isolated collaboration and bounded Web research above Version
+13's continuous execution plane. Child writes default to application-owned Git
+worktrees and enter the root only through explicit review/integration. Search
+and fetch remain application-owned external effects under the same workflow,
+approval, and startup network policy.
 
 ```text
 launcher.py
-  |-- v1-v12 -> isolated bundled runtime process
-  `-- v13/default -> cli.py
+  |-- v1-v13 -> isolated bundled runtime process
+  `-- v14/default -> cli.py
                      |-- SessionStore / MemoryManager
                      |-- WorkflowState / PermissionBroker
                      |-- WorkflowRuntime / CheckpointManager
                      |-- SandboxRuntime -> path policy / Docker boundary
                      |-- AgentManager -> scoped child run_turn + session managers
+                     |     `-- WorktreeManager -> baseline/diff/reconcile/integrate
+                     |-- WebRuntime -> Brave search / pinned public-text GET
                      |-- BackgroundTaskManager -> PTY/pipe execution sessions
                      |-- CapabilityRuntime
                      |     |-- Skill + Plugin metadata snapshot
@@ -138,21 +141,65 @@ the oldest terminal record is evicted. A child task is capped at 12,000 prompt
 characters, 32 model/tool steps, 32 work-tool calls, and a 50,000-character
 final result. `wait` is cancellation-aware and capped at 30 seconds.
 
-`spawn_agent` reserves a slot atomically and returns immediately. The unified
-`agent` tool lists, polls, waits, follows up, or requests stop. Stop is
+`spawn_agent` reserves a slot atomically and returns immediately. It defaults to
+`worktree` isolation, while `shared` remains explicit compatibility behavior.
+The unified `agent` tool lists, polls, waits, follows up, requests stop, reviews
+a diff, reconciles, integrates, or explicitly discards. Stop is
 cooperative: it first exposes `stopping` and reports `stopped` only after the
 worker exits. `followup` retains the selected child's canonical context but can
 only start from a terminal state. Terminal events are emitted once; they update
 CLI/TUI state but never initiate a provider request.
 
-Each child begins with only its self-contained delegated prompt. It shares the
-immutable `SessionContext`, cwd, model, project instructions, Skills catalog,
-and application-owned MCP runtime, but it does not receive the root transcript
-or long-term memory. Its registry contains file tools, its own todo and
-execution-session tools, Skills, and MCP, but excludes nested Agent controls.
+Each child begins with its delegated prompt and may receive zero to eight recent
+root rounds. Forking retains only user messages and visible assistant messages,
+is capped at 24,000 characters, and excludes tool calls, tool outputs, and hidden
+reasoning. It does not receive long-term memory. Its registry contains cwd-bound
+file and execution-session tools, Web research, Skills, and MCP, but excludes
+nested Agent controls.
 Every child run creates a private session manager: its IDs never appear in the
 root list, and completion, failure, or cancellation stops every child-owned
 process/container after retaining bounded final evidence.
+
+`worktrees.py` keeps the stable repository root separate from the child's cwd.
+It captures tracked changes plus bounded non-ignored untracked files, creates a
+private baseline commit with hooks disabled, and then commits only the child
+delta. Manifests live in protected session state outside the repository. Every
+operation validates the owned path, branch namespace, and baseline ancestry.
+
+`diff` never mutates. `integrate` first verifies the root fingerprint and runs a
+whole-patch `git apply --check`; only then does it apply the child delta to the
+root and mark it `integrated_pending`. Existing V12 checkpoint preparation runs
+before that effect. Stage rollback restores the root and returns the workspace
+to `ready`; stage acceptance removes the owned worktree and branch. A changed
+root requires `reconcile`, which recreates the dirty baseline and performs the
+three-way application only inside the child workspace. Conflicts remain private
+and no partial merge enters the root. Discard requires explicit confirmation;
+active manifests become orphaned, not deleted, after restart.
+
+## Bounded Web Research
+
+`web.py` owns two GET-only capabilities. `web_search` calls only Brave's fixed
+Search endpoint, reads `BRAVE_SEARCH_API_KEY` from the process environment, and
+bounds a query to 400 characters / 50 words and results to ten. `web_fetch`
+accepts only HTTP(S) on standard ports with no embedded credentials, follows at
+most five redirects, accepts public text/HTML only, reads at most 1,000,000
+identity-encoded bytes, extracts at most 30,000 text characters, and never
+persists a download.
+
+Every fetch destination is resolved before use. All returned addresses must be
+globally routable; loopback, private, link-local, reserved, multicast, and mixed
+public/private answers fail closed. The HTTP(S) connection is pinned to a
+validated address while retaining the original Host header and TLS server name,
+and every redirect repeats validation. Response text is explicitly labeled
+untrusted and includes its final source URL; search results are numbered for
+citation. The system prompt tells the model to treat page text as data rather
+than instructions and to cite sourced factual claims.
+
+Both tools are external effects. Plan, Implementation, and Review can expose
+them, but Cautious/Auto approval still governs access and fetch grants are
+host-scoped. Restricted sandboxes require the immutable startup network flag;
+Full Access cannot override a disabled sandbox network. Children inherit the
+same Web runtime and policy.
 
 `TodoState` is explicit on all formal paths. The root instance is persisted and
 rolled back with root turns; every child owns another instance. Compatibility

@@ -2,11 +2,11 @@
 
 ## Current Core Version: 14 — Isolated Collaboration and Web Research
 
-Completion status: implementation in progress. The user selected both remaining
-supplementary research topics, approved the combined plan, and explicitly
-delegated implementation. The assistant owns deterministic, security, stress,
-packaging, and direct terminal verification within the standing USD 1.00 live
-model allowance. SWE-bench and paid batch evaluation are not authorized.
+Completion status: implementation and verification complete; awaiting the
+user's stage-completion confirmation before archive, annotated tag, and push.
+The user selected both supplementary research topics, approved the combined
+plan, and explicitly delegated implementation. No SWE-bench, paid batch, or
+paid model request ran.
 
 ### Goal
 
@@ -64,3 +64,24 @@ workflow, approval, and network policies.
 4. Add the secure Web runtime, tools, permissions, UI, and child integration.
 5. Complete deterministic, security, stress, packaging, installed-terminal, and
    bounded live-model verification; update durable documentation.
+
+### Verification Result
+
+- 421 tests collected: 420 passed and one Windows symlink test skipped; Ruff
+  passes over `src` and `tests`.
+- Ten rounds of four overlapping isolated worktrees preserved the unchanged
+  root and removed all application-owned worktrees and branches.
+- Ten real Docker interactive rounds passed same-container readiness checks and
+  left no containers or execution-session threads after bounded drain.
+- The 862,434-byte wheel contains 249 entries / 245 Python files, including the
+  frozen V13 runtime and living V14 modules, without tests, showcase, cache, or
+  bytecode.
+- A clean Python 3.11 installation launched V1-V14 from an unrelated Git
+  project. Installed-wheel CLI diff/integrate/checkpoint rollback and a Textual
+  TUI `/exit` pilot passed.
+- Deterministic Web security tests cover Brave results, attribution, redirects,
+  DNS and URL SSRF cases, content types, encodings, and size limits. Live Brave
+  search was unavailable because no key was present; host DNS maps public names
+  to reserved `198.18/15`, which the real fetch correctly rejected.
+
+See `docs/reports/v14-verification.md` for the complete evidence.
