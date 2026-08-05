@@ -219,8 +219,7 @@ In particular:
 
 ## Current State
 
-- Version 14 implementation and verification are complete and await user stage
-  confirmation before archive/tag/push. Application-owned Git worktrees isolate
+- Version 14 is complete. Application-owned Git worktrees isolate
   child changes over dirty-root private baselines; bounded visible context forks,
   cwd-bound tools, durable manifests, diff/reconcile/integrate/discard, and V12
   checkpoint hooks govern collaboration. Brave search and public-text fetch are
@@ -229,8 +228,12 @@ In particular:
   enforcement. V13 is frozen and the launcher selects V1-V14 with V14 default.
   It passes 420 of 421 tests with one Windows symlink skip, Ruff, ten worktree
   and Docker stress rounds, wheel inspection, clean-install V1-V14 launches,
-  and direct installed CLI/TUI trials. No paid request or benchmark ran; see
-  `docs/reports/v14-verification.md`.
+  and direct installed CLI/TUI trials. Its standalone archive passes 358 of 359
+  tests with one Windows symlink skip, Ruff, wheel inspection, and clean Python
+  3.11 installation. The user confirmed completion on 2026-08-06. It is archived
+  under `versions/14-isolated-collaboration-web-research/` with annotated tag
+  `version-14-isolated-collaboration-web-research`. No paid request or benchmark
+  ran; see `docs/reports/v14-verification.md`.
 - Version 13 implementation and verification are complete. One
   bounded execution-session manager owns short, yielded, background, and
   interactive commands; ConPTY/PTY sessions retain state across input and

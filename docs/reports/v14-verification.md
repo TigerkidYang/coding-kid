@@ -87,5 +87,13 @@ credentialed smoke may be run only when the environment supplies a key.
 
 All implementation, deterministic, security, stress, packaging, historical
 runtime, installed CLI, and installed TUI criteria that do not require absent
-credentials pass. Version 14 is ready for the user's completion confirmation;
-archive creation, annotated tag, and push remain intentionally pending.
+credentials pass. The user confirmed stage completion on 2026-08-06.
+
+The standalone archive at
+`versions/14-isolated-collaboration-web-research/` independently collected 359
+tests: 358 passed and one Windows symlink test skipped. Ruff lint passed, all 60
+Python files pass format-check, and the 128,399-byte standalone wheel contains
+34 entries without the cross-version launcher, historical runtimes, tests,
+caches, or bytecode. A new Python 3.11 environment installed that wheel and
+launched the V14 CLI successfully. The completed checkpoint uses annotated tag
+`version-14-isolated-collaboration-web-research`.

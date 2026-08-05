@@ -2,10 +2,10 @@
 
 ## Current Core Version: 14 — Isolated Collaboration and Web Research
 
-Completion status: implementation and verification complete; awaiting the
-user's stage-completion confirmation before archive, annotated tag, and push.
-The user selected both supplementary research topics, approved the combined
-plan, and explicitly delegated implementation. No SWE-bench, paid batch, or
+Completion status: complete. The user confirmed stage completion on 2026-08-06.
+The standalone checkpoint is archived under
+`versions/14-isolated-collaboration-web-research/` with annotated tag
+`version-14-isolated-collaboration-web-research`. No SWE-bench, paid batch, or
 paid model request ran.
 
 ### Goal
@@ -85,3 +85,7 @@ workflow, approval, and network policies.
   to reserved `198.18/15`, which the real fetch correctly rejected.
 
 See `docs/reports/v14-verification.md` for the complete evidence.
+
+The standalone archive independently passes 358 of 359 tests with one Windows
+symlink skip, Ruff lint, format-check over 60 Python files, wheel inspection,
+and clean Python 3.11 installation/startup.

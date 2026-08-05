@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "coding-kid"
+version = "0.1.0"
+description = "A small Python coding agent built for learning."
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2,<3",
+    "openai>=2.30.0,<3",
+    "pywinpty>=3,<4; sys_platform == 'win32'",
+    "pyyaml>=6,<7",
+    "textual>=8,<9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9,<10",
+    "ruff>=0.14,<1",
+]
+
+[project.scripts]
+coding-kid = "coding_kid.standalone:main"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/coding_kid"]

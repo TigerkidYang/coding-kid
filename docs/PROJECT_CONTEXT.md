@@ -66,8 +66,8 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 14 isolated collaboration and Web research has completed
-  implementation and verification and awaits user completion confirmation.
+- Version 14 isolated collaboration and Web research is complete. The user
+  confirmed stage completion on 2026-08-06.
   Child Agents default to application-owned Git worktrees with dirty-root
   baselines, bounded visible context forks, cwd-bound execution, persistent
   manifests, diff/reconcile/integrate/confirmed-discard, and V12 checkpoint
@@ -77,8 +77,11 @@ without explicit permission.
   in the installed runtime and V14 is the living default. It passes 420 of 421
   tests with one Windows symlink skip, Ruff, ten worktree and Docker stress
   rounds, wheel inspection, clean-install V1-V14 launches, and direct installed
-  CLI/TUI trials. No benchmark or paid request ran. See
-  `docs/reports/v14-verification.md`.
+  CLI/TUI trials. Its standalone archive passes 358 of 359 tests with one
+  Windows symlink skip, Ruff, wheel inspection, and clean installation. It is
+  archived under `versions/14-isolated-collaboration-web-research/` with tag
+  `version-14-isolated-collaboration-web-research`. No benchmark or paid request
+  ran. See `docs/reports/v14-verification.md`.
 - Version 13 continuous execution environment has completed implementation and
   verification. One bounded manager owns short, yielded, background,
   and interactive commands; Windows ConPTY/Unix PTY sessions accept later input
