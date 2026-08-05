@@ -219,6 +219,14 @@ In particular:
 
 ## Current State
 
+- Version 13 continuous execution environment is being implemented and
+  verified under the user's explicit delegation. Root commands now share one
+  bounded process-local manager; yielded and interactive ConPTY/Unix PTY
+  sessions accept incremental poll/write/interrupt/stop operations, and
+  readiness checks run in the same host/container environment. Child Agents
+  receive private managers that close with each run. V12 is frozen and V13 is
+  the living installed default, but V13 is not archived or tagged until the
+  user confirms stage completion.
 - Version 12 is complete and archived under
   `versions/12-permission-governed-workflow/` with annotated tag
   `version-12-permission-governed-workflow`. Independent Plan/Implementation/

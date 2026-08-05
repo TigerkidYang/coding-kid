@@ -1,5 +1,21 @@
 # Decisions
 
+## Unify Version 13 commands as process-local execution sessions
+
+Decision:
+Register every root command with one bounded execution-session manager before
+waiting. Use pipes for non-interactive work and a real ConPTY/Unix PTY only when
+`interactive=true`. Treat explicit background as immediate yield, preserve a
+live process after ordinary yield or turn interruption, and keep health checks
+as separate commands in the same host/container environment.
+
+Consequence:
+Short, yielded, background, and interactive work share identity, incremental
+output, limits, events, permission, sandbox, and cleanup. Later input cannot
+bypass V12 approval; Ctrl+C is not stop; liveness is not readiness. Root IDs do
+not survive restart, and child Agents receive private managers that are always
+closed when the child run ends.
+
 ## Keep Version 12 collaboration, approval, and sandbox policies independent
 
 Decision:

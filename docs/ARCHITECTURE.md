@@ -2,21 +2,21 @@
 
 ## Overview
 
-Version 12 adds an application-owned permission and change-control plane above
-Version 11's immutable sandbox. Collaboration mode controls which tools exist,
-approval policy controls which sensitive requests pause for authorization, and
-the sandbox independently limits every authorized action.
+Version 13 adds a continuous execution plane beneath Version 12's permission
+workflow and Version 11's immutable sandbox. Short, yielded, background, and
+interactive commands now have one owner and one lifecycle; later input and
+health checks remain subject to the original workflow and sandbox boundaries.
 
 ```text
 launcher.py
-  |-- v1-v11 -> isolated bundled runtime process
-  `-- v12/default -> cli.py
+  |-- v1-v12 -> isolated bundled runtime process
+  `-- v13/default -> cli.py
                      |-- SessionStore / MemoryManager
                      |-- WorkflowState / PermissionBroker
                      |-- WorkflowRuntime / CheckpointManager
                      |-- SandboxRuntime -> path policy / Docker boundary
-                     |-- AgentManager -> sandboxed child run_turn workers
-                     |-- BackgroundTaskManager -> sandboxed process trees
+                     |-- AgentManager -> scoped child run_turn + session managers
+                     |-- BackgroundTaskManager -> PTY/pipe execution sessions
                      |-- CapabilityRuntime
                      |     |-- Skill + Plugin metadata snapshot
                      |     `-- MCP asyncio thread -> stdio / Streamable HTTP
@@ -31,7 +31,7 @@ the evidence boundary. Failed, steered, and interrupted turns retain completed
 rounds and todo effects, discard incomplete assistant streams, and write a
 reasoned durable transition. Temporary compaction projections are rolled back
 on failure while newly completed transcript rounds are preserved. Already
-started child Agents and background tasks remain discoverable.
+started child Agents and root execution sessions remain discoverable.
 
 ## Permission-Governed Workflow
 
@@ -40,7 +40,9 @@ the approved plan and checkpoint identity. The registry removes invalid tools
 from the model schema, while `PermissionBroker` repeats the mode check before
 dispatch so a fabricated hidden-tool call still fails. Plan exposes read,
 search, Skill loading, structured questions, and plan submission. Review
-exposes only read, search, and Skill loading.
+exposes read, search, and Skill loading. Both modes receive a filtered `task`
+schema for list, poll, and wait only; repeated mode enforcement rejects write,
+check, interrupt, or stop even if a fabricated call bypasses that schema.
 
 `permissions.py` classifies every tool as read-only, interaction, project write,
 command, destructive, external, or control. Unknown and dynamic tools default
@@ -64,7 +66,7 @@ content-addressed baseline bytes and types in protected session state, and
 records hashes after each sensitive effect. File count and byte limits are hard
 boundaries; an unreadable, unsupported, or oversized tree blocks mutation.
 
-Rollback requires background tasks and child Agents to stop, then compares the
+Rollback requires execution sessions and child Agents to stop, then compares the
 live tree with the last application-recorded tree. Any difference is treated as
 a possible external edit and refuses the whole rollback. A safe rollback
 restores the exact pre-stage state and removes stage-created non-ignored files.
@@ -88,12 +90,14 @@ container root plus bounded tmpfs, drops capabilities, enables
 Unicode and home variables. Network is `none` unless explicitly enabled, and
 the Docker socket is never mounted.
 
-Every restricted invocation receives a random named and labeled container.
-Normal completion relies on `docker run --rm`; timeout, cancellation, task or
-Agent stop, and shutdown terminate the Docker client and issue an idempotent
-forced removal. Termination cleanup retries the short race in which an
-immediately cancelled `docker run` has not registered its name yet. The same
-terminal boundary retains bounded stdout/stderr evidence.
+Every restricted execution session receives a random named and labeled
+container. Non-interactive sessions attach pipes; interactive sessions attach
+the Docker client to a host PTY and use `-it`, creating a real terminal inside
+the same continuing container. A readiness `check` uses bounded `docker exec`
+and retries only the short startup-registration race. Normal completion relies
+on `docker run --rm`; stop, Agent cleanup, and shutdown also force-remove the
+container. Isolation, resources, metadata, environment, and network policy stay
+fixed for the complete session lifetime.
 
 The provider, durable session/memory stores, project-instruction loader, and
 inert Skills remain host-side application control-plane components. Restricted
@@ -144,10 +148,11 @@ CLI/TUI state but never initiate a provider request.
 Each child begins with only its self-contained delegated prompt. It shares the
 immutable `SessionContext`, cwd, model, project instructions, Skills catalog,
 and application-owned MCP runtime, but it does not receive the root transcript
-or long-term memory. Its registry contains foreground terminal/file tools, its
-own todo tool, Skills, and MCP. It excludes `spawn_agent`, `agent`, `task`, and
-the background form of `execute`. Foreground cancellation terminates the shell
-process tree and retains partial command evidence in the child transcript.
+or long-term memory. Its registry contains file tools, its own todo and
+execution-session tools, Skills, and MCP, but excludes nested Agent controls.
+Every child run creates a private session manager: its IDs never appear in the
+root list, and completion, failure, or cancellation stops every child-owned
+process/container after retaining bounded final evidence.
 
 `TodoState` is explicit on all formal paths. The root instance is persisted and
 rolled back with root turns; every child owns another instance. Compatibility
@@ -155,35 +160,36 @@ wrappers retain a default state for historical direct callers only. MCP event
 collection is locked because multiple child threads may load Skills or invoke
 MCP concurrently; the MCP clients remain owned by their one asyncio thread.
 
-## Background Task Runtime
+## Continuous Execution Runtime
 
-`background_tasks.py` owns task identity, process state, output readers,
-completion watchers, bounded event delivery, and shutdown. `execute` retains
-its existing foreground behavior unless the model explicitly passes
-`background=true`; background commands inherit cwd and the Unicode-safe shell
-environment, close stdin, and return immediately without a PTY.
+`background_tasks.py` owns every root execution identity, whether a command
+finishes quickly, explicitly starts in the background, outlives its initial
+`yield_time_ms`, or requests an interactive terminal. Registration happens
+before waiting, so turn interruption retains a stable session rather than
+silently restarting or losing the process. `background=true` is immediate
+yield, not a separate implementation.
 
-Each task has one monotonic transition from `running` to `completed`, `failed`,
-or `stopped`. IDs are random `task_<12 hex>` values. At most eight processes
-run concurrently and 32 records remain addressable; only the oldest terminal
-record can be evicted. Stdout and stderr each retain a 256,000-byte tail with an
-omission marker. UI events, command summaries, and the dynamic model projection
-are separately bounded.
+`terminal.py` supplies two boundaries. Non-interactive commands retain separate
+bounded byte pipes and Windows Job/POSIX process-group cleanup. Interactive
+commands use pinned pywinpty/ConPTY on Windows and a system PTY on Unix; output
+is a combined terminal stream, input can be submitted later, ANSI transport
+codes are removed from model-visible text, and Ctrl+C is distinct from stop.
 
-Two byte-reader threads and one watcher drain every process without blocking
-the Agent loop. On Windows, the shell starts suspended, enters a kill-on-close
-Job Object, and only then resumes; termination combines `taskkill /T` with the
-Job boundary. This closes both descendant-creation races. `stop` is idempotent,
-`wait` is cancellable and capped at 30 seconds, and concurrent `stop`/`close`
-operations share a termination lock and close-completion barrier. Application
-shutdown stops all running trees and joins task threads before closing MCP and
-persistent session resources.
+Each stream preserves a bounded head and tail plus an independent recent window
+for incremental cursors. All bytes also enter per-session temporary logs until
+manager shutdown. Poll, write, and wait consume only unread bytes and mark any
+cursor gap. At most eight sessions run and 32 records remain; only the oldest
+ended record is evicted. Shutdown stops complete process trees and containers,
+joins readers/watchers, and removes temporary logs.
 
-The manager is created afresh on each Coding Kid process start. Task IDs and OS
-processes never enter session logs, compaction, or memory. Successful tool-call
-protocol rounds still persist normally; after resume, an old ID yields an
-explicit unknown/expired error. Task completion produces UI events only and
-never wakes the model or initiates a provider call.
+The `task` tool lists, polls, waits, writes, interrupts, stops, or checks a
+session. `check` is separate evidence: on the host it runs a bounded command in
+the project environment; under Docker it runs inside the live named container.
+Neither a running state nor terminal output is automatically called ready.
+Write/check are command effects, interrupt/stop are destructive, and
+list/poll/wait are read-only. IDs and processes remain process-local; after
+restart old IDs report unknown/expired. Completion emits UI events but never
+initiates a model call.
 
 ## Pluggable Capability Runtime
 
@@ -215,13 +221,13 @@ call returns the full body inside the current tool protocol round. At most eight
 different Skills load per turn, and Skill loads do not consume the 64-call work
 budget.
 
-## Foreground Terminal Boundary
+## Non-Interactive Terminal Compatibility
 
-`terminal.py` owns the complete built-in `execute` process boundary. On
+The original non-interactive path remains inside the unified manager. On
 Windows, model commands enter PowerShell through its UTF-16LE `EncodedCommand`
 protocol; the script explicitly selects UTF-8 output, and Python child
-processes receive UTF-8 environment hints. Standard input is closed so a
-foreground command cannot silently wait for interactive input.
+processes receive UTF-8 environment hints. Standard input stays closed unless
+the caller explicitly requests `interactive=true`.
 
 Stdout and stderr remain byte streams while two readers drain them. Each stream
 keeps a bounded head and tail, so a noisy process cannot allocate unbounded
@@ -230,17 +236,16 @@ UTF-8 is preferred at decode time, then the platform legacy codec, then lossy
 UTF-8. PowerShell's redirected CLIXML progress envelope is discarded while
 real error records are retained.
 
-Timeout returns conventional exit code 124, partial output, elapsed time, and a
-`timed_out` marker. Timeout, interruption, and unexpected parent failure
-terminate the process tree; pipe draining has its own deadline for inherited
-handles. CLI output is configured for UTF-8 and has a codec-safe fallback, so
-displaying a command or answer cannot invalidate the Agent protocol round.
+The compatibility `run_command` helper retains its 120-second timeout for
+bounded probes and legacy paths. Unified root `execute` instead yields a live
+session after the requested wait. CLI output remains UTF-8 with a codec-safe
+fallback, so displaying command evidence cannot invalidate a model round.
 
 ## Version Launcher and Session Selection
 
-`launcher.py` accepts `v1` through `v10`; V10 is the living default. V1–V9 run
+`launcher.py` accepts `v1` through `v13`; V13 is the living default. V1–V12 run
 from frozen runtime packages in isolated child processes. Living-runtime
-session flags select V10 sessions:
+session flags select V13 sessions:
 
 - No flag or `--new` creates a new session.
 - `--continue` resumes the most recently updated project session.
@@ -325,8 +330,8 @@ mode preserves recall and explicit commands without automatic model requests.
 
 ## Request and Commit Flow
 
-1. The CLI or TUI selects a durable session and creates one process-local task
-   manager.
+1. The CLI or TUI selects a durable session and creates one process-local
+   execution-session manager.
 2. The current user text retrieves a bounded, request-only memory attachment
    and deterministically loads explicitly mentioned Skills.
 3. The real user message enters the in-memory transcript and active context.
@@ -356,8 +361,8 @@ mode preserves recall and explicit commands without automatic model requests.
   context and accounts for the model window.
 - `compaction.py` creates atomic structured handoffs for older active history.
 - `agent.py` owns the bounded model/tool loop and request-only context injection.
-- `background_tasks.py` owns process-local task state, output, events, and
-  cleanup.
+- `background_tasks.py` owns process-local execution sessions, incremental
+  output, health checks, events, and cleanup.
 - `capability_config.py`, `plugins.py`, `skills.py`, and `capabilities.py` own
   user configuration, local packages, lazy instructions, and MCP lifecycle.
 - `provider.py` implements complete and streaming OpenRouter Responses calls.
@@ -370,10 +375,9 @@ Storage directories and files receive restrictive permissions where the host
 supports them. Raw logs may contain prompts and tool results, so users must
 treat `CODING_KID_HOME` as sensitive and use soft deletion deliberately.
 
-Version 11 does not add encryption at rest, remote synchronization, vector
-search, persistent or remote jobs, nested/remote Agent graphs, approvals,
-per-command escalation, a workflow DSL, a Plugin marketplace, OAuth, or
-non-tool MCP primitives. Docker, its daemon, its image, and the host-side
-control plane remain trusted; the sandbox does not defend against a compromised
-daemon or container-kernel escape. `danger-full-access` tools still run with
-the current user's permissions.
+Version 13 does not add encryption at rest, remote synchronization, vector
+search, persistent or remote processes, process reconnection after restart,
+remote Agent graphs, automatic dependency/image construction, a workflow DSL,
+a Plugin marketplace, OAuth, or non-tool MCP primitives. Docker, its daemon,
+its image, and the host-side control plane remain trusted; the sandbox does not
+defend against a compromised daemon or container-kernel escape.

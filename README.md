@@ -2,8 +2,8 @@
 
 Coding Kid is a small Python coding agent built for learning. The current
 version shows the complete loop, persistent project sessions, layered
-long-term memory, pluggable Skills and MCP tools, process-local background shell
-tasks and child Agents, a controllable bounded turn loop, a session todo
+long-term memory, pluggable Skills and MCP tools, continuous process-local
+terminal sessions and child Agents, a controllable bounded turn loop, a session todo
   checklist, a permission-governed change workflow, a fail-closed local sandbox,
   bounded conversation context, streamed model output, and a full-screen
   terminal interface:
@@ -12,7 +12,7 @@ tasks and child Agents, a controllable bounded turn loop, a session todo
 session context + project instructions + Skill metadata + recalled memory
   + explicit Skill bodies + user input
   -> OpenRouter stream -> typed events -> TUI
-  -> tool call -> built-in / background task / Skill / MCP tool -> final answer
+  -> tool call -> built-in / execution session / Skill / MCP tool -> final answer
 ```
 
 Interactive terminals run a simplified Codex-style Textual interface. Piped or
@@ -32,7 +32,7 @@ instruction changes.
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/)
 - Docker Desktop or another reachable Docker daemon for the default restricted
-  Version 12 sandbox modes
+  Version 13 sandbox modes
 - `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` environment variables
 
 The API key must stay in the environment. Do not put it in this repository or
@@ -69,7 +69,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v12; new session)
+coding-kid       # latest living core version (currently v13; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -82,6 +82,7 @@ coding-kid v9    # process-local multi-Agent workflows
 coding-kid v10   # controllable turn runtime and active-turn steering
 coding-kid v11   # fail-closed sandbox control
 coding-kid v12   # permission-governed change workflow
+coding-kid v13   # continuous interactive execution sessions
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -91,9 +92,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–12
+The command preserves the directory from which it was invoked. Versions 03–13
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 12 is
+Versions 01 and 02 retain their original historical behavior. Version 13 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -104,7 +105,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 12 session selection is explicit:
+Living Version 13 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -117,7 +118,7 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 12 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 13 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. Submitting while work is active queues a steer
 instruction FIFO and stops the current step before continuing with retained
 completed evidence. Up to eight pending inputs are kept; a ninth remains in the
@@ -131,7 +132,8 @@ control their respective layers.
 
 ## Permission-Governed Change Workflow
 
-Version 12 defaults to Implementation mode, Cautious approval, and the existing
+Version 13 retains Version 12's permission workflow and defaults to
+Implementation mode, Cautious approval, and the existing
 `workspace-write` sandbox. These three settings are independent:
 
 ```powershell
@@ -162,7 +164,7 @@ effects, and remote MCP effects are not rollback promises.
 
 ## Sandbox Control
 
-Version 12 retains Version 11's immutable startup policy. The default is a Docker-backed
+Version 13 retains Version 11's immutable startup policy. The default is a Docker-backed
 workspace sandbox with network disabled:
 
 ```powershell
@@ -184,8 +186,8 @@ and metadata policy before touching the host filesystem.
 Container commands receive a small fixed environment, bounded CPU, memory,
 process count, and temporary storage. They do not inherit provider credentials,
 mount the Docker socket, or receive network access unless
-`--sandbox-network` is present. Foreground commands, background tasks, and
-child Agents inherit the same policy. Restricted modes suppress MCP servers and
+`--sandbox-network` is present. Root and child execution sessions inherit the
+same policy. Restricted modes suppress MCP servers and
 MCP tools because their local or remote effects cannot be enforced by this
 Docker boundary; inert Skills and Plugin Skill metadata remain available.
 
@@ -214,38 +216,44 @@ Children can genuinely overlap and keep their own conversation, compaction,
 todo state, cancellation, and tool budget. They share the cwd and current user
 permissions, so parallel delegation must use non-overlapping files or ranges.
 
-A child receives a self-contained task prompt, project `AGENTS.md`, foreground
-file/terminal tools, Skills, and MCP. It does not receive the parent transcript,
-long-term memory, nested-Agent tools, or background shell tasks. Up to four
-children run at once; 16 records remain available and waits are capped at 30
-seconds. Results are bounded and enter the parent transcript only when the
-parent explicitly polls or waits. Completion updates UI state but never causes
-an automatic model call.
+A child receives a self-contained task prompt, project `AGENTS.md`, file tools,
+Skills, MCP, and a private execution-session manager. It does not receive the
+parent transcript, long-term memory, nested-Agent tools, or the root's terminal
+IDs. Child processes and containers are stopped when that child run finishes.
+Up to four children run at once; 16 records remain available and waits are
+capped at 30 seconds. Results enter the parent transcript only when the parent
+explicitly polls or waits.
 
 Use `/agents` to inspect the process-local records and `/agent stop <id>` to
 request cancellation without a model call. A resumed persistent session starts
 with an empty Agent manager, so IDs from an earlier process are explicitly
 unknown/expired.
 
-## Background Tasks
+## Continuous Execution Sessions
 
-Version 08 lets the model explicitly choose non-interactive background shell
-execution with `execute(command, background=true)`. The call returns a stable
-process-local `task_<12 hex>` ID immediately. The `task` tool can list, poll,
-wait for up to 30 seconds, or stop that task. Waiting only proves process exit;
-server readiness still requires log evidence or a health check.
+Version 13 unifies short, yielded, background, and interactive commands. An
+ordinary `execute` waits for `yield_time_ms` (10 seconds by default); if the
+process is still alive, it returns a stable `task_<12 hex>` ID without rerunning
+the command. `background=true` yields immediately. `interactive=true` allocates
+a real Windows ConPTY or Unix PTY so a Python REPL, shell, or debugger can accept
+later input and Ctrl+C.
 
-Background tasks survive Agent turns, including failed or interrupted turns,
-but never survive a Coding Kid process restart and are not written into session
-or long-term-memory state. A resumed session therefore starts with an empty task
-set and any old task ID is invalid. Completion does not wake the model or make
-an automatic provider request.
+`task` supports `list`, incremental `poll`, bounded `wait`, `write`,
+`interrupt`, `stop`, and `check`. `check` runs a separate bounded command in the
+same host environment or live Docker container; it is the evidence boundary for
+service readiness. A running process is never automatically reported ready.
+Plan and Review can only list/poll/wait. Cautious separately approves model
+starts, writes, and checks; direct user commands are already explicit user
+actions. Every operation remains inside the startup sandbox.
 
-Use `/tasks` to inspect tasks and `/task stop <id>` to stop one without a model
-call. The TUI displays lifecycle events and the running count; the plain CLI
-prints completion notices only at prompt boundaries. At most eight tasks run at
-once, 32 records are retained, each output stream keeps 256,000 bytes, and app
-shutdown stops every running process tree.
+Use `/tasks`, `/task poll <id>`, `/task input <id> <text>`,
+`/task interrupt <id>`, `/task check <id> <command>`, and `/task stop <id>` from
+the CLI/TUI. At most eight sessions run and 32 records remain. Output preserves
+a bounded head/tail and incremental recent window, with complete temporary log
+files during the application lifetime. Shutdown removes logs and stops every
+process tree/container. IDs and OS processes never survive restart; old IDs
+return an explicit unknown/expired error. Completion updates UI state but does
+not call the model automatically.
 
 The transcript streams assistant Markdown and records compact Codex-style
 activity cells. Normal tool results stay in model context instead of filling
@@ -387,15 +395,13 @@ the turn rolls back.
 
 ## Tools
 
-- `execute`: run one non-interactive foreground Windows PowerShell command, or
-  explicitly start it in the process-local background.
-  Commands and output use a Unicode-safe boundary; stdout/stderr are captured
-  as bounded byte streams, and timeout or interruption terminates the process
-  tree. A 2-minute timeout returns partial output with `exit_code: 124` so the
-  model can recover.
-- `task`: list, poll, wait for, or stop a background shell task. Waits are
-  cancellable and bounded to 30 seconds; cancelling a wait does not kill the
-  task.
+- `execute`: run a short command or yield a stable execution-session ID. Set
+  `background=true` for immediate yield, `interactive=true` for a real PTY, and
+  `yield_time_ms` to bound only the initial wait. Turn interruption retains a
+  root session instead of silently restarting it.
+- `task`: list, incrementally poll, wait for, write to, Ctrl+C, health-check, or
+  stop an execution session. Wait/check are bounded to 30 seconds. A check is
+  explicit readiness evidence; liveness alone is not readiness.
 - `read`: read a UTF-8 text file.
 - `write`: create or completely overwrite a UTF-8 text file.
 - `search`: search file names and text contents, returning at most 100 matches;
@@ -482,6 +488,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 ## Teaching Versions
 
 Completed checkpoints V1–V12 are preserved under `versions/` and by matching
-annotated tags. Version 12 is the living implementation. The installed
-launcher bundles V1–V10 runtime source and shares one Python environment and
+annotated tags. Version 13 is the living implementation under development. The installed
+launcher bundles V1–V12 runtime source and shares one Python environment and
 one set of third-party dependencies across all versions.

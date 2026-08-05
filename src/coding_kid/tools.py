@@ -92,7 +92,7 @@ def task(
     """Inspect or continue one process-local execution session."""
     del reason
     if task_manager is None:
-        raise RuntimeError("Background task runtime is not active")
+        raise RuntimeError("Execution-session runtime is not active")
     if action == "list":
         return task_manager.status_text()
     if action not in {"poll", "wait", "write", "interrupt", "stop", "check"}:

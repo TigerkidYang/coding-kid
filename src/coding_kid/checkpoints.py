@@ -155,7 +155,7 @@ class CheckpointManager:
     def rollback(self, checkpoint_id: str) -> ChangeSummary:
         with self._lock:
             if self._running_tasks():
-                raise CheckpointError("Stop all background tasks before rollback")
+                raise CheckpointError("Stop all execution sessions before rollback")
             if self._running_agents():
                 raise CheckpointError("Stop all child Agents before rollback")
             baseline, observed = self._load_manifest(checkpoint_id)

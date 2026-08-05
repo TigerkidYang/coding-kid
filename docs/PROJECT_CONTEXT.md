@@ -66,6 +66,14 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
+- Version 13 continuous execution environment is in implementation and
+  verification. One bounded manager owns short, yielded, background, and
+  interactive commands; Windows ConPTY/Unix PTY sessions accept later input and
+  Ctrl+C, output is incremental with temporary full logs, readiness checks run
+  in the same host/container environment, and child Agents receive private
+  managers that close with the child run. V12 is frozen and the launcher selects
+  V1-V13 with V13 as the living default. The version is not yet archived or
+  tagged.
 - Version 12 permission-governed workflow is complete and archived under
   `versions/12-permission-governed-workflow/` with annotated tag
   `version-12-permission-governed-workflow`. It
@@ -170,8 +178,8 @@ without explicit permission.
 - Version 03 is archived under `versions/03-context-assembly/` with annotated
   tag `version-03-context-assembly`.
 - An unnumbered cross-version launcher improvement is complete. Each version
-  transition extends its registry; Version 12 selects Versions 01–12, bundles
-  frozen V01–V11, and defaults to the living Version 12 runtime. The original
+  transition extends its registry; Version 13 selects Versions 01–13, bundles
+  frozen V01–V12, and defaults to the living Version 13 runtime. The original
   V1–V3 increment passed
   91 deterministic tests plus fresh-wheel launches from an unrelated project
   directory; the launcher itself has no version archive or tag.
