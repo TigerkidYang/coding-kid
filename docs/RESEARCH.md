@@ -52,7 +52,7 @@ They record deeper improvements within topics whose first implementations were
 intentionally narrower than the mature capabilities found in the two source
 snapshots.
 
-- Permission-governed change workflow. This extends both loop/workflow control
+- Permission-governed change workflow. (Implemented in Version 12.) This extends both loop/workflow control
   and sandbox control into one coherent user-facing system: automatic approval,
   approval for every sensitive action, and full access should be distinct from
   Plan, Implementation, and Review modes. The sandbox limits what an action can

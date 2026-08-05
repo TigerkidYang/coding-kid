@@ -66,14 +66,15 @@ without explicit permission.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
-- Version 12 permission-governed workflow is implemented and verified. It
+- Version 12 permission-governed workflow is complete and archived under
+  `versions/12-permission-governed-workflow/` with annotated tag
+  `version-12-permission-governed-workflow`. It
   separates collaboration mode, approval policy, and the existing sandbox;
   adds application-owned approval prompts and conflict-aware stage checkpoints;
   freezes V11; and makes V12 the installed default. It passes 383 tests with one
   Windows symlink skip, Ruff, ten stress rounds, wheel inspection, clean-install
   V1-V12 launches, and installed-wheel TUI trials. At most 18 short paid model
-  responses kept estimated spend below USD 0.10. No benchmark ran. Archive and
-  tag creation are in progress under the user's approved plan.
+  responses kept estimated spend below USD 0.10. No benchmark ran.
 - Version 11 sandbox control is complete and archived under
   `versions/11-sandbox-control/` with annotated tag
   `version-11-sandbox-control`.

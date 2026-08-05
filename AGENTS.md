@@ -219,6 +219,19 @@ In particular:
 
 ## Current State
 
+- Version 12 is complete and archived under
+  `versions/12-permission-governed-workflow/` with annotated tag
+  `version-12-permission-governed-workflow`. Independent Plan/Implementation/
+  Review modes, Cautious/Auto/Full Access approval, and the V11 sandbox now
+  govern every tool before side effects. Application-owned checkpoints preserve
+  pre-stage dirty content, expose review changes, and provide conflict-aware
+  rollback. V11 is frozen and the launcher selects V1-V12 with V12 as default.
+  It passes 383 tests with one Windows symlink skip, Ruff, ten stress rounds,
+  wheel inspection, clean-install V1-V12 launches, and installed-wheel real TUI
+  trials. Live testing exposed and fixed terminal-turn workflow replay. At most
+  18 short `openai/gpt-5.6-luna` responses kept estimated spend below USD 0.10.
+  No SWE-bench or paid batch evaluation ran. See
+  `docs/reports/v12-live-verification.md`.
 - Version 11 is complete and archived under
   `versions/11-sandbox-control/` with annotated tag
   `version-11-sandbox-control`.

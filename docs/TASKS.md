@@ -2,8 +2,9 @@
 
 ## Current Core Version: 12 — Permission-Governed Workflow
 
-Completion status: implementation and verification complete; archive in
-progress. The user selected the supplementary improvement
+Completion status: complete and archived under
+`versions/12-permission-governed-workflow/` with annotated tag
+`version-12-permission-governed-workflow`. The user selected the supplementary improvement
 "Permission-governed change workflow," approved the implementation plan, and
 explicitly delegated development, deterministic verification, and bounded real
 installed-wheel TUI verification to the assistant.
