@@ -135,13 +135,20 @@ def task(
 def spawn_agent(
     description: str,
     prompt: str,
+    isolation: str = "worktree",
+    fork_turns: int = 0,
     *,
     agent_manager: AgentManager | None = None,
 ) -> str:
-    """Start one process-local child Agent."""
+    """Start one process-local child Agent, isolated by default."""
     if agent_manager is None:
         raise RuntimeError("Child Agent runtime is not active")
-    return agent_manager.start(description, prompt).model_text()
+    return agent_manager.start(
+        description,
+        prompt,
+        isolation=isolation,
+        fork_turns=fork_turns,
+    ).model_text()
 
 
 def agent(
@@ -149,6 +156,7 @@ def agent(
     agent_id: str | None,
     message: str | None,
     timeout_seconds: float,
+    confirm_discard: bool = False,
     *,
     agent_manager: AgentManager | None = None,
     cancellation_token: CancellationToken | None = None,
@@ -160,8 +168,18 @@ def agent(
         if agent_id is not None or message is not None:
             raise ValueError("agent_id and message must be null for list")
         return agent_manager.status_text()
-    if action not in {"poll", "wait", "followup", "stop"}:
-        raise ValueError("action must be list, poll, wait, followup, or stop")
+    valid_actions = {
+        "poll",
+        "wait",
+        "followup",
+        "stop",
+        "diff",
+        "integrate",
+        "reconcile",
+        "discard",
+    }
+    if action not in valid_actions:
+        raise ValueError("unknown Agent action")
     if not agent_id:
         raise ValueError(f"agent_id is required for {action}")
     if action != "followup" and message is not None:
@@ -172,6 +190,16 @@ def agent(
         if not message:
             raise ValueError("message is required for followup")
         return agent_manager.followup(agent_id, message).model_text()
+    if action == "diff":
+        return agent_manager.diff(agent_id)
+    if action == "integrate":
+        return agent_manager.integrate(agent_id).model_text()
+    if action == "reconcile":
+        return agent_manager.reconcile(agent_id).model_text()
+    if action == "discard":
+        return agent_manager.discard(
+            agent_id, confirmed=confirm_discard
+        ).model_text()
     if action == "stop":
         return agent_manager.stop(agent_id, timeout_seconds).model_text()
     snapshot, timed_out = agent_manager.wait(
@@ -554,9 +582,10 @@ TOOLS: dict[str, ToolEntry] = {
         "effect": ToolEffect.EXTERNAL,
         "description": (
             "Start an independent child Agent for one concrete, self-contained "
-            "subtask. It runs asynchronously in the shared working directory. "
-            "Use multiple calls for independent parallel work; avoid overlapping "
-            "writes and do not delegate trivial operations."
+            "subtask. By default it runs asynchronously in an application-owned "
+            "Git worktree; use shared isolation only when concurrent writes are "
+            "intentionally safe. A bounded number of visible conversation turns "
+            "may be forked without tool calls or hidden reasoning."
         ),
         "parameters": {
             "type": "object",
@@ -571,8 +600,19 @@ TOOLS: dict[str, ToolEntry] = {
                     "minLength": 1,
                     "maxLength": 12_000,
                 },
+                "isolation": {
+                    "type": "string",
+                    "enum": ["worktree", "shared"],
+                    "default": "worktree",
+                },
+                "fork_turns": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8,
+                    "default": 0,
+                },
             },
-            "required": ["description", "prompt"],
+            "required": ["description", "prompt", "isolation", "fork_turns"],
             "additionalProperties": False,
         },
         "function": spawn_agent,
@@ -580,21 +620,35 @@ TOOLS: dict[str, ToolEntry] = {
     "agent": {
         "effect": lambda arguments: (
             ToolEffect.READ_ONLY
-            if arguments.get("action") in {"list", "poll", "wait"}
+            if arguments.get("action") in {"list", "poll", "wait", "diff"}
+            else ToolEffect.DESTRUCTIVE
+            if arguments.get("action") in {"integrate", "reconcile", "discard"}
             else ToolEffect.EXTERNAL
         ),
         "description": (
             "Manage process-local child Agents. list and poll return immediately; "
-            "wait blocks for at most 30 seconds without stopping work; followup "
-            "reuses a finished Agent's context; stop requests bounded cooperative "
-            "cancellation. Completion does not prove correctness—inspect results."
+            "wait blocks for at most 30 seconds; diff reviews isolated changes; "
+            "integrate applies them into the current stage checkpoint; reconcile "
+            "rebases a conflicting workspace onto current root changes; discard "
+            "requires explicit confirmation. followup and stop retain their "
+            "bounded lifecycle semantics."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "poll", "wait", "followup", "stop"],
+                    "enum": [
+                        "list",
+                        "poll",
+                        "wait",
+                        "followup",
+                        "stop",
+                        "diff",
+                        "integrate",
+                        "reconcile",
+                        "discard",
+                    ],
                 },
                 "agent_id": {"type": ["string", "null"], "minLength": 1},
                 "message": {
@@ -608,12 +662,14 @@ TOOLS: dict[str, ToolEntry] = {
                     "maximum": 30,
                     "default": 10,
                 },
+                "confirm_discard": {"type": "boolean", "default": False},
             },
             "required": [
                 "action",
                 "agent_id",
                 "message",
                 "timeout_seconds",
+                "confirm_discard",
             ],
             "additionalProperties": False,
         },
@@ -904,15 +960,22 @@ def build_tool_registry(
             )
         )
     if agent_manager is not None:
-        entries["spawn_agent"]["function"] = lambda description, prompt: spawn_agent(
-            description, prompt, agent_manager=agent_manager
+        entries["spawn_agent"]["function"] = (
+            lambda description, prompt, isolation="worktree", fork_turns=0: spawn_agent(
+                description,
+                prompt,
+                isolation,
+                fork_turns,
+                agent_manager=agent_manager,
+            )
         )
         entries["agent"]["function"] = (
-            lambda action, agent_id, message, timeout_seconds: agent(
+            lambda action, agent_id, message, timeout_seconds, confirm_discard=False: agent(
                 action,
                 agent_id,
                 message,
                 timeout_seconds,
+                confirm_discard,
                 agent_manager=agent_manager,
                 cancellation_token=cancellation_token,
             )

@@ -45,6 +45,8 @@ class WorkflowRuntime:
         self._clear_context_requested = False
         self._lock = RLock()
         self._effect_lock = Lock()
+        self._accept_listeners: list[Callable[[], object]] = []
+        self._rollback_listeners: list[Callable[[], object]] = []
 
     def set_interaction_handler(self, handler: InteractionHandler | None) -> None:
         self._interaction_handler = handler
@@ -176,6 +178,17 @@ class WorkflowRuntime:
             self._clear_context_requested = False
             return requested
 
+    def register_stage_listener(
+        self,
+        *,
+        on_accept: Callable[[], object],
+        on_rollback: Callable[[], object],
+    ) -> None:
+        """Attach application-owned resources to stage acceptance and rollback."""
+        with self._lock:
+            self._accept_listeners.append(on_accept)
+            self._rollback_listeners.append(on_rollback)
+
     def status_text(self) -> str:
         checkpoint_id = self.state.checkpoint_id
         if checkpoint_id is None:
@@ -198,6 +211,8 @@ class WorkflowRuntime:
         if checkpoint_id is None:
             raise RuntimeError("No checkpoint is available")
         changes = self.checkpoints.rollback(checkpoint_id)
+        for listener in tuple(self._rollback_listeners):
+            listener()
         self.state.clear_checkpoint()
         self.state.transition(CollaborationMode.IMPLEMENTATION, reason="rollback")
         return changes
@@ -207,6 +222,8 @@ class WorkflowRuntime:
         if checkpoint_id is None:
             raise RuntimeError("No checkpoint is available")
         changes = self.checkpoints.accept(checkpoint_id)
+        for listener in tuple(self._accept_listeners):
+            listener()
         self.state.accept_changes()
         self.state.clear_checkpoint()
         self.state.transition(

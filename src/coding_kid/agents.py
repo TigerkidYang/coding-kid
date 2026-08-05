@@ -12,7 +12,11 @@ from typing import Any, Literal, TYPE_CHECKING
 
 from coding_kid.context import SessionContext
 from coding_kid.background_tasks import BackgroundTaskManager
-from coding_kid.context_manager import ContextBudget, ContextManager
+from coding_kid.context_manager import (
+    ContextBudget,
+    ContextManager,
+    ConversationSegment,
+)
 from coding_kid.events import (
     AssistantMessageCompleted,
     CancellationToken,
@@ -25,7 +29,7 @@ from coding_kid.events import (
 )
 from coding_kid.provider import generate, generate_streaming
 from coding_kid.permissions import PermissionBroker
-from coding_kid.sandbox import SandboxRuntime
+from coding_kid.sandbox import SandboxConfig, SandboxRuntime
 from coding_kid.skills import SkillTurnState, explicit_skill_names
 from coding_kid.tools import MAX_TOOL_OUTPUT_CHARS, TodoState
 from coding_kid.workflow import WorkflowState
@@ -33,6 +37,7 @@ from coding_kid.workflow_runtime import WorkflowRuntime
 
 if TYPE_CHECKING:
     from coding_kid.capabilities import CapabilityRuntime
+    from coding_kid.worktrees import WorkspaceRecord, WorktreeManager
 
 MAX_RUNNING_AGENTS = 4
 MAX_RETAINED_AGENTS = 16
@@ -42,6 +47,8 @@ MAX_AGENT_DESCRIPTION_CHARS = 120
 MAX_AGENT_WAIT_SECONDS = 30.0
 MAX_CHILD_STEPS = 32
 MAX_CHILD_TOOL_CALLS = 32
+MAX_FORK_TURNS = 8
+MAX_FORK_CHARS = 24_000
 _WAIT_SLICE_SECONDS = 0.05
 
 AgentStatus = Literal[
@@ -57,8 +64,9 @@ WORKER_INSTRUCTIONS = """
 You are a child worker Agent, not the user-facing root Agent. Complete only the
 delegated task. You cannot spawn other Agents. You may use continuing execution
 sessions, but they are private to this Agent and are stopped when your run ends.
-You share the root Agent's working directory and user permissions, so inspect
-current files before editing and do not overlap writes assigned to other workers.
+Treat your current working directory as authoritative. It may be an isolated Git
+worktree whose changes must be reviewed and integrated by the root Agent. Inspect
+current files before editing and do not touch paths outside the delegated task.
 Use tools directly, verify proportionally, and return a concise report with
 evidence. Do not ask the user questions or propose unrelated next steps.
 """.strip()
@@ -89,6 +97,13 @@ class AgentSnapshot:
     last_activity: str | None
     result: str | None
     error: str | None
+    isolation: str = "shared"
+    forked_turns: int = 0
+    workspace_status: str | None = None
+    workspace_path: str | None = None
+    workspace_branch: str | None = None
+    changed_files: int = 0
+    conflict_paths: tuple[str, ...] = ()
 
     def model_text(self, *, wait_timed_out: bool = False) -> str:
         lines = [
@@ -109,6 +124,17 @@ class AgentSnapshot:
             lines.extend(("result:", self.result))
         if self.error is not None:
             lines.extend(("error:", self.error))
+        lines.extend(
+            (
+                f"isolation: {self.isolation}",
+                f"forked_turns: {self.forked_turns}",
+                f"workspace_status: {self.workspace_status or 'none'}",
+                f"workspace_path: {self.workspace_path or 'none'}",
+                f"workspace_branch: {self.workspace_branch or 'none'}",
+                f"changed_files: {self.changed_files}",
+                "conflict_paths: " + (", ".join(self.conflict_paths) or "none"),
+            )
+        )
         return "\n".join(lines)
 
 
@@ -132,6 +158,9 @@ class _AgentRecord:
     condition: threading.Condition = field(
         default_factory=lambda: threading.Condition(threading.RLock())
     )
+    isolation: str = "shared"
+    forked_turns: int = 0
+    workspace: WorkspaceRecord | None = None
 
 
 class AgentManager:
@@ -154,6 +183,8 @@ class AgentManager:
         permission_broker: PermissionBroker | None = None,
         workflow_state: WorkflowState | None = None,
         workflow_runtime: WorkflowRuntime | None = None,
+        root_manager: ContextManager | None = None,
+        workspace_manager: WorktreeManager | None = None,
     ) -> None:
         self.session_context = session_context
         self.budget = budget
@@ -164,6 +195,8 @@ class AgentManager:
         self.permission_broker = permission_broker
         self.workflow_state = workflow_state
         self.workflow_runtime = workflow_runtime
+        self.root_manager = root_manager
+        self.workspace_manager = workspace_manager
         self._child_runner = child_runner
         self._id_factory = id_factory or (lambda: f"agent_{secrets.token_hex(6)}")
         self._clock = clock
@@ -174,13 +207,27 @@ class AgentManager:
         self._lock = threading.RLock()
         self._closed = False
         self._close_complete = threading.Event()
+        if self.workspace_manager is not None:
+            self.workspace_manager.mark_active_as_orphaned()
+            if self.workflow_runtime is not None:
+                self.workflow_runtime.register_stage_listener(
+                    on_accept=self.workspace_manager.accept_integrated,
+                    on_rollback=self.workspace_manager.rollback_integrated,
+                )
 
     @property
     def running_count(self) -> int:
         with self._lock:
             return sum(_is_active(item.status) for item in self._agents.values())
 
-    def start(self, description: str, prompt: str) -> AgentSnapshot:
+    def start(
+        self,
+        description: str,
+        prompt: str,
+        *,
+        isolation: str = "shared",
+        fork_turns: int = 0,
+    ) -> AgentSnapshot:
         description = description.strip()
         prompt = prompt.strip()
         if not description or len(description) > MAX_AGENT_DESCRIPTION_CHARS:
@@ -191,23 +238,40 @@ class AgentManager:
             raise ValueError(
                 f"prompt must contain 1-{MAX_AGENT_PROMPT_CHARS} characters"
             )
+        if isolation not in {"shared", "worktree"}:
+            raise ValueError("isolation must be shared or worktree")
+        if not isinstance(fork_turns, int) or not 0 <= fork_turns <= MAX_FORK_TURNS:
+            raise ValueError(f"fork_turns must be between 0 and {MAX_FORK_TURNS}")
         with self._lock:
             self._require_capacity()
             self._evict_terminal_agents()
             agent_id = self._new_agent_id()
+            workspace = None
+            child_context = self.session_context
+            if isolation == "worktree":
+                if self.workspace_manager is None:
+                    raise AgentError("Worktree isolation is unavailable for this project")
+                workspace = self.workspace_manager.create(agent_id)
+                child_context = SessionContext.capture(workspace.path)
             record = _AgentRecord(
                 agent_id=agent_id,
                 description=description,
-                manager=ContextManager(self.session_context, self.budget),
+                manager=ContextManager(child_context, self.budget),
                 todos=TodoState(),
                 token=CancellationToken(),
                 started_at=self._clock(),
+                isolation=isolation,
+                workspace=workspace,
             )
+            record.forked_turns = self._fork_context(record.manager, fork_turns)
             self._agents[agent_id] = record
             self._events.append(AgentEvent(agent_id, "starting", description, 1))
             try:
                 self._launch(record, prompt)
             except BaseException:
+                if workspace is not None and self.workspace_manager is not None:
+                    self.workspace_manager.fail(agent_id)
+                    self.workspace_manager.discard(agent_id, confirmed=True)
                 del self._agents[agent_id]
                 if self._events and self._events[-1].agent_id == agent_id:
                     self._events.pop()
@@ -256,6 +320,10 @@ class AgentManager:
             if _is_active(record.status):
                 raise AgentError(f"Agent {agent_id} is already running")
             self._require_capacity()
+            if record.isolation == "worktree":
+                if self.workspace_manager is None:
+                    raise AgentError("The isolated workspace manager is unavailable")
+                record.workspace = self.workspace_manager.activate(agent_id)
             previous = (
                 record.generation,
                 record.turn_count,
@@ -281,6 +349,8 @@ class AgentManager:
             try:
                 self._launch(record, message)
             except BaseException:
+                if record.isolation == "worktree" and self.workspace_manager is not None:
+                    record.workspace = self.workspace_manager.fail(agent_id)
                 (
                     record.generation,
                     record.turn_count,
@@ -294,6 +364,36 @@ class AgentManager:
                 ) = previous
                 self._events.pop()
                 raise
+        return self._snapshot(record)
+
+    def diff(self, agent_id: str) -> str:
+        record = self._get(agent_id)
+        if record.isolation != "worktree" or self.workspace_manager is None:
+            raise AgentError("Only worktree-isolated Agents have reviewable diffs")
+        return self.workspace_manager.diff_text(agent_id)
+
+    def integrate(self, agent_id: str) -> AgentSnapshot:
+        record = self._get(agent_id)
+        self._require_terminal_workspace(record)
+        assert self.workspace_manager is not None
+        record.workspace = self.workspace_manager.integrate(agent_id)
+        return self._snapshot(record)
+
+    def reconcile(self, agent_id: str) -> AgentSnapshot:
+        record = self._get(agent_id)
+        self._require_terminal_workspace(record)
+        assert self.workspace_manager is not None
+        record.workspace = self.workspace_manager.reconcile(agent_id)
+        record.manager.session_context = SessionContext.capture(record.workspace.path)
+        return self._snapshot(record)
+
+    def discard(self, agent_id: str, *, confirmed: bool) -> AgentSnapshot:
+        record = self._get(agent_id)
+        self._require_terminal_workspace(record)
+        assert self.workspace_manager is not None
+        record.workspace = self.workspace_manager.discard(
+            agent_id, confirmed=confirmed
+        )
         return self._snapshot(record)
 
     def stop(self, agent_id: str, timeout_seconds: float = 10.0) -> AgentSnapshot:
@@ -347,7 +447,8 @@ class AgentManager:
         if not snapshots:
             return "No child Agents."
         return "\n".join(
-            f"{item.agent_id}  {item.status}  {_bounded(item.description)}"
+            f"{item.agent_id}  {item.status}  "
+            f"{item.workspace_status or item.isolation}  {_bounded(item.description)}"
             for item in snapshots
         )
 
@@ -405,8 +506,10 @@ class AgentManager:
             else:
                 result = self._run_default_child(record, message)
             if record.token.cancelled:
+                self._preserve_workspace(record)
                 self._finish(record, generation, "stopped")
             else:
+                self._finalize_workspace(record)
                 self._finish(record, generation, "completed", result=result)
         except BaseException as error:
             status: AgentStatus = "stopped" if record.token.cancelled else "failed"
@@ -414,6 +517,7 @@ class AgentManager:
             result = (
                 _latest_tool_output(record.manager) if status == "stopped" else None
             )
+            self._preserve_workspace(record)
             self._finish(record, generation, status, result=result, error=detail)
 
     def _run_default_child(self, record: _AgentRecord, message: str) -> str:
@@ -422,13 +526,17 @@ class AgentManager:
 
         request_context: list[Any] = []
         overlays = [WORKER_INSTRUCTIONS]
-        child_tasks = BackgroundTaskManager(sandbox_runtime=self.sandbox_runtime)
+        child_sandbox = self._child_sandbox(record)
+        child_tasks = BackgroundTaskManager(
+            sandbox_runtime=child_sandbox,
+            cwd=record.manager.session_context.cwd,
+        )
         try:
             registry = build_child_tool_registry(
                 record.todos,
                 record.token,
                 child_tasks,
-                self.sandbox_runtime,
+                child_sandbox,
             )
             if self.capability_runtime is not None:
                 skill_state = SkillTurnState(self.capability_runtime.snapshot.skills)
@@ -481,6 +589,71 @@ class AgentManager:
                         "The child Agent's private execution sessions were stopped.",
                     )
 
+    def _child_sandbox(self, record: _AgentRecord) -> SandboxRuntime | None:
+        if self.sandbox_runtime is None or record.isolation != "worktree":
+            return self.sandbox_runtime
+        parent = self.sandbox_runtime.config
+        context = record.manager.session_context
+        return SandboxRuntime(
+            SandboxConfig(
+                parent.mode,
+                context.project_root,
+                context.cwd,
+                parent.image,
+                parent.network_enabled,
+            )
+        )
+
+    def _finalize_workspace(self, record: _AgentRecord) -> None:
+        if record.isolation == "worktree" and self.workspace_manager is not None:
+            record.workspace = self.workspace_manager.finalize(record.agent_id)
+
+    def _preserve_workspace(self, record: _AgentRecord) -> None:
+        if record.isolation == "worktree" and self.workspace_manager is not None:
+            try:
+                record.workspace = self.workspace_manager.fail(record.agent_id)
+            except Exception:  # noqa: BLE001 - retain the original child failure
+                pass
+
+    def _require_terminal_workspace(self, record: _AgentRecord) -> None:
+        if _is_active(record.status):
+            raise AgentError(f"Agent {record.agent_id} is still running")
+        if record.isolation != "worktree" or self.workspace_manager is None:
+            raise AgentError("This Agent has no isolated workspace")
+
+    def _fork_context(self, manager: ContextManager, fork_turns: int) -> int:
+        if fork_turns == 0 or self.root_manager is None:
+            return 0
+        transcript = self.root_manager.conversation.transcript
+        rounds: list[list[ConversationSegment]] = []
+        current: list[ConversationSegment] | None = None
+        for segment in transcript:
+            if segment.kind == "user":
+                current = [segment]
+                rounds.append(current)
+            elif segment.kind == "model" and current is not None:
+                visible = _visible_model_segment(segment)
+                if visible is not None:
+                    current.append(visible)
+        selected = rounds[-fork_turns:]
+        bounded: list[ConversationSegment] = []
+        used = 0
+        actual = 0
+        for round_segments in reversed(selected):
+            size = sum(
+                len(str(item))
+                for segment in round_segments
+                for item in segment.items
+            )
+            if bounded and used + size > MAX_FORK_CHARS:
+                break
+            bounded[0:0] = [segment.clone() for segment in round_segments]
+            used += size
+            actual += 1
+        manager.conversation.transcript = [segment.clone() for segment in bounded]
+        manager.conversation.active = [segment.clone() for segment in bounded]
+        return actual
+
     def _observe(self, record: _AgentRecord, event: Any) -> None:
         with record.condition:
             if isinstance(event, TurnStarted):
@@ -523,6 +696,7 @@ class AgentManager:
     def _snapshot(self, record: _AgentRecord) -> AgentSnapshot:
         with record.condition:
             ended_at = record.ended_at or self._clock()
+            workspace = record.workspace
             return AgentSnapshot(
                 agent_id=record.agent_id,
                 status=record.status,
@@ -535,6 +709,15 @@ class AgentManager:
                 last_activity=record.last_activity,
                 result=record.result,
                 error=record.error,
+                isolation=record.isolation,
+                forked_turns=record.forked_turns,
+                workspace_status=workspace.status if workspace is not None else None,
+                workspace_path=workspace.path if workspace is not None else None,
+                workspace_branch=workspace.branch if workspace is not None else None,
+                changed_files=workspace.changed_files if workspace is not None else 0,
+                conflict_paths=(
+                    workspace.conflict_paths if workspace is not None else ()
+                ),
             )
 
     def _get(self, agent_id: str) -> _AgentRecord:
@@ -609,3 +792,17 @@ def _replace_latest_tool_output(manager: ContextManager, output: str) -> None:
         if isinstance(item, dict) and item.get("type") == "function_call_output":
             item["output"] = output
             return
+
+
+def _visible_model_segment(
+    segment: ConversationSegment,
+) -> ConversationSegment | None:
+    """Retain visible assistant messages, never tool calls or reasoning state."""
+    visible = [
+        item
+        for item in segment.items
+        if isinstance(item, dict)
+        and item.get("type") == "message"
+        and item.get("role", "assistant") == "assistant"
+    ]
+    return ConversationSegment("model", visible) if visible else None

@@ -12,7 +12,7 @@ import pytest
 
 from coding_kid.agents import AgentError, AgentManager
 from coding_kid.context import SessionContext
-from coding_kid.context_manager import ContextBudget
+from coding_kid.context_manager import ContextBudget, ContextManager, ConversationSegment
 from coding_kid.events import CancellationToken, EventSink, TurnCancelled
 from coding_kid.checkpoints import CheckpointManager
 from coding_kid.permissions import (
@@ -24,6 +24,7 @@ from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
 from coding_kid.tools import TodoState
 from coding_kid.workflow import ApprovalPolicy, WorkflowState
 from coding_kid.workflow_runtime import WorkflowRuntime
+from coding_kid.worktrees import WorktreeManager
 
 
 def text_response(text: str) -> SimpleNamespace:
@@ -61,6 +62,29 @@ def context(tmp_path: Path) -> SessionContext:
         local_date="2026-08-05",
         project_root=tmp_path,
         project_instructions=(),
+    )
+
+
+def committed_repo(tmp_path: Path) -> None:
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "shared.txt").write_text("root\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "shared.txt"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(tmp_path),
+            "-c",
+            "user.name=Coding Kid Tests",
+            "-c",
+            "user.email=tests@example.invalid",
+            "commit",
+            "-qm",
+            "baseline",
+        ],
+        check=True,
     )
 
 
@@ -111,13 +135,125 @@ def test_child_mutation_approval_routes_through_shared_root_broker(
         finished, timed_out = agents.wait(child.agent_id, 2)
     finally:
         agents.close()
-
     assert not timed_out
     assert finished.status == "completed"
     assert target.read_text(encoding="utf-8") == "before"
     assert len(prompt_threads) == 1
     assert prompt_threads[0].startswith("coding-kid-agent")
 
+
+def test_isolated_agent_changes_only_enter_root_after_integration(
+    tmp_path: Path,
+) -> None:
+    committed_repo(tmp_path)
+    root_context = context(tmp_path)
+    worktrees = WorktreeManager(tmp_path, tmp_path.parent / "agent-worktrees")
+
+    def child_runner(
+        manager: ContextManager,
+        _todos: TodoState,
+        _message: str,
+        _token: CancellationToken,
+        _events: EventSink,
+    ) -> str:
+        (manager.session_context.cwd / "shared.txt").write_text(
+            "child\n", encoding="utf-8"
+        )
+        (manager.session_context.cwd / "new.txt").write_text(
+            "private\n", encoding="utf-8"
+        )
+        return "implemented privately"
+
+    agents = AgentManager(
+        root_context,
+        ContextBudget(None, "test"),
+        child_runner=child_runner,
+        id_factory=lambda: "isolated",
+        workspace_manager=worktrees,
+    )
+    try:
+        started = agents.start(
+            "isolated change", "edit files", isolation="worktree"
+        )
+        finished, timed_out = agents.wait(started.agent_id, 5)
+        assert timed_out is False
+        assert finished.workspace_status == "ready"
+        assert (tmp_path / "shared.txt").read_text(encoding="utf-8") == "root\n"
+        assert not (tmp_path / "new.txt").exists()
+        diff = agents.diff(started.agent_id)
+        assert "+child" in diff
+        assert "new.txt" in diff
+
+        integrated = agents.integrate(started.agent_id)
+        assert integrated.workspace_status == "integrated_pending"
+        assert (tmp_path / "shared.txt").read_text(encoding="utf-8") == "child\n"
+        assert (tmp_path / "new.txt").read_text(encoding="utf-8") == "private\n"
+    finally:
+        agents.close()
+
+
+def test_context_fork_retains_only_bounded_visible_rounds(tmp_path: Path) -> None:
+    root_context = context(tmp_path)
+    root_manager = ContextManager(root_context, ContextBudget(None, "test"))
+    root_manager.conversation.transcript = [
+        ConversationSegment("user", [{"role": "user", "content": "first"}]),
+        ConversationSegment(
+            "model",
+            [
+                {"type": "reasoning", "summary": "hidden"},
+                {"type": "function_call", "name": "read"},
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "visible one"}],
+                },
+            ],
+        ),
+        ConversationSegment("user", [{"role": "user", "content": "second"}]),
+        ConversationSegment(
+            "model",
+            [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "visible two"}],
+                }
+            ],
+        ),
+    ]
+    observed: list[list[object]] = []
+
+    def child_runner(
+        manager: ContextManager,
+        _todos: TodoState,
+        _message: str,
+        _token: CancellationToken,
+        _events: EventSink,
+    ) -> str:
+        observed.append(manager.conversation.active_items())
+        return "done"
+
+    agents = AgentManager(
+        root_context,
+        ContextBudget(None, "test"),
+        child_runner=child_runner,
+        root_manager=root_manager,
+        id_factory=lambda: "forked",
+    )
+    try:
+        started = agents.start(
+            "fork context", "continue", isolation="shared", fork_turns=1
+        )
+        finished, _ = agents.wait(started.agent_id, 5)
+        assert finished.forked_turns == 1
+        rendered = str(observed[0])
+        assert "second" in rendered
+        assert "visible two" in rendered
+        assert "first" not in rendered
+        assert "function_call" not in rendered
+        assert "reasoning" not in rendered
+    finally:
+        agents.close()
 
 def test_agents_run_in_parallel_and_enforce_the_running_limit(tmp_path: Path) -> None:
     barrier = threading.Barrier(2)

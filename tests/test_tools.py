@@ -356,8 +356,15 @@ def test_agent_tools_bind_one_manager_and_use_strict_schemas() -> None:
     calls: list[tuple[Any, ...]] = []
 
     class FakeAgents:
-        def start(self, description: str, prompt: str) -> Any:
-            calls.append(("start", description, prompt))
+        def start(
+            self,
+            description: str,
+            prompt: str,
+            *,
+            isolation: str,
+            fork_turns: int,
+        ) -> Any:
+            calls.append(("start", description, prompt, isolation, fork_turns))
             return SimpleNamespace(model_text=lambda: "agent_id: agent_1")
 
         def status_text(self) -> str:
@@ -417,9 +424,10 @@ def test_agent_tools_bind_one_manager_and_use_strict_schemas() -> None:
         "agent_id",
         "message",
         "timeout_seconds",
+        "confirm_discard",
     ]
     assert calls == [
-        ("start", "inspect", "read it"),
+        ("start", "inspect", "read it", "worktree", 0),
         ("wait", "agent_1", 3, token),
     ]
 

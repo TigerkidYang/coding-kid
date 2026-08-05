@@ -39,10 +39,22 @@ from coding_kid.workflow_runtime import (
     InteractionResponse,
     WorkflowRuntime,
 )
+from coding_kid.worktrees import WorktreeError, WorktreeManager
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
 MAX_TOOL_DISPLAY_CHARS = 140
+
+
+def _worktree_manager(handle: SessionHandle) -> WorktreeManager | None:
+    """Enable isolation only when the captured project is a valid Git worktree."""
+    try:
+        return WorktreeManager(
+            handle.context.project_root,
+            handle.store.project_dir / "worktrees",
+        )
+    except WorktreeError:
+        return None
 
 
 def _safe_output_function(output_function: OutputFunction) -> OutputFunction:
@@ -179,6 +191,12 @@ def chat(
         permission_broker=permission_broker,
         workflow_state=(workflow_runtime.state if workflow_runtime else None),
         workflow_runtime=workflow_runtime,
+        root_manager=manager,
+        workspace_manager=(
+            _worktree_manager(session_handle)
+            if session_handle is not None
+            else None
+        ),
     )
     workflow_state = (
         workflow_runtime.state
@@ -917,6 +935,8 @@ def main(options: SessionOptions | None = None) -> None:
             permission_broker=permission_broker,
             workflow_state=handle.workflow,
             workflow_runtime=workflow_runtime,
+            root_manager=handle.manager,
+            workspace_manager=_worktree_manager(handle),
         )
         managers["agent"] = agent_manager
         if sys.stdin.isatty() and sys.stdout.isatty():
