@@ -12,7 +12,11 @@ import pytest
 
 from coding_kid.agents import AgentError, AgentManager
 from coding_kid.context import SessionContext
-from coding_kid.context_manager import ContextBudget, ContextManager, ConversationSegment
+from coding_kid.context_manager import (
+    ContextBudget,
+    ContextManager,
+    ConversationSegment,
+)
 from coding_kid.events import CancellationToken, EventSink, TurnCancelled
 from coding_kid.checkpoints import CheckpointManager
 from coding_kid.permissions import (
@@ -172,9 +176,7 @@ def test_isolated_agent_changes_only_enter_root_after_integration(
         workspace_manager=worktrees,
     )
     try:
-        started = agents.start(
-            "isolated change", "edit files", isolation="worktree"
-        )
+        started = agents.start("isolated change", "edit files", isolation="worktree")
         finished, timed_out = agents.wait(started.agent_id, 5)
         assert timed_out is False
         assert finished.workspace_status == "ready"
@@ -254,6 +256,7 @@ def test_context_fork_retains_only_bounded_visible_rounds(tmp_path: Path) -> Non
         assert "reasoning" not in rendered
     finally:
         agents.close()
+
 
 def test_agents_run_in_parallel_and_enforce_the_running_limit(tmp_path: Path) -> None:
     barrier = threading.Barrier(2)

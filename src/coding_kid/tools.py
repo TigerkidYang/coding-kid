@@ -198,9 +198,7 @@ def agent(
     if action == "reconcile":
         return agent_manager.reconcile(agent_id).model_text()
     if action == "discard":
-        return agent_manager.discard(
-            agent_id, confirmed=confirm_discard
-        ).model_text()
+        return agent_manager.discard(agent_id, confirmed=confirm_discard).model_text()
     if action == "stop":
         return agent_manager.stop(agent_id, timeout_seconds).model_text()
     snapshot, timed_out = agent_manager.wait(
@@ -1051,14 +1049,16 @@ def build_tool_registry(
             )
         )
         entries["agent"]["function"] = (
-            lambda action, agent_id, message, timeout_seconds, confirm_discard=False: agent(
-                action,
-                agent_id,
-                message,
-                timeout_seconds,
-                confirm_discard,
-                agent_manager=agent_manager,
-                cancellation_token=cancellation_token,
+            lambda action, agent_id, message, timeout_seconds, confirm_discard=False: (
+                agent(
+                    action,
+                    agent_id,
+                    message,
+                    timeout_seconds,
+                    confirm_discard,
+                    agent_manager=agent_manager,
+                    cancellation_token=cancellation_token,
+                )
             )
         )
     if web_runtime is not None:
@@ -1074,8 +1074,8 @@ def build_tool_registry(
             cancellation_token=cancellation_token,
         )
         for name in ("web_search", "web_fetch"):
-            entries[name]["sandbox_check"] = lambda _arguments: (
-                _require_web_network(sandbox_runtime)
+            entries[name]["sandbox_check"] = lambda _arguments: _require_web_network(
+                sandbox_runtime
             )
     return ToolRegistry(entries)
 
@@ -1161,8 +1161,8 @@ def build_child_tool_registry(
             cancellation_token=cancellation_token,
         )
         for name in ("web_search", "web_fetch"):
-            entries[name]["sandbox_check"] = lambda _arguments: (
-                _require_web_network(sandbox_runtime)
+            entries[name]["sandbox_check"] = lambda _arguments: _require_web_network(
+                sandbox_runtime
             )
     else:
         entries.pop("web_search")

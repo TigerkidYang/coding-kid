@@ -69,7 +69,9 @@ class WorkspaceRecord:
                 head_commit=str(value["head_commit"]),
                 status=status,  # type: ignore[arg-type]
                 changed_files=int(value.get("changed_files", 0)),
-                conflict_paths=tuple(str(item) for item in value.get("conflict_paths", [])),
+                conflict_paths=tuple(
+                    str(item) for item in value.get("conflict_paths", [])
+                ),
             )
         except (KeyError, TypeError, ValueError) as error:
             raise WorktreeError("Invalid workspace manifest") from error
@@ -139,7 +141,9 @@ class WorktreeManager:
         except FileNotFoundError as error:
             raise WorktreeError(f"No isolated workspace for {agent_id}") from error
         except (OSError, ValueError) as error:
-            raise WorktreeError(f"Cannot read workspace manifest for {agent_id}") from error
+            raise WorktreeError(
+                f"Cannot read workspace manifest for {agent_id}"
+            ) from error
         self._validate_record(record)
         return record
 
@@ -195,7 +199,9 @@ class WorktreeManager:
                 Path(record.path), ["diff", "--cached", "--quiet"], check=False
             )
             if staged.returncode not in {0, 1}:
-                raise WorktreeError(self._detail(staged, "Cannot inspect workspace changes"))
+                raise WorktreeError(
+                    self._detail(staged, "Cannot inspect workspace changes")
+                )
             if staged.returncode == 1:
                 self._commit(Path(record.path), f"Coding Kid Agent {agent_id} changes")
             record.head_commit = self._head(Path(record.path))
@@ -219,14 +225,22 @@ class WorktreeManager:
         record = self.get(agent_id)
         self._validate_git_identity(record)
         workspace = Path(record.path)
-        stat = self._git(
-            workspace,
-            ["diff", "--stat", record.baseline_commit, "HEAD"],
-        ).stdout.decode("utf-8", errors="replace").strip()
-        names = self._git(
-            workspace,
-            ["diff", "--name-status", record.baseline_commit, "HEAD"],
-        ).stdout.decode("utf-8", errors="replace").strip()
+        stat = (
+            self._git(
+                workspace,
+                ["diff", "--stat", record.baseline_commit, "HEAD"],
+            )
+            .stdout.decode("utf-8", errors="replace")
+            .strip()
+        )
+        names = (
+            self._git(
+                workspace,
+                ["diff", "--name-status", record.baseline_commit, "HEAD"],
+            )
+            .stdout.decode("utf-8", errors="replace")
+            .strip()
+        )
         patch = self._git(
             workspace,
             ["diff", "--no-ext-diff", record.baseline_commit, "HEAD"],
@@ -237,7 +251,9 @@ class WorktreeManager:
         if patch:
             text += f"\n\nDiff:\n{patch}"
         if len(text) > MAX_WORKSPACE_DIFF_CHARS:
-            text = f"{text[:MAX_WORKSPACE_DIFF_CHARS]}\n... workspace diff truncated ..."
+            text = (
+                f"{text[:MAX_WORKSPACE_DIFF_CHARS]}\n... workspace diff truncated ..."
+            )
         return text
 
     def integrate(self, agent_id: str) -> WorkspaceRecord:
@@ -441,9 +457,7 @@ class WorktreeManager:
         return tuple(os.fsdecode(item) for item in output.split(b"\0") if item)
 
     def _working_changed_paths(self, record: WorkspaceRecord) -> tuple[str, ...]:
-        output = self._git(
-            Path(record.path), ["status", "--porcelain", "-z"]
-        ).stdout
+        output = self._git(Path(record.path), ["status", "--porcelain", "-z"]).stdout
         paths: list[str] = []
         for item in output.split(b"\0"):
             if len(item) > 3:
@@ -541,13 +555,17 @@ class WorktreeManager:
         try:
             relative = path.relative_to(self.workspaces_root)
         except ValueError as error:
-            raise WorktreeError(f"Workspace path is not application-owned: {path}") from error
+            raise WorktreeError(
+                f"Workspace path is not application-owned: {path}"
+            ) from error
         if len(relative.parts) != 1 or not _AGENT_ID.fullmatch(relative.name):
             raise WorktreeError(f"Invalid owned workspace path: {path}")
 
     def _safe_target(self, root: Path, relative: str) -> Path:
         candidate = Path(relative)
-        if candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts):
+        if candidate.is_absolute() or any(
+            part in {"", ".", ".."} for part in candidate.parts
+        ):
             raise WorktreeError(f"Unsafe Git path: {relative}")
         target = Path(os.path.abspath(root / candidate))
         try:
@@ -589,12 +607,14 @@ class WorktreeManager:
             check=False,
         )
         if check and result.returncode != 0:
-            raise WorktreeError(self._detail(result, f"Git {' '.join(arguments)} failed"))
+            raise WorktreeError(
+                self._detail(result, f"Git {' '.join(arguments)} failed")
+            )
         return result
 
     @staticmethod
     def _detail(result: subprocess.CompletedProcess[bytes], prefix: str) -> str:
-        detail = (result.stderr or result.stdout).decode(
-            "utf-8", errors="replace"
-        ).strip()
+        detail = (
+            (result.stderr or result.stdout).decode("utf-8", errors="replace").strip()
+        )
         return f"{prefix}: {detail}" if detail else prefix

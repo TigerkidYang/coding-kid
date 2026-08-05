@@ -259,7 +259,8 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     bundled_root = ROOT / "src" / "coding_kid" / "_runtimes" / version / "coding_kid"
     excluded = (
         {"__main__.py", "launcher.py"}
-        if version in {"v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12", "v13"}
+        if version
+        in {"v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12", "v13"}
         else set()
     )
     archived_files = {

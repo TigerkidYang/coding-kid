@@ -400,9 +400,7 @@ class CodingKidApp(App[None]):
                     and not (len(parts) == 4 and parts[3] == "--confirm")
                 ):
                     suffix = " --confirm" if action == "discard" else ""
-                    self._show_task_stop_error(
-                        f"Usage: /agent {action} <id>{suffix}"
-                    )
+                    self._show_task_stop_error(f"Usage: /agent {action} <id>{suffix}")
                 else:
                     self._start_agent_action(
                         action,
@@ -1453,12 +1451,8 @@ class CodingKidApp(App[None]):
             exit_on_error=False,
         )
 
-    def _run_agent_action(
-        self, action: str, agent_id: str, confirmed: bool
-    ) -> None:
-        effect = (
-            ToolEffect.READ_ONLY if action == "diff" else ToolEffect.DESTRUCTIVE
-        )
+    def _run_agent_action(self, action: str, agent_id: str, confirmed: bool) -> None:
+        effect = ToolEffect.READ_ONLY if action == "diff" else ToolEffect.DESTRUCTIVE
         prepared = False
         try:
             if self.workflow_runtime is not None:

@@ -253,7 +253,9 @@ class AgentManager:
             child_context = self.session_context
             if isolation == "worktree":
                 if self.workspace_manager is None:
-                    raise AgentError("Worktree isolation is unavailable for this project")
+                    raise AgentError(
+                        "Worktree isolation is unavailable for this project"
+                    )
                 workspace = self.workspace_manager.create(agent_id)
                 child_context = SessionContext.capture(workspace.path)
             record = _AgentRecord(
@@ -352,7 +354,10 @@ class AgentManager:
             try:
                 self._launch(record, message)
             except BaseException:
-                if record.isolation == "worktree" and self.workspace_manager is not None:
+                if (
+                    record.isolation == "worktree"
+                    and self.workspace_manager is not None
+                ):
                     record.workspace = self.workspace_manager.fail(agent_id)
                 (
                     record.generation,
@@ -394,9 +399,7 @@ class AgentManager:
         record = self._get(agent_id)
         self._require_terminal_workspace(record)
         assert self.workspace_manager is not None
-        record.workspace = self.workspace_manager.discard(
-            agent_id, confirmed=confirmed
-        )
+        record.workspace = self.workspace_manager.discard(agent_id, confirmed=confirmed)
         return self._snapshot(record)
 
     def stop(self, agent_id: str, timeout_seconds: float = 10.0) -> AgentSnapshot:
@@ -645,9 +648,7 @@ class AgentManager:
         actual = 0
         for round_segments in reversed(selected):
             size = sum(
-                len(str(item))
-                for segment in round_segments
-                for item in segment.items
+                len(str(item)) for segment in round_segments for item in segment.items
             )
             if bounded and used + size > MAX_FORK_CHARS:
                 break

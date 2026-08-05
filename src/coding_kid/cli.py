@@ -196,9 +196,7 @@ def chat(
         workflow_runtime=workflow_runtime,
         root_manager=manager,
         workspace_manager=(
-            _worktree_manager(session_handle)
-            if session_handle is not None
-            else None
+            _worktree_manager(session_handle) if session_handle is not None else None
         ),
         web_runtime=web_runtime,
     )
@@ -346,9 +344,7 @@ def chat(
                     output_function("Usage: /agent discard <id> --confirm")
                     continue
                 effect = (
-                    ToolEffect.READ_ONLY
-                    if action == "diff"
-                    else ToolEffect.DESTRUCTIVE
+                    ToolEffect.READ_ONLY if action == "diff" else ToolEffect.DESTRUCTIVE
                 )
                 prepared = False
                 try:

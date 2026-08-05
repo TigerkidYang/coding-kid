@@ -48,9 +48,7 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         self._address = address
 
     def connect(self) -> None:
-        self.sock = socket.create_connection(
-            (self._address, self.port), self.timeout
-        )
+        self.sock = socket.create_connection((self._address, self.port), self.timeout)
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
@@ -76,9 +74,7 @@ class _TextExtractor(HTMLParser):
         self._ignored = 0
         self._in_title = False
 
-    def handle_starttag(
-        self, tag: str, _attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, _attrs: list[tuple[str, str | None]]) -> None:
         if tag in {"script", "style", "noscript", "svg"}:
             self._ignored += 1
         if tag == "title":
@@ -359,7 +355,9 @@ def _require_public_addresses(hostname: str, addresses: tuple[str, ...]) -> None
         try:
             parsed = ipaddress.ip_address(address)
         except ValueError as error:
-            raise WebError(f"Resolver returned invalid address for {hostname}") from error
+            raise WebError(
+                f"Resolver returned invalid address for {hostname}"
+            ) from error
         if not parsed.is_global:
             raise WebError(f"Host {hostname} resolves to a non-public address")
 
@@ -395,7 +393,7 @@ def _charset(content_type: str) -> str:
     for part in content_type.split(";")[1:]:
         key, _, value = part.strip().partition("=")
         if key.casefold() == "charset" and value:
-            return value.strip('"\'')
+            return value.strip("\"'")
     return "utf-8"
 
 

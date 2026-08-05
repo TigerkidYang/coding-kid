@@ -299,7 +299,9 @@ def approval_key(tool_name: str, effect: ToolEffect, arguments: dict[str, Any]) 
         if tool_name == "web_fetch":
             from urllib.parse import urlsplit
 
-            hostname = (urlsplit(str(arguments.get("url", ""))).hostname or "").casefold()
+            hostname = (
+                urlsplit(str(arguments.get("url", ""))).hostname or ""
+            ).casefold()
             return f"external:web_fetch:{hostname}"
         if tool_name == "web_search":
             return "external:web_search:api.search.brave.com"

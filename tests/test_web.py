@@ -38,9 +38,9 @@ def test_search_requires_key_and_formats_numbered_provenance() -> None:
             b"]}}",
         )
 
-    result = WebRuntime(
-        brave_api_key="secret-token", requester=requester
-    ).search("python agents", 5)
+    result = WebRuntime(brave_api_key="secret-token", requester=requester).search(
+        "python agents", 5
+    )
 
     assert "[1] Official docs" in result
     assert "https://example.com/docs" in result
@@ -63,9 +63,9 @@ def test_fetch_follows_public_redirect_and_extracts_text() -> None:
             b"<title>Example</title><script>ignore()</script><h1>Hello</h1><p>World</p>",
         )
 
-    result = WebRuntime(
-        resolver=public_resolver, requester=requester
-    ).fetch("https://example.com/start#fragment")
+    result = WebRuntime(resolver=public_resolver, requester=requester).fetch(
+        "https://example.com/start#fragment"
+    )
 
     assert calls == ["https://example.com/start", "https://example.com/article"]
     assert "Title: Example" in result
@@ -103,18 +103,16 @@ def test_fetch_rejects_private_or_mixed_dns_and_redirects() -> None:
     with pytest.raises(WebError, match="non-public"):
         mixed.fetch("https://mixed.example/")
 
-    def redirect_requester(
-        _url: str, _headers: Mapping[str, str]
-    ) -> HttpResponse:
+    def redirect_requester(_url: str, _headers: Mapping[str, str]) -> HttpResponse:
         return HttpResponse(302, {"location": "http://private.example/"}, b"")
 
     def redirect_resolver(host: str, _port: int) -> tuple[str, ...]:
         return ("10.0.0.3",) if host == "private.example" else (PUBLIC_IP,)
 
     with pytest.raises(WebError, match="non-public"):
-        WebRuntime(
-            resolver=redirect_resolver, requester=redirect_requester
-        ).fetch("https://public.example/")
+        WebRuntime(resolver=redirect_resolver, requester=redirect_requester).fetch(
+            "https://public.example/"
+        )
 
 
 def test_fetch_rejects_binary_encoded_and_oversized_content() -> None:
@@ -162,8 +160,7 @@ def test_web_tools_are_mode_visible_but_sandbox_network_governed(
     )
     registry = build_tool_registry(sandbox_runtime=sandbox, web_runtime=runtime)
     names = {
-        item["name"]
-        for item in registry.definitions_for_mode(CollaborationMode.PLAN)
+        item["name"] for item in registry.definitions_for_mode(CollaborationMode.PLAN)
     }
     assert {"web_search", "web_fetch"} <= names
 
@@ -197,9 +194,7 @@ def test_search_and_redirect_fetch_honor_turn_cancellation() -> None:
         return HttpResponse(302, {"location": "/next"}, b"")
 
     with pytest.raises(TurnCancelled):
-        WebRuntime(
-            resolver=public_resolver, requester=cancel_on_redirect
-        ).fetch(
+        WebRuntime(resolver=public_resolver, requester=cancel_on_redirect).fetch(
             "https://example.com/start",
             cancellation_token=redirect_token,
         )
