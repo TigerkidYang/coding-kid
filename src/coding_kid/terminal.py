@@ -290,40 +290,44 @@ def _finish_readers(
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
-    _cleanup_sandbox(process)
-    if os.name == "nt":
-        # Use both boundaries. taskkill sees descendants that may have started
-        # just before Job assignment; the Job catches descendants created while
-        # taskkill is enumerating the tree.
-        if process.poll() is None:
+    try:
+        if os.name == "nt":
+            # Use both boundaries. taskkill sees descendants that may have started
+            # just before Job assignment; the Job catches descendants created while
+            # taskkill is enumerating the tree.
+            if process.poll() is None:
+                try:
+                    subprocess.run(
+                        ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        check=False,
+                        timeout=5,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                except (OSError, subprocess.SubprocessError):
+                    pass
+            _terminate_windows_job(process)
+        else:
+            if process.poll() is not None:
+                return
             try:
-                subprocess.run(
-                    ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=False,
-                    timeout=5,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
+                os.killpg(process.pid, 15)
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+                process.wait(timeout=1)
             except (OSError, subprocess.SubprocessError):
                 pass
-        _terminate_windows_job(process)
-    else:
-        if process.poll() is not None:
-            return
-        try:
-            os.killpg(process.pid, 15)
-        except OSError:
-            pass
-    try:
-        process.wait(timeout=1)
-    except subprocess.TimeoutExpired:
-        try:
-            process.kill()
-            process.wait(timeout=1)
-        except (OSError, subprocess.SubprocessError):
-            pass
+    finally:
+        # Stop the Docker client first. Otherwise an immediate cancellation can
+        # race `docker rm` and create the named container after cleanup returns.
+        _cleanup_sandbox(process, retry_missing=True)
 
 
 def _attach_windows_job(process: subprocess.Popen[bytes]) -> None:
@@ -483,14 +487,16 @@ def _close_windows_job(process: subprocess.Popen[bytes]) -> None:
     kernel32.CloseHandle(wintypes.HANDLE(job))
 
 
-def _cleanup_sandbox(process: subprocess.Popen[bytes]) -> None:
+def _cleanup_sandbox(
+    process: subprocess.Popen[bytes], *, retry_missing: bool = False
+) -> None:
     runtime = getattr(process, "_coding_kid_sandbox_runtime", None)
     container_name = getattr(process, "_coding_kid_container", None)
     if runtime is None or container_name is None:
         return
     setattr(process, "_coding_kid_sandbox_runtime", None)
     setattr(process, "_coding_kid_container", None)
-    runtime.remove_container(container_name)
+    runtime.remove_container(container_name, retry_missing=retry_missing)
 
 
 def _decode_process_output(data: bytes) -> str:

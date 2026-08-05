@@ -184,3 +184,26 @@ def test_remove_container_is_idempotent(tmp_path: Path) -> None:
     sandbox.remove_container("coding-kid-abc")
 
     assert calls == [["docker", "rm", "-f", "coding-kid-abc"]]
+
+
+def test_termination_cleanup_retries_container_creation_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0 if len(calls) == 3 else 1, "", "")
+
+    monkeypatch.setattr("coding_kid.sandbox.time.sleep", lambda _: None)
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.WORKSPACE_WRITE, project, project),
+        docker_executable="docker",
+        runner=runner,
+    )
+
+    sandbox.remove_container("coding-kid-race", retry_missing=True)
+
+    assert calls == [["docker", "rm", "-f", "coding-kid-race"]] * 3

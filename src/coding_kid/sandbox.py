@@ -9,6 +9,7 @@ from pathlib import Path
 import secrets
 import shutil
 import subprocess
+import time
 from typing import Callable, Sequence
 
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim-bookworm"
@@ -218,21 +219,31 @@ class SandboxRuntime:
         argv.extend([self.config.image, "/bin/sh", "-lc", command])
         return argv
 
-    def remove_container(self, container_name: str) -> None:
+    def remove_container(
+        self, container_name: str, *, retry_missing: bool = False
+    ) -> None:
         """Idempotently remove a command container and its process tree."""
         if not self.restricted:
             return
-        try:
-            self._runner(
-                [self.docker_executable, "rm", "-f", container_name],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=10,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            pass
+        attempts = 10 if retry_missing else 1
+        for attempt in range(attempts):
+            try:
+                result = self._runner(
+                    [self.docker_executable, "rm", "-f", container_name],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError):
+                return
+            if result.returncode == 0:
+                return
+            # An immediate cancellation can win the race with `docker run`
+            # registering its named container. Retry only on termination paths.
+            if attempt + 1 < attempts:
+                time.sleep(0.1)
 
     def status_text(self) -> str:
         backend = "docker" if self.restricted else "host"
