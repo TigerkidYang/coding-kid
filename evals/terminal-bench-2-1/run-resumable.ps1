@@ -1,6 +1,7 @@
 param(
     [int]$AttemptsPerTask = 5,
-    [int]$MaximumInfrastructureRetries = 3
+    [int]$MaximumInfrastructureRetries = 3,
+    [int]$MaximumConcurrency = 2
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,13 +79,23 @@ for ($index = 0; $index -lt $tasks.Count; $index++) {
     $jobPath = Join-Path $JobsRoot $jobName
     $marker = Join-Path $jobPath ".coding-kid-complete"
     $image = Get-TaskImage $task.FullName
+    $taskConfig = Get-Content -LiteralPath (Join-Path $task.FullName "task.toml")
+    $memoryLine = $taskConfig |
+        Where-Object { $_ -match '^memory_mb\s*=\s*(\d+)' } |
+        Select-Object -First 1
+    $memoryMB = if ($memoryLine -match '^memory_mb\s*=\s*(\d+)') {
+        [int]$Matches[1]
+    } else { 8192 }
+    $taskConcurrency = if ($memoryMB -le 2048) {
+        [Math]::Min(2, $MaximumConcurrency)
+    } else { 1 }
     if (Test-Path -LiteralPath $marker -PathType Leaf) {
         Write-Host "[$($index + 1)/$($tasks.Count)] complete: $($task.Name)"
         Remove-TaskImage $image
         continue
     }
 
-    Write-Host "[$($index + 1)/$($tasks.Count)] starting: $($task.Name)"
+    Write-Host "[$($index + 1)/$($tasks.Count)] starting: $($task.Name) (concurrency $taskConcurrency)"
     Ensure-TaskImage $image
     $completed = $false
     for ($retry = 0; $retry -le $MaximumInfrastructureRetries; $retry++) {
@@ -97,7 +108,7 @@ for ($index = 0; $index -lt $tasks.Count; $index++) {
                 --agent-import-path coding_kid_harbor:CodingKidAgent `
                 --model gpt-5.6-luna `
                 --n-attempts $AttemptsPerTask `
-                --n-concurrent 1 `
+                --n-concurrent $taskConcurrency `
                 --agent-setup-timeout-multiplier 5 `
                 --no-force-build `
                 --yes `

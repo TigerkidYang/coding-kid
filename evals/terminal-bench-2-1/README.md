@@ -72,5 +72,7 @@ resumes an existing job automatically.
 On machines without enough disk for all images at once, `run-resumable.ps1`
 creates one five-attempt Harbor job per task. It resumes an incomplete task,
 skips completed tasks, and removes only that task's benchmark image tags after
-the result is durable. Running the same command again continues at the first
-unfinished task.
+the result is durable. By default, tasks declaring at most 2 GB run two trials
+concurrently; larger tasks automatically remain single-trial because Docker's
+configured memory is below 8 GB. Running the same command again continues at
+the first unfinished task.
