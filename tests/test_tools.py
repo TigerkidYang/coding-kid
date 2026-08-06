@@ -418,6 +418,41 @@ def test_background_execute_and_task_actions(tmp_path: Path) -> None:
     assert "status: completed" in stopped
 
 
+def test_idle_management_tools_are_hidden_until_they_have_records(
+    tmp_path: Path,
+) -> None:
+    manager = BackgroundTaskManager(id_factory=lambda: "task_visible")
+    registry = build_tool_registry(manager)
+    try:
+        names = {item["name"] for item in registry.definitions()}
+        assert "task" not in names
+
+        script = tmp_path / "visible.py"
+        script.write_text("print('visible')\n", encoding="utf-8")
+        manager.start(f'"{sys.executable}" "{script}"')
+
+        names = {item["name"] for item in registry.definitions()}
+        assert "task" in names
+    finally:
+        manager.close()
+
+
+def test_empty_agent_manager_hides_management_and_uses_shared_default() -> None:
+    class EmptyAgents:
+        workspace_manager = None
+
+        def list(self) -> tuple[object, ...]:
+            return ()
+
+    registry = build_tool_registry(agent_manager=EmptyAgents())  # type: ignore[arg-type]
+    definitions = {item["name"]: item for item in registry.definitions()}
+
+    assert "agent" not in definitions
+    isolation = definitions["spawn_agent"]["parameters"]["properties"]["isolation"]
+    assert isolation["enum"] == ["shared"]
+    assert isolation["default"] == "shared"
+
+
 def test_background_tools_require_a_bound_runtime() -> None:
     assert dispatch_tool(
         "execute", {"command": "Write-Output hi", "background": True}

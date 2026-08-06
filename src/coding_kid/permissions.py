@@ -251,6 +251,10 @@ def _mode_error(
     mode: CollaborationMode, tool_name: str, effect: ToolEffect
 ) -> str | None:
     if mode is CollaborationMode.IMPLEMENTATION:
+        if tool_name in {"request_user_input", "propose_plan"}:
+            return (
+                f"Workflow mode {mode.value} blocks tool {tool_name} ({effect.value})"
+            )
         return None
     allowed_names = (
         {

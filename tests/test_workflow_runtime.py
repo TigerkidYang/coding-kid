@@ -62,6 +62,9 @@ def test_plan_tools_validate_questions_and_approve_with_checkpoint(
     )
     registry = runtime.bind_registry(build_tool_registry())
 
+    plan_names = {item["name"] for item in registry.definitions_for_mode(state.mode)}
+    assert {"request_user_input", "propose_plan"} <= plan_names
+
     assert "Choice A" in registry.dispatch(
         "request_user_input",
         {"questions": [{"question": "Which?", "choices": ["A", "B"]}]},
@@ -74,6 +77,11 @@ def test_plan_tools_validate_questions_and_approve_with_checkpoint(
     assert state.checkpoint_id is not None
     assert runtime.consume_clear_context()
     assert not runtime.consume_clear_context()
+    implementation_names = {
+        item["name"] for item in registry.definitions_for_mode(state.mode)
+    }
+    assert "request_user_input" not in implementation_names
+    assert "propose_plan" not in implementation_names
     event = state.drain_events()[0]
     assert event.previous is CollaborationMode.PLAN
     assert event.current is CollaborationMode.IMPLEMENTATION

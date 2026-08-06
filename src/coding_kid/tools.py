@@ -935,14 +935,22 @@ class ToolRegistry:
                 "strict": entry.get("strict", True),
             }
             for name, entry in self._entries.items()
-            if allowed_effects is None
-            or self.effect(name, {}).value in {item.value for item in allowed_effects}
+            if (not callable(entry.get("available")) or bool(entry["available"]()))
+            and (
+                allowed_effects is None
+                or self.effect(name, {}).value
+                in {item.value for item in allowed_effects}
+            )
         ]
 
     def definitions_for_mode(self, mode: CollaborationMode) -> list[dict[str, Any]]:
         """Expose only structurally valid tools for the active workflow mode."""
         if mode is CollaborationMode.IMPLEMENTATION:
-            return self.definitions()
+            return [
+                definition
+                for definition in self.definitions()
+                if definition["name"] not in {"request_user_input", "propose_plan"}
+            ]
         allowed_names = (
             {
                 "read",
@@ -1057,6 +1065,40 @@ def build_tool_registry(
     ):
         return DEFAULT_TOOL_REGISTRY
     entries = {name: dict(entry) for name, entry in TOOLS.items()}
+    entries["task"]["available"] = (
+        (lambda: bool(task_manager.list()))
+        if task_manager is not None
+        else lambda: False
+    )
+    entries["agent"]["available"] = (
+        (lambda: not hasattr(agent_manager, "list") or bool(agent_manager.list()))
+        if agent_manager is not None
+        else lambda: False
+    )
+    entries["web_search"]["available"] = (
+        (lambda: web_runtime.search_available)
+        if web_runtime is not None
+        else lambda: False
+    )
+    entries["web_fetch"]["available"] = (
+        (lambda: True) if web_runtime is not None else lambda: False
+    )
+    if (
+        agent_manager is not None
+        and getattr(agent_manager, "workspace_manager", None) is None
+    ):
+        spawn_parameters = entries["spawn_agent"]["parameters"]
+        entries["spawn_agent"]["parameters"] = {
+            **spawn_parameters,
+            "properties": {
+                **spawn_parameters["properties"],
+                "isolation": {
+                    "type": "string",
+                    "enum": ["shared"],
+                    "default": "shared",
+                },
+            },
+        }
     if sandbox_runtime is not None and sandbox_runtime.restricted:
         entries["execute"]["description"] = (
             "Run a POSIX shell command inside the active Linux sandbox. Short "

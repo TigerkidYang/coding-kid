@@ -100,6 +100,17 @@ def test_hidden_tool_name_cannot_bypass_mode(
     ).authorize(tool, effect, {})
 
     assert not result.allowed
+
+
+@pytest.mark.parametrize("tool", ["request_user_input", "propose_plan"])
+def test_plan_only_tool_cannot_bypass_implementation_mode(tool: str) -> None:
+    result = PermissionBroker(
+        ApprovalPolicy.FULL_ACCESS,
+        WorkflowState(CollaborationMode.IMPLEMENTATION),
+    ).authorize(tool, ToolEffect.INTERACTION, {})
+
+    assert not result.allowed
+    assert "implementation" in result.message
     assert tool in result.message
 
 

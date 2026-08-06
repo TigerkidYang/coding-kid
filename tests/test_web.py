@@ -172,6 +172,21 @@ def test_web_tools_are_mode_visible_but_sandbox_network_governed(
     assert "sandbox network policy" in authorization.message
 
 
+def test_web_search_is_hidden_without_a_key_but_fetch_remains_visible(
+    tmp_path: Path,
+) -> None:
+    runtime = WebRuntime(brave_api_key="")
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, tmp_path, tmp_path)
+    )
+    registry = build_tool_registry(sandbox_runtime=sandbox, web_runtime=runtime)
+
+    names = {item["name"] for item in registry.definitions()}
+
+    assert "web_search" not in names
+    assert "web_fetch" in names
+
+
 def test_search_and_redirect_fetch_honor_turn_cancellation() -> None:
     token = CancellationToken()
     token.cancel()
