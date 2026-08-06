@@ -63,3 +63,8 @@ harbor job resume --job-path evals/terminal-bench-2-1/jobs/<job-name>
 
 Use `--filter-error-type <ExceptionName>` only when deliberately retrying a
 known infrastructure failure. Do not retry ordinary reward-zero trials.
+
+`prefetch-domestic-images.ps1` refuses unknown registries, requires exactly 89
+task images, pulls missing Docker Hub images through `docker.1ms.run`, and
+verifies the retagged image IDs. `run-full.ps1` refuses to start while any
+official task image is missing and resumes an existing job automatically.

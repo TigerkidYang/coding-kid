@@ -14,6 +14,8 @@ from harbor.models.trial.paths import EnvironmentPaths
 class CodingKidAgent(BaseInstalledAgent):
     """Install a frozen wheel and run one non-interactive Coding Kid turn."""
 
+    _REMOTE_VENV = PurePosixPath("/installed-agent/venv")
+
     @staticmethod
     def name() -> str:
         return "coding-kid"
@@ -34,12 +36,18 @@ class CodingKidAgent(BaseInstalledAgent):
         await self.exec_as_root(
             environment,
             command=(
-                "if ! command -v python3 >/dev/null 2>&1; then "
                 "if command -v apt-get >/dev/null 2>&1; then "
                 "apt-get update && DEBIAN_FRONTEND=noninteractive "
-                "apt-get install -y python3 python3-pip; "
-                "else echo 'Python 3 is required' >&2; exit 1; fi; fi; "
-                "python3 -m pip install --no-cache-dir "
+                "apt-get install -y python3 python3-pip python3-venv; "
+                "elif command -v apk >/dev/null 2>&1; then "
+                "apk add --no-cache python3 py3-pip; "
+                "elif command -v yum >/dev/null 2>&1; then "
+                "yum install -y python3 python3-pip; "
+                "elif ! command -v python3 >/dev/null 2>&1; then "
+                "echo 'Python 3 is required' >&2; exit 1; fi; "
+                f"python3 -m venv {shlex.quote(self._REMOTE_VENV.as_posix())} && "
+                f"{shlex.quote((self._REMOTE_VENV / 'bin/pip').as_posix())} "
+                "install --no-cache-dir "
                 f"--index-url {shlex.quote(self._get_env('PIP_INDEX_URL') or 'https://mirrors.aliyun.com/pypi/simple/')} "
                 f"{shlex.quote(remote_wheel.as_posix())}"
             ),
@@ -71,11 +79,12 @@ class CodingKidAgent(BaseInstalledAgent):
             "PYTHONUNBUFFERED": "1",
         }
         output_path = EnvironmentPaths.agent_dir / "coding-kid.txt"
+        executable = self._REMOTE_VENV / "bin/coding-kid"
         await self.exec_as_agent(
             environment,
             command=(
                 f"printf '%s\\n' {shlex.quote(instruction)} | "
-                "coding-kid v14 --new "
+                f"{shlex.quote(executable.as_posix())} v14 --new "
                 "--sandbox danger-full-access "
                 "--mode implementation --approval full-access "
                 f"2>&1 | tee {shlex.quote(output_path.as_posix())}"
