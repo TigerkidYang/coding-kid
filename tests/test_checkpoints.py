@@ -133,6 +133,52 @@ def test_checkpoint_size_and_file_limits_fail_closed(
         CheckpointManager(project, tmp_path / "few", max_files=1).create()
 
 
+def test_checkpoint_works_when_git_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "plain-project"
+    project.mkdir()
+    (project / "before.txt").write_text("before", encoding="utf-8")
+    (project / ".git").mkdir()
+    (project / ".git" / "private").write_text("unchanged", encoding="utf-8")
+    original_run = subprocess.run
+
+    def missing_git(arguments: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        if arguments and arguments[0] == "git":
+            raise FileNotFoundError("git")
+        return original_run(arguments, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", missing_git)
+    manager = CheckpointManager(project, tmp_path / "state")
+    checkpoint = manager.create()
+    manager.prepare_effect(checkpoint)
+    (project / "before.txt").write_text("after", encoding="utf-8")
+    (project / "created.txt").write_text("created", encoding="utf-8")
+    changes = manager.record_effect(checkpoint)
+
+    assert changes.modified == ("before.txt",)
+    assert changes.created == ("created.txt",)
+    manager.rollback(checkpoint)
+    assert (project / "before.txt").read_text(encoding="utf-8") == "before"
+    assert not (project / "created.txt").exists()
+    assert (project / ".git" / "private").read_text(encoding="utf-8") == "unchanged"
+
+
+def test_checkpoint_works_outside_a_git_repository(tmp_path: Path) -> None:
+    project = tmp_path / "plain-project"
+    project.mkdir()
+    (project / "data.txt").write_text("before", encoding="utf-8")
+    manager = CheckpointManager(project, tmp_path / "state")
+
+    checkpoint = manager.create()
+    manager.prepare_effect(checkpoint)
+    (project / "data.txt").write_text("after", encoding="utf-8")
+    manager.record_effect(checkpoint)
+    manager.rollback(checkpoint)
+
+    assert (project / "data.txt").read_text(encoding="utf-8") == "before"
+
+
 def test_diff_is_bounded_and_accept_removes_protected_snapshot(
     project: Path, tmp_path: Path
 ) -> None:

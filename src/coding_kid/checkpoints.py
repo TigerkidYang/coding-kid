@@ -223,25 +223,68 @@ class CheckpointManager:
         return (self._directory(checkpoint_id) / "manifest.json").is_file()
 
     def _listed_paths(self) -> list[str]:
-        result = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(self.project_root),
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-            ],
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            detail = result.stderr.decode("utf-8", errors="replace").strip()
-            raise CheckpointError(f"Cannot enumerate rollback files: {detail}")
-        return sorted(os.fsdecode(item) for item in result.stdout.split(b"\0") if item)
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(self.project_root),
+                    "ls-files",
+                    "--cached",
+                    "--others",
+                    "--exclude-standard",
+                    "-z",
+                ],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return self._filesystem_paths()
+        if result.returncode == 0:
+            return sorted(
+                os.fsdecode(item) for item in result.stdout.split(b"\0") if item
+            )
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        if "not a git repository" in detail.casefold():
+            return self._filesystem_paths()
+        raise CheckpointError(f"Cannot enumerate rollback files: {detail}")
+
+    def _filesystem_paths(self) -> list[str]:
+        """Enumerate a non-Git project without making Git a runtime dependency."""
+        paths: list[str] = []
+        try:
+            for current, directories, filenames in os.walk(
+                self.project_root, topdown=True, followlinks=False
+            ):
+                current_path = Path(current)
+                retained: list[str] = []
+                for name in directories:
+                    candidate = current_path / name
+                    if current_path == self.project_root and name.casefold() in {
+                        ".git",
+                        ".coding-kid",
+                    }:
+                        continue
+                    if candidate.is_symlink():
+                        paths.append(candidate.relative_to(self.project_root).as_posix())
+                    else:
+                        retained.append(name)
+                directories[:] = retained
+                for name in filenames:
+                    candidate = current_path / name
+                    if candidate.is_file() or candidate.is_symlink():
+                        paths.append(candidate.relative_to(self.project_root).as_posix())
+                if len(paths) > self.max_files:
+                    raise CheckpointError(
+                        f"Checkpoint has more than {self.max_files} files; limit is "
+                        f"{self.max_files}"
+                    )
+        except OSError as error:
+            raise CheckpointError(
+                f"Cannot enumerate rollback files without Git: {error}"
+            ) from error
+        return sorted(paths)
 
     def _capture(
         self, paths: list[str], blobs: Path | None, *, save_blobs: bool
