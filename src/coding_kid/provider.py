@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import urllib.error
 import urllib.request
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from openai import OpenAI
 
@@ -16,6 +17,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 PROVIDER_BASE_URL_ENV = "CODING_KID_PROVIDER_BASE_URL"
 REASONING_EFFORT_ENV = "CODING_KID_REASONING_EFFORT"
 DISABLE_MAX_OUTPUT_TOKENS_ENV = "CODING_KID_DISABLE_MAX_OUTPUT_TOKENS"
+PROVIDER_TIMEOUT_ENV = "CODING_KID_PROVIDER_TIMEOUT_SECONDS"
 
 
 class ProviderIncompleteError(RuntimeError):
@@ -37,6 +39,18 @@ def required_environment(name: str) -> str:
 def provider_base_url() -> str:
     """Return the configured OpenAI-compatible Responses API base URL."""
     return os.getenv(PROVIDER_BASE_URL_ENV, OPENROUTER_BASE_URL).rstrip("/")
+
+
+def provider_timeout() -> float:
+    """Return the request timeout, retaining the historical default."""
+    raw = os.getenv(PROVIDER_TIMEOUT_ENV, "120").strip()
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise RuntimeError(f"{PROVIDER_TIMEOUT_ENV} must be a number") from error
+    if value <= 0:
+        raise RuntimeError(f"{PROVIDER_TIMEOUT_ENV} must be positive")
+    return value
 
 
 def _enabled(name: str) -> bool:
@@ -68,7 +82,7 @@ def generate(
     client = OpenAI(
         api_key=required_environment("OPENROUTER_API_KEY"),
         base_url=provider_base_url(),
-        timeout=120.0,
+        timeout=provider_timeout(),
         max_retries=0,
     )
     request: dict[str, Any] = {
@@ -96,7 +110,7 @@ def generate_streaming(
     client = OpenAI(
         api_key=required_environment("OPENROUTER_API_KEY"),
         base_url=provider_base_url(),
-        timeout=120.0,
+        timeout=provider_timeout(),
         max_retries=0,
     )
     request: dict[str, Any] = {
@@ -163,7 +177,7 @@ def discover_context_length(model: str) -> int | None:
         headers=headers,
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=10) as response:
             payload = json.load(response)
     except (OSError, ValueError, urllib.error.URLError):
         return None

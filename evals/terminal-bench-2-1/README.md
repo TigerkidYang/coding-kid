@@ -50,7 +50,7 @@ The task image was pulled explicitly through
 name. Both tags resolved to image digest
 `sha256:389b9c8247610c2c5be080b1ac00429007c2c69bf57f7f26c79f0f75ba2d5c74`;
 the local image size was 155,753,834 bytes. Python dependencies used the Aliyun
-PyPI mirror. No benchmark expansion beyond this one valid trial was run.
+PyPI mirror. This smoke result preceded the authorized full run.
 
 ## Resume
 
@@ -64,7 +64,13 @@ harbor job resume --job-path evals/terminal-bench-2-1/jobs/<job-name>
 Use `--filter-error-type <ExceptionName>` only when deliberately retrying a
 known infrastructure failure. Do not retry ordinary reward-zero trials.
 
-`prefetch-domestic-images.ps1` refuses unknown registries, requires exactly 89
-task images, pulls missing Docker Hub images through `docker.1ms.run`, and
-verifies the retagged image IDs. `run-full.ps1` refuses to start while any
-official task image is missing and resumes an existing job automatically.
+`prefetch-domestic-images.ps1` uses only its explicit domestic mirror allowlist,
+requires exactly 89 task images, and verifies the retagged image IDs.
+`run-full.ps1` refuses to start while any official task image is missing and
+resumes an existing job automatically.
+
+On machines without enough disk for all images at once, `run-resumable.ps1`
+creates one five-attempt Harbor job per task. It resumes an incomplete task,
+skips completed tasks, and removes only that task's benchmark image tags after
+the result is durable. Running the same command again continues at the first
+unfinished task.

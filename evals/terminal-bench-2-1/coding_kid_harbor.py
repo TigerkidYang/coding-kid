@@ -37,14 +37,26 @@ class CodingKidAgent(BaseInstalledAgent):
             environment,
             command=(
                 "if command -v apt-get >/dev/null 2>&1; then "
+                "sed -i "
+                "-e 's|archive.ubuntu.com/ubuntu|mirrors.aliyun.com/ubuntu|g' "
+                "-e 's|security.ubuntu.com/ubuntu|mirrors.aliyun.com/ubuntu|g' "
+                "-e 's|deb.debian.org/debian|mirrors.aliyun.com/debian|g' "
+                "-e 's|security.debian.org/debian-security|mirrors.aliyun.com/debian-security|g' "
+                "/etc/apt/sources.list /etc/apt/sources.list.d/*.list "
+                "/etc/apt/sources.list.d/*.sources 2>/dev/null || true; "
                 "apt-get update && DEBIAN_FRONTEND=noninteractive "
-                "apt-get install -y python3 python3-pip python3-venv; "
+                "apt-get install -y --no-install-recommends git python3 python3-venv "
+                "|| exit $?; "
                 "elif command -v apk >/dev/null 2>&1; then "
-                "apk add --no-cache python3 py3-pip; "
+                "sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' "
+                "/etc/apk/repositories && apk add --no-cache git python3 py3-pip "
+                "|| exit $?; "
                 "elif command -v yum >/dev/null 2>&1; then "
-                "yum install -y python3 python3-pip; "
+                "yum install -y git python3 python3-pip || exit $?; "
                 "elif ! command -v python3 >/dev/null 2>&1; then "
                 "echo 'Python 3 is required' >&2; exit 1; fi; "
+                "command -v git >/dev/null 2>&1 || exit 127; "
+                "command -v python3 >/dev/null 2>&1 || exit 127; "
                 f"python3 -m venv {shlex.quote(self._REMOTE_VENV.as_posix())} && "
                 f"{shlex.quote((self._REMOTE_VENV / 'bin/pip').as_posix())} "
                 "install --no-cache-dir "
@@ -76,14 +88,21 @@ class CodingKidAgent(BaseInstalledAgent):
             "CODING_KID_PROVIDER_BASE_URL": base_url,
             "CODING_KID_REASONING_EFFORT": "max",
             "CODING_KID_DISABLE_MAX_OUTPUT_TOKENS": "true",
+            "CODING_KID_PROVIDER_TIMEOUT_SECONDS": "1800",
             "PYTHONUNBUFFERED": "1",
         }
         output_path = EnvironmentPaths.agent_dir / "coding-kid.txt"
         executable = self._REMOTE_VENV / "bin/coding-kid"
+        single_turn_instruction = instruction.replace("\r", " ").replace("\n", " ")
         await self.exec_as_agent(
             environment,
             command=(
-                f"printf '%s\\n' {shlex.quote(instruction)} | "
+                "cd /app && "
+                "if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then "
+                "git init -q && git config user.name 'Coding Kid Benchmark' && "
+                "git config user.email 'benchmark@localhost' && git add -A && "
+                "git commit -qm 'benchmark baseline' --allow-empty; fi && "
+                f"printf '%s\\n' {shlex.quote(single_turn_instruction)} | "
                 f"{shlex.quote(executable.as_posix())} v14 --new "
                 "--sandbox danger-full-access "
                 "--mode implementation --approval full-access "

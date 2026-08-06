@@ -1,6 +1,7 @@
 param(
     [string]$TaskRoot = "$PSScriptRoot/task-inspection/full/terminal-bench-2-1",
     [string[]]$MirrorPrefixes = @(
+        "dockerproxy.net",
         "docker.1ms.run",
         "docker.m.daocloud.io",
         "docker.xuanyuan.me",

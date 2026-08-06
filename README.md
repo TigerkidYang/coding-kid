@@ -47,7 +47,9 @@ OpenRouter's compatible API.
 For an explicitly configured OpenAI-compatible Responses API, set
 `CODING_KID_PROVIDER_BASE_URL`. Optional compatibility settings are
 `CODING_KID_REASONING_EFFORT` and
-`CODING_KID_DISABLE_MAX_OUTPUT_TOKENS=true`. The existing key and model
+`CODING_KID_DISABLE_MAX_OUTPUT_TOKENS=true`.
+`CODING_KID_PROVIDER_TIMEOUT_SECONDS` overrides the default 120-second model
+request timeout for slow high-effort endpoints. The existing key and model
 variables remain unchanged so default OpenRouter behavior is backward
 compatible.
 

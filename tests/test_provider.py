@@ -2,8 +2,9 @@ from io import BytesIO
 from types import SimpleNamespace
 from typing import Any
 
-import coding_kid.provider as provider
 import pytest
+
+from coding_kid import provider
 from coding_kid.events import CancellationToken, TurnCancelled
 
 
@@ -114,12 +115,26 @@ def test_generate_supports_compatible_base_url_and_reasoning(
     )
     monkeypatch.setenv("CODING_KID_REASONING_EFFORT", "max")
     monkeypatch.setenv("CODING_KID_DISABLE_MAX_OUTPUT_TOKENS", "true")
+    monkeypatch.setenv("CODING_KID_PROVIDER_TIMEOUT_SECONDS", "1800")
 
     provider.generate("system", [], [], max_output_tokens=4096)
 
     assert captured["client"]["base_url"] == "http://192.168.110.224:8787/v1"
+    assert captured["client"]["timeout"] == 1800.0
     assert captured["request"]["reasoning"] == {"effort": "max"}
     assert "max_output_tokens" not in captured["request"]
+
+
+@pytest.mark.parametrize("value", ["invalid", "0", "-1"])
+def test_generate_rejects_invalid_provider_timeout(
+    monkeypatch: Any, value: str
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+    monkeypatch.setenv("CODING_KID_PROVIDER_TIMEOUT_SECONDS", value)
+
+    with pytest.raises(RuntimeError, match="CODING_KID_PROVIDER_TIMEOUT_SECONDS"):
+        provider.generate("system", [], [])
 
 
 def test_generate_streaming_forwards_deltas_and_returns_terminal_response(
