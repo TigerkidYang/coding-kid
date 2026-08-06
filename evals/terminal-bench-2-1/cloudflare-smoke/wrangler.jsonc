@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "coding-kid-terminal-bench-smoke",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-06",
+  "containers": [
+    {
+      "class_name": "BenchmarkSmokeContainer",
+      "image": "./Dockerfile",
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BENCHMARK_SMOKE",
+        "class_name": "BenchmarkSmokeContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["BenchmarkSmokeContainer"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
