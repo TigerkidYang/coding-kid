@@ -23,3 +23,8 @@ evals/v02-baseline/todo_slice/workspaces/
 evals/v03-context-assembly/workspaces/
 evals/v03-context-assembly/logs/
 evals/v04-context-management/workspaces/
+evals/terminal-bench-2-1/.venv/
+evals/terminal-bench-2-1/.venv312/
+evals/terminal-bench-2-1/dist/
+evals/terminal-bench-2-1/jobs/
+evals/terminal-bench-2-1/task-inspection/

@@ -1,4 +1,4 @@
-"""Send one model request through OpenRouter."""
+"""Send model requests through an OpenAI-compatible Responses API."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from openai import OpenAI
 from coding_kid.events import CancellationToken
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+PROVIDER_BASE_URL_ENV = "CODING_KID_PROVIDER_BASE_URL"
+REASONING_EFFORT_ENV = "CODING_KID_REASONING_EFFORT"
+DISABLE_MAX_OUTPUT_TOKENS_ENV = "CODING_KID_DISABLE_MAX_OUTPUT_TOKENS"
 
 
 class ProviderIncompleteError(RuntimeError):
@@ -31,6 +34,29 @@ def required_environment(name: str) -> str:
     return value
 
 
+def provider_base_url() -> str:
+    """Return the configured OpenAI-compatible Responses API base URL."""
+    return os.getenv(PROVIDER_BASE_URL_ENV, OPENROUTER_BASE_URL).rstrip("/")
+
+
+def _enabled(name: str) -> bool:
+    value = os.getenv(name, "").strip().casefold()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _request_options(max_output_tokens: int | None) -> dict[str, Any]:
+    """Build optional provider parameters without changing default behavior."""
+    options: dict[str, Any] = {}
+    effort = os.getenv(REASONING_EFFORT_ENV, "").strip()
+    if effort:
+        options["reasoning"] = {"effort": effort}
+    if max_output_tokens is not None and not _enabled(
+        DISABLE_MAX_OUTPUT_TOKENS_ENV
+    ):
+        options["max_output_tokens"] = max_output_tokens
+    return options
+
+
 def generate(
     instructions: str,
     messages: list[Any],
@@ -38,10 +64,10 @@ def generate(
     *,
     max_output_tokens: int | None = None,
 ) -> Any:
-    """Send the current context to OpenRouter and return its raw response."""
+    """Send the current context and return the provider's raw response."""
     client = OpenAI(
         api_key=required_environment("OPENROUTER_API_KEY"),
-        base_url=OPENROUTER_BASE_URL,
+        base_url=provider_base_url(),
         timeout=120.0,
         max_retries=0,
     )
@@ -51,8 +77,7 @@ def generate(
         "input": messages,
         "tools": tools,
     }
-    if max_output_tokens is not None:
-        request["max_output_tokens"] = max_output_tokens
+    request.update(_request_options(max_output_tokens))
     return client.responses.create(
         **request,
     )
@@ -70,7 +95,7 @@ def generate_streaming(
     """Stream visible text while retaining one complete provider response."""
     client = OpenAI(
         api_key=required_environment("OPENROUTER_API_KEY"),
-        base_url=OPENROUTER_BASE_URL,
+        base_url=provider_base_url(),
         timeout=120.0,
         max_retries=0,
     )
@@ -81,8 +106,7 @@ def generate_streaming(
         "tools": tools,
         "stream": True,
     }
-    if max_output_tokens is not None:
-        request["max_output_tokens"] = max_output_tokens
+    request.update(_request_options(max_output_tokens))
 
     stream = client.responses.create(**request)
     final_response: Any | None = None
@@ -129,10 +153,14 @@ def _stream_error_message(event: Any) -> str:
 
 
 def discover_context_length(model: str) -> int | None:
-    """Return OpenRouter's context length for one exact model slug."""
+    """Return the provider's context length for one exact model slug."""
+    headers = {"Accept": "application/json"}
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     request = urllib.request.Request(
-        f"{OPENROUTER_BASE_URL}/models",
-        headers={"Accept": "application/json"},
+        f"{provider_base_url()}/models",
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310

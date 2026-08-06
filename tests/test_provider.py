@@ -91,6 +91,37 @@ def test_generate_passes_optional_output_limit(monkeypatch: Any) -> None:
     assert captured["max_output_tokens"] == 4096
 
 
+def test_generate_supports_compatible_base_url_and_reasoning(
+    monkeypatch: Any,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> object:
+            captured["request"] = kwargs
+            return object()
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["client"] = kwargs
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "gpt-5.6-luna")
+    monkeypatch.setenv(
+        "CODING_KID_PROVIDER_BASE_URL", "http://192.168.110.224:8787/v1/"
+    )
+    monkeypatch.setenv("CODING_KID_REASONING_EFFORT", "max")
+    monkeypatch.setenv("CODING_KID_DISABLE_MAX_OUTPUT_TOKENS", "true")
+
+    provider.generate("system", [], [], max_output_tokens=4096)
+
+    assert captured["client"]["base_url"] == "http://192.168.110.224:8787/v1"
+    assert captured["request"]["reasoning"] == {"effort": "max"}
+    assert "max_output_tokens" not in captured["request"]
+
+
 def test_generate_streaming_forwards_deltas_and_returns_terminal_response(
     monkeypatch: Any,
 ) -> None:

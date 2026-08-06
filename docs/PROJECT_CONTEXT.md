@@ -64,6 +64,14 @@ without explicit permission.
 
 ## Current State
 
+- Post-completion evaluation integration is active without defining a new core
+  version. A thin Harbor adapter and optional OpenAI-compatible provider settings
+  connect frozen V14 behavior to Terminal-Bench 2.1. On 2026-08-06,
+  `terminal-bench/fix-git` passed one official Docker trial at reward 1.0 with
+  `gpt-5.6-luna` and `reasoning.effort=max`. The 156 MB task image came through
+  an explicit `docker.1ms.run` prefix and Python dependencies through Aliyun;
+  see `evals/terminal-bench-2-1/README.md`. No broader benchmark ran.
+
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
 - Version 14 isolated collaboration and Web research is complete. The user

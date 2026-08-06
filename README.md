@@ -44,6 +44,13 @@ Windows, open a new terminal so Python can inherit it.
 calling. Coding Kid uses the OpenAI Python SDK only as the small HTTP client for
 OpenRouter's compatible API.
 
+For an explicitly configured OpenAI-compatible Responses API, set
+`CODING_KID_PROVIDER_BASE_URL`. Optional compatibility settings are
+`CODING_KID_REASONING_EFFORT` and
+`CODING_KID_DISABLE_MAX_OUTPUT_TOKENS=true`. The existing key and model
+variables remain unchanged so default OpenRouter behavior is backward
+compatible.
+
 ## Setup
 
 For development inside this repository:
