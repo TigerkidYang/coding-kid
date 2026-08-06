@@ -123,8 +123,20 @@ def test_capabilities_compose_on_a_caller_owned_base_registry(tmp_path: Path) ->
             SkillTurnState(runtime.snapshot.skills),
             base_registry=base,
         )
-        assert registry.names == ("base", "skill", "mcp__local__echo")
+        assert registry.names == ("base", "mcp__local__echo")
         assert registry.dispatch("base", {}) == "base"
+    finally:
+        runtime.close()
+
+
+def test_empty_skill_catalog_does_not_expose_unusable_skill_tool(
+    tmp_path: Path,
+) -> None:
+    runtime = CapabilityRuntime.capture(_context(tmp_path), home=tmp_path / "home")
+    try:
+        registry = runtime.registry_for_turn(SkillTurnState(runtime.snapshot.skills))
+
+        assert "skill" not in registry.names
     finally:
         runtime.close()
 

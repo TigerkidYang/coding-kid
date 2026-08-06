@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import codecs
 import os
 from pathlib import Path
 import re
+import stat
 from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from coding_kid.background_tasks import BackgroundTaskManager
@@ -22,6 +24,8 @@ ToolFunction = Callable[..., str]
 ToolEntry = dict[str, Any]
 MAX_SEARCH_RESULTS = 100
 MAX_SEARCH_FILE_BYTES = 1_000_000
+MAX_SEARCH_FILES = 5_000
+MAX_SEARCH_TOTAL_BYTES = 32_000_000
 MAX_TOOL_OUTPUT_CHARS = 50_000
 SKIPPED_SEARCH_DIRECTORIES = {
     ".git",
@@ -233,9 +237,42 @@ def web_fetch(
 
 
 def read(path: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
-    """Read a UTF-8 text file."""
+    """Read one bounded UTF-8 text file without loading arbitrary binaries."""
     file_path = _tool_path(path, sandbox_runtime)
-    return file_path.read_text(encoding="utf-8")
+    if not file_path.is_file():
+        if file_path.is_dir():
+            raise IsADirectoryError(
+                f"{file_path} is a directory; use execute with a targeted listing"
+            )
+        raise FileNotFoundError(file_path)
+
+    with file_path.open("rb") as stream:
+        data = stream.read(MAX_TOOL_OUTPUT_CHARS + 1)
+    if b"\x00" in data:
+        raise ValueError(
+            f"{file_path} appears to be binary; inspect it with a targeted "
+            "execute command"
+        )
+    try:
+        decoder = codecs.getincrementaldecoder("utf-8")()
+        content = decoder.decode(
+            data,
+            final=len(data) <= MAX_TOOL_OUTPUT_CHARS,
+        )
+    except UnicodeDecodeError as error:
+        raise ValueError(
+            f"{file_path} is not UTF-8 text; inspect it with a targeted execute command"
+        ) from error
+    # Match Path.read_text's universal-newline behavior so text returned by
+    # read can be passed back to patch unchanged on every platform.
+    content = content.replace("\r\n", "\n").replace("\r", "\n")
+    if len(data) > MAX_TOOL_OUTPUT_CHARS:
+        return (
+            content[:MAX_TOOL_OUTPUT_CHARS]
+            + f"\n... tool output truncated after {MAX_TOOL_OUTPUT_CHARS} bytes; "
+            "use execute with a targeted range to inspect more ..."
+        )
+    return content
 
 
 def write(
@@ -266,8 +303,13 @@ def search(
         raise FileNotFoundError(f"Search path does not exist: {root}")
 
     matches: list[str] = []
+    visited_files = 0
+    scanned_bytes = 0
 
     for file_path in _search_files(root):
+        visited_files += 1
+        if visited_files > MAX_SEARCH_FILES:
+            return _search_budget_result(matches, "file", MAX_SEARCH_FILES)
         if sandbox_runtime is not None:
             try:
                 file_path = sandbox_runtime.resolve_path(str(file_path))
@@ -282,13 +324,34 @@ def search(
                 return _truncated_search_result(matches)
 
         try:
-            if file_path.stat().st_size > MAX_SEARCH_FILE_BYTES:
+            metadata = file_path.stat()
+            if not stat.S_ISREG(metadata.st_mode):
                 continue
-            lines = file_path.read_text(encoding="utf-8").splitlines()
+            size = metadata.st_size
+            if size > MAX_SEARCH_FILE_BYTES:
+                continue
+            remaining_bytes = MAX_SEARCH_TOTAL_BYTES - scanned_bytes
+            if remaining_bytes <= 0:
+                return _search_budget_result(matches, "byte", MAX_SEARCH_TOTAL_BYTES)
+            read_limit = min(MAX_SEARCH_FILE_BYTES, remaining_bytes)
+            with file_path.open("rb") as stream:
+                data = stream.read(read_limit + 1)
         except (OSError, UnicodeDecodeError):
             continue
 
-        for line_number, line in enumerate(lines, start=1):
+        scanned_bytes += len(data)
+        if len(data) > read_limit:
+            if read_limit == remaining_bytes:
+                return _search_budget_result(matches, "byte", MAX_SEARCH_TOTAL_BYTES)
+            # The file grew beyond the per-file limit after stat. Skip the
+            # entire file instead of accepting an unbounded or partial result.
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        for line_number, line in enumerate(text.splitlines(), start=1):
             if query in line:
                 matches.append(f"TEXT {display_path}:{line_number}:{line}")
                 if len(matches) == MAX_SEARCH_RESULTS:
@@ -314,6 +377,15 @@ def _search_files(root: Path):
 def _truncated_search_result(matches: list[str]) -> str:
     """Mark a bounded search result so the model knows more matches exist."""
     matches.append(f"... search results truncated at {MAX_SEARCH_RESULTS} matches")
+    return "\n".join(matches)
+
+
+def _search_budget_result(matches: list[str], budget: str, limit: int) -> str:
+    """Explain a traversal cutoff and direct the model to a targeted command."""
+    matches.append(
+        f"... search stopped at the {limit} {budget} budget; narrow the path or "
+        "use execute with a targeted find/rg command"
+    )
     return "\n".join(matches)
 
 
@@ -470,7 +542,9 @@ TOOLS: dict[str, ToolEntry] = {
     "execute": {
         "effect": ToolEffect.COMMAND,
         "description": (
-            "Run a command in the current project. Short commands return their "
+            "Run a shell command in the current project. Use this for directory "
+            "listings, installed-program discovery (for example command -v), "
+            "compilation, tests, and binary inspection. Short commands return their "
             "result; a command still alive after yield_time_ms returns a stable "
             "task ID without restarting. Set interactive=true for a real terminal "
             "that can accept later task(write/interrupt) calls. background=true "
@@ -504,7 +578,11 @@ TOOLS: dict[str, ToolEntry] = {
     },
     "read": {
         "effect": ToolEffect.READ_ONLY,
-        "description": "Read a UTF-8 text file.",
+        "description": (
+            "Read one bounded UTF-8 text file. Do not use this on directories, "
+            "executables, archives, images, model weights, or other binary files; "
+            "use execute with a targeted command for those."
+        ),
         "parameters": {
             "type": "object",
             "properties": {"path": {"type": "string", "minLength": 1}},
@@ -531,8 +609,10 @@ TOOLS: dict[str, ToolEntry] = {
     "search": {
         "effect": ToolEffect.READ_ONLY,
         "description": (
-            "Search for a literal non-empty substring in file names and text "
-            "contents below a path. This is not a glob search."
+            "Search a bounded project subtree for a literal non-empty substring "
+            "in file names and UTF-8 text contents. This is not a glob search. "
+            "Do not search broad operating-system or dependency trees; use execute "
+            "with a targeted find/rg command instead."
         ),
         "parameters": {
             "type": "object",

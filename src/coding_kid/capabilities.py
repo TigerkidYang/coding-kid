@@ -202,23 +202,25 @@ class CapabilityRuntime:
         cancellation_token: CancellationToken | None = None,
         base_registry: ToolRegistry | None = None,
     ) -> ToolRegistry:
-        registry = (base_registry or DEFAULT_TOOL_REGISTRY).with_tool(
-            "skill",
-            {
-                "description": (
-                    "Load the complete instructions for one available Skill. "
-                    "Call this before following a matching Skill."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {"name": {"type": "string", "minLength": 1}},
-                    "required": ["name"],
-                    "additionalProperties": False,
+        registry = base_registry or DEFAULT_TOOL_REGISTRY
+        if self.snapshot.skills.skills:
+            registry = registry.with_tool(
+                "skill",
+                {
+                    "description": (
+                        "Load the complete instructions for one available Skill. "
+                        "Call this before following a matching Skill."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string", "minLength": 1}},
+                        "required": ["name"],
+                        "additionalProperties": False,
+                    },
+                    "function": lambda name: self.load_skill(skill_state, name),
+                    "effect": ToolEffect.READ_ONLY,
                 },
-                "function": lambda name: self.load_skill(skill_state, name),
-                "effect": ToolEffect.READ_ONLY,
-            },
-        )
+            )
         for tool in self._tools:
             entry: ToolEntry = {
                 "description": tool.description,

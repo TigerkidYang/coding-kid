@@ -19,6 +19,7 @@ from coding_kid.tools import (
 from coding_kid.terminal import CommandResult
 from coding_kid.events import CancellationToken
 from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
+import coding_kid.tools as tools_module
 
 
 def test_write_and_read_file(tmp_path: Path) -> None:
@@ -132,6 +133,123 @@ def test_dispatch_bounds_large_tool_results(tmp_path: Path) -> None:
 
     assert "tool output truncated" in result
     assert len(result) < MAX_TOOL_OUTPUT_CHARS + 200
+
+
+def test_read_rejects_binary_without_loading_it_as_text(tmp_path: Path) -> None:
+    path = tmp_path / "program.bin"
+    path.write_bytes(b"header\x00payload")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert result.startswith("ERROR: ValueError:")
+    assert "appears to be binary" in result
+    assert "execute" in result
+
+
+def test_read_rejects_invalid_utf8_without_nul(tmp_path: Path) -> None:
+    path = tmp_path / "invalid.txt"
+    path.write_bytes(b"plain prefix\xffsuffix")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert result.startswith("ERROR: ValueError:")
+    assert "not UTF-8 text" in result
+
+
+def test_read_directory_directs_model_to_execute(tmp_path: Path) -> None:
+    result = dispatch_tool("read", {"path": str(tmp_path)})
+
+    assert result.startswith("ERROR: IsADirectoryError:")
+    assert "targeted listing" in result
+
+
+def test_read_normalizes_crlf_for_a_followup_patch(tmp_path: Path) -> None:
+    path = tmp_path / "windows.txt"
+    path.write_bytes(b"alpha\r\nbeta\r\n")
+
+    original = dispatch_tool("read", {"path": str(path)})
+    result = dispatch_tool(
+        "patch",
+        {"path": str(path), "old_text": original, "new_text": "updated\n"},
+    )
+
+    assert original == "alpha\nbeta\n"
+    assert result == f"Patched {path}"
+    assert path.read_text(encoding="utf-8") == "updated\n"
+
+
+def test_read_truncation_preserves_utf8_split_across_byte_boundary(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "unicode.txt"
+    path.write_bytes(b"a" * (MAX_TOOL_OUTPUT_CHARS - 1) + "€".encode() + b"tail")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert not result.startswith("ERROR:")
+    assert "tool output truncated" in result
+
+
+def test_search_stops_at_file_budget(tmp_path: Path, monkeypatch: Any) -> None:
+    for index in range(3):
+        (tmp_path / f"file-{index}.txt").write_text("nothing\n", encoding="utf-8")
+    monkeypatch.setattr(tools_module, "MAX_SEARCH_FILES", 2)
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "search stopped at the 2 file budget" in result
+    assert "targeted find/rg" in result
+
+
+def test_search_stops_at_actual_total_byte_budget(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    (tmp_path / "first.txt").write_text("first\n", encoding="utf-8")
+    (tmp_path / "second.txt").write_text("second\n", encoding="utf-8")
+    monkeypatch.setattr(tools_module, "MAX_SEARCH_TOTAL_BYTES", 10)
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "search stopped at the 10 byte budget" in result
+
+
+def test_search_discards_entire_file_with_late_invalid_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "binary.dat"
+    path.write_bytes(b"needle\n" + b"x" * 100 + b"\xff")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert result == "No matches found."
+
+
+def test_search_enforces_actual_bytes_if_file_grows_after_stat(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    path = tmp_path / "growing.txt"
+    path.write_text("needle\n" + "x" * 100, encoding="utf-8")
+    original_stat = Path.stat
+
+    def stale_stat(candidate: Path, *args: Any, **kwargs: Any) -> Any:
+        metadata = original_stat(candidate, *args, **kwargs)
+        if candidate == path:
+            return SimpleNamespace(st_size=1, st_mode=metadata.st_mode)
+        return metadata
+
+    monkeypatch.setattr(tools_module, "MAX_SEARCH_FILE_BYTES", 20)
+    monkeypatch.setattr(Path, "stat", stale_stat)
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert result == "No matches found."
+
+
+def test_search_preserves_trailing_spaces_in_matching_line(tmp_path: Path) -> None:
+    path = tmp_path / "spacing.txt"
+    path.write_text("needle   \n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert result.endswith("needle   ")
 
 
 def test_delete_removes_file(tmp_path: Path) -> None:

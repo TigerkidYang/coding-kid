@@ -598,14 +598,17 @@ class WorktreeManager:
         input_bytes: bytes | None = None,
         check: bool = True,
     ) -> subprocess.CompletedProcess[bytes]:
-        result = subprocess.run(
-            ["git", "-C", str(cwd), *arguments],
-            input=input_bytes,
-            stdin=subprocess.DEVNULL if input_bytes is None else None,
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(cwd), *arguments],
+                input=input_bytes,
+                stdin=subprocess.DEVNULL if input_bytes is None else None,
+                capture_output=True,
+                timeout=60,
+                check=False,
+            )
+        except FileNotFoundError as error:
+            raise WorktreeError("Git is not installed") from error
         if check and result.returncode != 0:
             raise WorktreeError(
                 self._detail(result, f"Git {' '.join(arguments)} failed")

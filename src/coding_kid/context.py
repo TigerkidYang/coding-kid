@@ -18,11 +18,27 @@ They come from AGENTS.md files in the current project, ordered from the project
 root toward the current working directory. Follow the more specific later
 instructions when project instructions conflict."""
 
+
+def runtime_shell() -> str:
+    """Return the shell used by the terminal boundary on this host."""
+    if os.name == "nt":
+        return "PowerShell"
+    return os.environ.get("SHELL") or "/bin/sh"
+
+
 BASE_INSTRUCTIONS = """You are Coding Kid, a coding agent working in the current directory.
 Only call the tools provided in the current request. Never invent tool names.
 Use the available tools to inspect, change, and verify code when needed.
 Read or search before changing code you have not inspected.
 Use "." for the current directory; never send an empty path or search query.
+Use execute for shell commands, directory listings, installed-program discovery,
+compilation, tests, and other operating-system work. Do not hunt for shell tools
+with read or search, read executable or binary files as text, or recursively
+search broad system trees such as /bin, /usr, /proc, /sys, or dependency caches.
+Use targeted shell commands such as command -v, find, or rg instead. Do not
+inspect Coding Kid's own installation to discover how to run commands: execute
+is the shell boundary. The task tool only manages process IDs returned by
+execute; it is not an environment-discovery tool.
 Use the fewest tool calls needed and stop gathering once you can answer.
 For repository overviews, inspect only the top level, README, project configuration,
 one relevant architecture/context document, and source/test file names. Do not read
@@ -86,7 +102,7 @@ class SessionContext:
         return cls(
             cwd=resolved_cwd,
             operating_system=f"{platform.system()} {platform.release()}".strip(),
-            shell="PowerShell",
+            shell=runtime_shell(),
             model=os.getenv("OPENROUTER_MODEL", "not set"),
             local_date=date.today().isoformat(),
             project_root=project_root,
@@ -188,10 +204,10 @@ def render_environment(context: SessionContext) -> str:
             f"- Current working directory: {context.cwd}",
             f"- Project root: {context.project_root}",
             f"- Operating system: {context.operating_system}",
-            "- Shell: PowerShell",
+            f"- Shell: {context.shell}",
             f"- Configured model (OPENROUTER_MODEL): {context.model}",
             f"- Session date: {context.local_date}",
-            "The execute tool runs non-interactive Windows PowerShell commands.",
+            f"The execute tool runs non-interactive {context.shell} commands.",
         ]
     )
 

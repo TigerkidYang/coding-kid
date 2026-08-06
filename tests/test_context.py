@@ -11,7 +11,9 @@ from coding_kid.context import (
     build_model_input,
     find_project_root,
     load_project_instructions,
+    render_environment,
     render_project_instructions,
+    runtime_shell,
 )
 
 
@@ -182,6 +184,26 @@ def test_session_capture_is_a_snapshot(tmp_path: Path) -> None:
 
     assert first.project_instructions[0].content == "first"
     assert second.project_instructions[0].content == "second"
+
+
+def test_runtime_environment_uses_captured_shell(tmp_path: Path) -> None:
+    context = make_context(tmp_path)
+
+    rendered = render_environment(context)
+
+    assert "- Shell: cmd.exe" in rendered
+    assert "non-interactive cmd.exe commands" in rendered
+    assert "Windows PowerShell" not in rendered
+
+
+def test_runtime_shell_matches_terminal_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if os.name == "nt":
+        assert runtime_shell() == "PowerShell"
+    else:
+        monkeypatch.setenv("SHELL", "/bin/bash")
+        assert runtime_shell() == "/bin/bash"
 
 
 def test_build_instructions_keeps_dynamic_suffixes_after_stable_context(

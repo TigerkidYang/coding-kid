@@ -290,7 +290,7 @@ class SandboxRuntime:
         if not self.restricted:
             return (
                 "Sandbox policy: danger-full-access. Local tools run directly on "
-                "the host with its PowerShell environment."
+                "the host with its configured operating-system shell environment."
             )
         access = (
             "read-only"

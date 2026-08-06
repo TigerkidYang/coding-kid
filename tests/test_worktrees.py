@@ -166,6 +166,23 @@ def test_non_repository_and_invalid_agent_id_fail_closed(tmp_path: Path) -> None
         manager.create("../escape")
 
 
+def test_missing_git_is_reported_as_unavailable_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "plain"
+    root.mkdir()
+
+    def missing_git(
+        *args: object, **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", missing_git)
+
+    with pytest.raises(WorktreeError, match="Git is not installed"):
+        WorktreeManager(root, tmp_path / "state")
+
+
 def test_ten_round_overlapping_worktree_stress_isolated_and_cleans_up(
     tmp_path: Path,
 ) -> None:
