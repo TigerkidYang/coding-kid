@@ -131,7 +131,7 @@ def test_tui_displays_sandbox_status_command(tmp_path: Path) -> None:
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
             header = content(app.query_one(".session-card", Static))
-            assert "v14" in header
+            assert "v15" in header
             assert "read-only" in header
             composer = app.query_one(Composer)
             composer.load_text("/sandbox")

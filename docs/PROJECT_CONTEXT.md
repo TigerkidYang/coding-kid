@@ -64,13 +64,16 @@ without explicit permission.
 
 ## Current State
 
-- Post-completion evaluation is complete without defining a new core version.
-  Coding Kid V14 with `gpt-5.6-luna`, max reasoning, and one valid trial per
+- Version 15 benchmark-driven hardening is complete. It packages the
+  cross-cutting maintenance work exposed by Terminal-Bench rather than adding a
+  new headline capability. Coding Kid V15 with `gpt-5.6-luna`, max reasoning,
+  and one valid trial per
   task scored 50/89 (56.18%) on Terminal-Bench 2.1. All 89 tasks reached valid
   outcomes: 50 passes, nine Agent timeouts, 30 other verifier zeros, no exit
   137, and no infrastructure failures. Resource bounds, runtime-aware tools,
   non-Git checkpoints, resumable Cloudflare scheduling, and long-response JSON
-  keepalives were added before the final fresh run. See
+  keepalives were added before the final fresh run. V14 is frozen and the
+  launcher selects V1-V15 with V15 as default. See
   `docs/reports/terminal-bench-2.1-k1.md`.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
@@ -83,7 +86,7 @@ without explicit permission.
   acceptance/rollback. Brave search and public-text fetch are bounded,
   attributable external tools with pinned public-address connections, safe
   redirects, approval, workflow, and sandbox-network enforcement. V13 is frozen
-  in the installed runtime and V14 is the living default. It passes 420 of 421
+  in the installed runtime and V14 was the living default. It passes 420 of 421
   tests with one Windows symlink skip, Ruff, ten worktree and Docker stress
   rounds, wheel inspection, clean-install V1-V14 launches, and direct installed
   CLI/TUI trials. Its standalone archive passes 358 of 359 tests with one

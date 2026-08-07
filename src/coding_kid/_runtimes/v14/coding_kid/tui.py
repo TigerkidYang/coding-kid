@@ -312,7 +312,7 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v15)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v14)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}\n"

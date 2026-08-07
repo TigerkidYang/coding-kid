@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
         ("v12", "v12"),
         ("13", "v13"),
         ("14", "v14"),
+        ("15", "v15"),
     ],
 )
 def test_normalize_version_accepts_documented_aliases(
@@ -39,7 +40,7 @@ def test_normalize_version_accepts_documented_aliases(
     assert launcher.normalize_version(value) == expected
 
 
-@pytest.mark.parametrize("value", ["", "latest", "v0", "v15", "one"])
+@pytest.mark.parametrize("value", ["", "latest", "v0", "v16", "one"])
 def test_normalize_version_rejects_unknown_values(value: str) -> None:
     with pytest.raises(ValueError):
         launcher.normalize_version(value)
@@ -79,10 +80,10 @@ def test_main_passes_resume_selection_to_latest(
         lambda version, options: selected.append((version, options)) or 0,
     )
 
-    assert launcher.main(["v14", "--resume", "abc123"]) == 0
+    assert launcher.main(["v15", "--resume", "abc123"]) == 0
     assert selected == [
         (
-            "v14",
+            "v15",
             launcher.cli.SessionOptions(mode="resume", session_id="abc123"),
         )
     ]
@@ -101,7 +102,7 @@ def test_main_passes_explicit_sandbox_selection_to_latest(
     assert (
         launcher.main(
             [
-                "v14",
+                "v15",
                 "--sandbox",
                 "read-only",
                 "--sandbox-image",
@@ -140,7 +141,7 @@ def test_main_passes_workflow_and_approval_to_version_12(
         lambda version, options: selected.append(options) or 0,
     )
 
-    assert launcher.main(["v14", "--mode", "plan", "--approval", "auto"]) == 0
+    assert launcher.main(["v15", "--mode", "plan", "--approval", "auto"]) == 0
     assert selected == [
         launcher.cli.SessionOptions(collaboration_mode="plan", approval_policy="auto")
     ]
@@ -180,7 +181,8 @@ def test_main_lists_versions_without_launching(
         "v11",
         "v12",
         "v13",
-        "v14 (latest, default)",
+        "v14",
+        "v15 (latest, default)",
     ]
 
 
@@ -197,7 +199,7 @@ def test_main_rejects_unknown_version_before_launch(
         launcher.main(["v99"])
 
     assert (
-        "available versions: v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14"
+        "available versions: v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15"
         in capsys.readouterr().err
     )
 
@@ -206,7 +208,7 @@ def test_latest_version_runs_in_process(monkeypatch: pytest.MonkeyPatch) -> None
     called: list[bool] = []
     monkeypatch.setattr(launcher.cli, "main", lambda options=None: called.append(True))
 
-    assert launcher.launch_version("v14") == 0
+    assert launcher.launch_version("v15") == 0
     assert called == [True]
 
 
@@ -252,6 +254,7 @@ def test_historical_version_runs_isolated_and_preserves_cwd(
         ("v11", "11-sandbox-control"),
         ("v12", "12-permission-governed-workflow"),
         ("v13", "13-continuous-execution-environment"),
+        ("v14", "14-isolated-collaboration-web-research"),
     ],
 )
 def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
@@ -260,7 +263,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     excluded = (
         {"__main__.py", "launcher.py"}
         if version
-        in {"v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12", "v13"}
+        in {"v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12", "v13", "v14"}
         else set()
     )
     archived_files = {
@@ -291,6 +294,7 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
         "v12",
         "v13",
         "v14",
+        "v15",
     ],
 )
 def test_module_launcher_starts_from_unrelated_project(
@@ -299,7 +303,7 @@ def test_module_launcher_starts_from_unrelated_project(
     command = [sys.executable, "-m", "coding_kid"]
     if version is not None:
         command.append(version)
-    if version in {None, "v14"}:
+    if version in {None, "v15"}:
         command.extend(["--sandbox", "danger-full-access"])
     environment = os.environ.copy()
     existing_pythonpath = environment.get("PYTHONPATH")

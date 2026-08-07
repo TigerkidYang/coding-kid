@@ -2,7 +2,7 @@
 
 ## Result
 
-Coding Kid V14 with `gpt-5.6-luna` and `reasoning.effort=max` completed all 89
+Coding Kid V15 with `gpt-5.6-luna` and `reasoning.effort=max` completed all 89
 Terminal-Bench 2.1 tasks with one valid trial per task:
 
 - Passed: 50
@@ -20,7 +20,7 @@ not a model-only score.
 ## Protocol
 
 - Dataset: official Terminal-Bench 2.1, 89 tasks.
-- Agent: the living Coding Kid V14 runtime after the fixes listed below.
+- Agent: the living Coding Kid V15 runtime after the fixes listed below.
 - Model: `gpt-5.6-luna` through the supplied OpenAI-compatible Responses API.
 - Reasoning: max effort.
 - Sampling: one valid result per task; diagnostic and aborted runs are excluded.

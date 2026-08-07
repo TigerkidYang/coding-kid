@@ -53,6 +53,17 @@ request timeout for slow high-effort endpoints. The existing key and model
 variables remain unchanged so default OpenRouter behavior is backward
 compatible.
 
+## Version 15 Maintenance Release
+
+Version 15 packages reliability fixes found through a complete Terminal-Bench
+2.1 evaluation rather than introducing a new headline feature. It bounds broad
+inspection in minimal containers, exposes only currently usable tools, supports
+guarded checkpoints outside Git repositories, and improves slow
+OpenAI-compatible Responses endpoints. The authorized k=1 run with
+`gpt-5.6-luna` at max reasoning completed all 89 tasks and scored 50/89
+(56.18%), with no exit-137 or final infrastructure failure. See
+`docs/reports/terminal-bench-2.1-k1.md` for the exact protocol and limitations.
+
 ## Setup
 
 For development inside this repository:
@@ -79,7 +90,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v14; new session)
+coding-kid       # latest living core version (currently v15; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -94,6 +105,7 @@ coding-kid v11   # fail-closed sandbox control
 coding-kid v12   # permission-governed change workflow
 coding-kid v13   # continuous interactive execution sessions
 coding-kid v14   # isolated Agent collaboration and bounded Web research
+coding-kid v15   # benchmark-driven reliability and portability hardening
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -103,9 +115,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–14
+The command preserves the directory from which it was invoked. Versions 03–15
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 14 is
+Versions 01 and 02 retain their original historical behavior. Version 15 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -116,7 +128,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 14 session selection is explicit:
+Living Version 15 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -129,7 +141,7 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 14 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 15 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. Submitting while work is active queues a steer
 instruction FIFO and stops the current step before continuing with retained
 completed evidence. Up to eight pending inputs are kept; a ninth remains in the
@@ -143,7 +155,7 @@ control their respective layers.
 
 ## Permission-Governed Change Workflow
 
-Version 14 retains Version 12's permission workflow and defaults to
+Version 15 retains Version 12's permission workflow and defaults to
 Implementation mode, Cautious approval, and the existing
 `workspace-write` sandbox. These three settings are independent:
 
@@ -175,7 +187,7 @@ effects, and remote MCP effects are not rollback promises.
 
 ## Sandbox Control
 
-Version 14 retains Version 11's immutable startup policy. The default is a Docker-backed
+Version 15 retains Version 11's immutable startup policy. The default is a Docker-backed
 workspace sandbox with network disabled:
 
 ```powershell
@@ -221,7 +233,7 @@ tools remain exclusive unless their registry metadata explicitly opts in.
 
 ## Multi-Agent Workflows
 
-Version 14 retains Version 09's bounded child lifecycle and defaults writing
+Version 15 retains Version 09's bounded child lifecycle and defaults writing
 children to application-owned Git worktrees. `spawn_agent` selects `worktree`
 or explicit `shared` isolation and may fork up to eight recent visible turns.
 The `agent` tool lists, polls, waits, follows up, stops, reviews diffs,

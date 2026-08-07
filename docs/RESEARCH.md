@@ -47,6 +47,29 @@ Research notes should support two outcomes:
 
 ## Supplementary Improvements
 
+### Version 15 Benchmark-Driven Hardening
+
+Terminal-Bench 2.1 exercised the completed core and advanced capability topics
+under minimal Linux environments, bounded container resources, non-Git working
+directories, and long remote inference. The resulting maintenance work stays
+inside the existing Research Topic List: executor and file-tool robustness,
+runtime-aware tool calling, checkpoint portability, and loop/evaluation
+recovery. It does not introduce a new research topic or task-specific solver.
+
+- Bound search/read work before content enters the model or exhausts a task
+  container.
+- Hide unusable tools using workflow, manager, credential, and repository state.
+- Preserve guarded side effects when Git is unavailable through a bounded
+  filesystem checkpoint fallback.
+- Persist evaluation transitions and separate infrastructure retries from
+  official ability outcomes.
+- Keep long streaming and non-streaming Responses requests alive through the
+  Cloudflare execution path.
+
+The final authorized k=1 run completed all 89 tasks with 50 passes, nine
+Agent-timeout zeros, 30 other verifier zeros, no exit 137, and no remaining
+infrastructure failure. See `docs/reports/terminal-bench-2.1-k1.md`.
+
 These items do not add new research topics or reopen the completed versions.
 They record deeper improvements within topics whose first implementations were
 intentionally narrower than the mature capabilities found in the two source

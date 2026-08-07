@@ -219,6 +219,17 @@ In particular:
 
 ## Current State
 
+- Version 15 is complete as a benchmark-driven maintenance release. It hardens
+  bounded and binary-aware inspection, runtime-aware tool exposure, command
+  guidance, non-Git checkpoints, OpenAI-compatible provider behavior, and
+  resumable Cloudflare evaluation without adding a new headline Agent
+  capability. Coding Kid V15 with `gpt-5.6-luna`, max reasoning, and k=1 scored
+  50/89 (56.18%) on Terminal-Bench 2.1: 50 passes, nine Agent timeouts, 30
+  other verifier zeros, no exit 137, and no final infrastructure failure. V14
+  is frozen and the launcher selects V1-V15 with V15 default. It is archived
+  under `versions/15-benchmark-driven-hardening/` with annotated tag
+  `version-15-benchmark-driven-hardening`; see
+  `docs/reports/terminal-bench-2.1-k1.md`.
 - Version 14 is complete. Application-owned Git worktrees isolate
   child changes over dirty-root private baselines; bounded visible context forks,
   cwd-bound tools, durable manifests, diff/reconcile/integrate/discard, and V12

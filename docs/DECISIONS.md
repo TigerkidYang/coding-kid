@@ -1,5 +1,23 @@
 # Decisions
 
+## Treat benchmark feedback as one maintenance version
+
+Decision:
+Package the cross-cutting fixes exposed by Terminal-Bench 2.1 as Version 15,
+without inventing a new headline feature or adding task-specific behavior. Keep
+the official verifier outcome as the ability boundary, retry only classified
+infrastructure failures, and report the result as k=1 for the complete 89-task
+set.
+
+Consequence:
+Resource bounds, usable-tool filtering, non-Git checkpoints, provider
+compatibility, and resumable evaluation operations form one auditable
+maintenance checkpoint. The 50/89 result is reproducible evidence for the
+Coding Kid V15 plus Luna pairing, but it is not presented as directly
+equivalent to k=5 or pass@k leaderboard data. Future development may analyze
+the clean timeout and verifier-zero subsets, but must not overfit task-specific
+solutions into the general runtime.
+
 ## Unify Version 13 commands as process-local execution sessions
 
 Decision:

@@ -2,16 +2,16 @@
 
 ## Overview
 
-Version 14 adds isolated collaboration and bounded Web research above Version
-13's continuous execution plane. Child writes default to application-owned Git
-worktrees and enter the root only through explicit review/integration. Search
-and fetch remain application-owned external effects under the same workflow,
-approval, and startup network policy.
+Version 15 is a benchmark-driven maintenance layer over Version 14. It keeps the
+same collaboration, Web, execution, workflow, and UI architecture while
+hardening resource-bounded inspection, runtime-aware tool exposure, non-Git
+checkpoints, OpenAI-compatible provider behavior, and reproducible evaluation
+operations. Version 14 remains frozen as the pre-maintenance runtime.
 
 ```text
 launcher.py
-  |-- v1-v13 -> isolated bundled runtime process
-  `-- v14/default -> cli.py
+  |-- v1-v14 -> isolated bundled runtime process
+  `-- v15/default -> cli.py
                      |-- SessionStore / MemoryManager
                      |-- WorkflowState / PermissionBroker
                      |-- WorkflowRuntime / CheckpointManager
@@ -28,6 +28,25 @@ launcher.py
                                   ^             |       |
                                   `-- events.py <-+       +-> session ToolRegistry
 ```
+
+## Benchmark-Driven Hardening
+
+`tools.py` bounds search by file count, aggregate bytes, per-file bytes, and
+match count, and treats binary reads conservatively. `capabilities.py` builds a
+tool surface from the current workflow mode, repository state, credentials, and
+live manager state so impossible tools are omitted before model selection.
+
+`checkpoints.py` prefers Git snapshots but falls back to bounded filesystem
+enumeration when Git is unavailable or the project is not a repository. Both
+paths retain the same conflict-aware rollback contract; the fallback does not
+turn ignored or outside-project effects into rollback promises.
+
+The evaluation runtime under `evals/terminal-bench-2-1/` is operational tooling,
+not part of the installed Agent. Its scheduler persists state atomically,
+separates infrastructure retry from verifier outcomes, and resumes without
+repeating valid work. The Cloudflare heartbeat proxy preserves long streaming
+SSE responses and non-streaming JSON Responses calls without changing the
+upstream JSON payload.
 
 The UI remains a projection of canonical state. Complete model/tool rounds are
 the evidence boundary. Failed, steered, and interrupted turns retain completed

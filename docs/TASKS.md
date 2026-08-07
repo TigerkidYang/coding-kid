@@ -1,91 +1,79 @@
 # Tasks
 
-## Current Core Version: 14 — Isolated Collaboration and Web Research
+## Current Core Version: 15 — Benchmark-Driven Hardening
 
-Completion status: complete. The user confirmed stage completion on 2026-08-06.
-The standalone checkpoint is archived under
-`versions/14-isolated-collaboration-web-research/` with annotated tag
-`version-14-isolated-collaboration-web-research`. No SWE-bench, paid batch, or
-paid model request ran.
+Completion status: final verification and archive in progress.
 
 ### Goal
 
-Let child Agents develop in independently reviewable Git worktrees and return
-only their own changes through a parent-governed integration workflow, while
-adding bounded, attributable Web search and fetch tools under the existing
-workflow, approval, and network policies.
+Turn the maintenance work exposed by Terminal-Bench 2.1 into one coherent
+reliability release. Version 15 does not add a new headline capability; it
+hardens the existing coding loop, tool surface, checkpoint behavior, provider
+compatibility, and evaluation operations against realistic minimal Linux tasks
+and long-running remote inference.
 
 ### Included Scope
 
-- Application-owned Git worktrees that preserve the root's initial dirty state
-  as a private baseline and isolate each child's later delta.
-- Explicit bounded parent-context forks, cwd-bound child commands and terminals,
-  durable workspace manifests, diff, reconcile, integrate, and discard actions.
-- V12 checkpoint-aware integration: rollback restores pending work and acceptance
-  finalizes workspace cleanup.
-- Bounded Brave Web Search plus public-text Web fetch with source attribution,
-  external-content labeling, public-address validation, pinned connections, and
-  safe redirects.
-- Plan/Implementation/Review, Cautious/Auto/Full Access, all sandbox modes,
-  CLI/TUI state, child ownership, cancellation, and bounded parallelism.
-- Frozen V13 runtime plus installed V1-V14 selection.
+- Bounded, binary-aware file inspection and safer POSIX command execution in
+  resource-constrained task containers.
+- Mode-, state-, credential-, and repository-aware tool exposure, plus shorter
+  core command guidance that encourages direct evidence gathering.
+- Bounded filesystem checkpoint fallback when Git is absent or the working
+  directory is not a repository.
+- OpenAI-compatible Responses API support for configurable base URLs, max
+  reasoning effort, slow endpoints, and endpoints that reject output limits.
+- Resumable Terminal-Bench 2.1 adapters and Cloudflare scheduling that preserve
+  valid results, distinguish infrastructure retries from ability failures, and
+  keep long non-streaming JSON responses alive.
+- Frozen V14 runtime plus installed V1-V15 selection with V15 as the default.
+- A reproducible Terminal-Bench 2.1 k=1 report for Coding Kid V15 with
+  `gpt-5.6-luna` at max reasoning effort.
 
 ### Excluded Scope
 
-- Browser/GUI automation, JavaScript rendering, screenshots, forms, uploads,
-  cookies, authenticated URLs, binary/PDF persistence, or arbitrary downloads.
-- Remote or nested Agents, custom VCS hooks, non-Git workspace isolation, or
-  persistent child conversations.
-- Automatic changes to a conflicted root worktree, automatic merge commits,
-  autonomous model wake-up, or a new benchmark.
+- A new user-facing Agent capability, new workflow mode, or new research topic.
+- Changes designed to solve individual benchmark tasks or task-specific prompt
+  special cases.
+- Claims of leaderboard equivalence between this k=1 run and k=5 or pass@k
+  results.
+- Bundling benchmark run logs, credentials, caches, datasets, container images,
+  or generated Cloudflare state in the teaching archive or wheel.
+- Another paid benchmark run during version packaging.
 
 ### Completion Criteria
 
-- Concurrent Agents can edit overlapping paths without seeing each other's
-  unintegrated changes or changing the root worktree.
-- A dirty root snapshot is visible to children, but integration applies only the
-  child's delta and remains reversible through the V12 stage checkpoint.
-- Conflicts are reproduced and resolved inside isolation; restart preserves
-  unfinished workspace evidence; cleanup never touches unowned Git state.
-- Search returns fresh titled URLs/snippets and fetch returns bounded readable
-  text with continuation; both obey approval, network, SSRF, cancellation,
-  external-content, and source-attribution rules.
-- Pytest, Ruff, ten worktree and Docker stress rounds, wheel inspection, V13
-  fidelity, clean-install V1-V14 launches, and direct installed terminal/TUI
-  trials pass within the authorized live-spend boundary.
+- Broad inspection cannot trigger unbounded memory use; the final benchmark has
+  no exit-137 result.
+- Non-Git task directories retain guarded write/execute/checkpoint behavior.
+- The model sees only usable tools for the current runtime state and can use
+  terminal/file tools without contradictory command guidance.
+- Terminal-Bench scheduling survives restart and transport faults without
+  converting infrastructure errors into ability zeros or repeating valid work.
+- All 89 official Terminal-Bench 2.1 tasks have one valid k=1 result, with the
+  protocol and limitations recorded honestly.
+- The root regression suite and Ruff pass; the wheel contains V1-V15; every
+  installed teaching version launches from an unrelated project.
+- The standalone V15 archive passes its own regression and packaging checks.
 
 ### Implementation Sequence
 
-1. Freeze V13, advance the launcher, and record the V14 boundary.
-2. Build the worktree lifecycle, dirty snapshot baseline, cwd-bound execution,
-   persistence, and safe cleanup.
-3. Add context forks and parent-controlled diff/reconcile/integrate/discard
-   operations with workflow/checkpoint and CLI/TUI integration.
-4. Add the secure Web runtime, tools, permissions, UI, and child integration.
-5. Complete deterministic, security, stress, packaging, installed-terminal, and
-   bounded live-model verification; update durable documentation.
+1. Harden resource-bounded tools, runtime-aware schemas, command guidance, and
+   checkpoint fallback based on the first complete benchmark run.
+2. Build and stabilize resumable local/Cloudflare Terminal-Bench operations,
+   including durable state and long-response keepalives.
+3. Run one fresh authorized 89-task k=1 evaluation and supplement only trials
+   that lacked a valid infrastructure-independent result.
+4. Freeze V14, advance the installed launcher to V15, update durable records,
+   and independently verify the V15 teaching archive.
 
-### Verification Result
+### Benchmark Result
 
-- 421 tests collected: 420 passed and one Windows symlink test skipped; Ruff
-  passes over `src` and `tests`.
-- Ten rounds of four overlapping isolated worktrees preserved the unchanged
-  root and removed all application-owned worktrees and branches.
-- Ten real Docker interactive rounds passed same-container readiness checks and
-  left no containers or execution-session threads after bounded drain.
-- The 862,434-byte wheel contains 249 entries / 245 Python files, including the
-  frozen V13 runtime and living V14 modules, without tests, showcase, cache, or
-  bytecode.
-- A clean Python 3.11 installation launched V1-V14 from an unrelated Git
-  project. Installed-wheel CLI diff/integrate/checkpoint rollback and a Textual
-  TUI `/exit` pilot passed.
-- Deterministic Web security tests cover Brave results, attribution, redirects,
-  DNS and URL SSRF cases, content types, encodings, and size limits. Live Brave
-  search was unavailable because no key was present; host DNS maps public names
-  to reserved `198.18/15`, which the real fetch correctly rejected.
+- Terminal-Bench 2.1: 89/89 valid tasks, 50 passed, 9 Agent timeouts, and 30
+  other verifier-zero results.
+- Score: **50/89 = 56.18%** at k=1.
+- Infrastructure failures in the final result: 0; exit-137 results: 0.
+- The earlier complete run scored 45/89 (50.56%), with 22 Agent timeouts and 13
+  exit-137 failures.
 
-See `docs/reports/v14-verification.md` for the complete evidence.
-
-The standalone archive independently passes 358 of 359 tests with one Windows
-symlink skip, Ruff lint, format-check over 60 Python files, wheel inspection,
-and clean Python 3.11 installation/startup.
+See `docs/reports/terminal-bench-2.1-k1.md` for protocol, failure
+classification, fixes, and limitations.
