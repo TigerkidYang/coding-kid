@@ -6,7 +6,7 @@
   "containers": [
     {
       "class_name": "BenchmarkTrialContainer",
-      "image": "registry.cloudflare.com/1a3e86f9ef02feb107cb83e6c28435ea/coding-kid-terminal-bench-runner-benchmarktrialcontainer:v16-fix1b-20260808",
+      "image": "registry.cloudflare.com/1a3e86f9ef02feb107cb83e6c28435ea/coding-kid-terminal-bench-runner-benchmarktrialcontainer:v16-fix2b-20260808",
       "instance_type": "standard-4",
       "max_instances": 32,
       "rollout_active_grace_period": 0,
