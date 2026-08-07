@@ -59,6 +59,23 @@ def test_generate_requires_openrouter_environment(monkeypatch: Any) -> None:
         raise AssertionError("missing OpenRouter configuration should fail")
 
 
+def test_generate_translates_null_collection_sdk_failure(monkeypatch: Any) -> None:
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> object:
+            raise TypeError("'NoneType' object is not iterable")
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(provider.ProviderProtocolError, match="null collection"):
+        provider.generate("system", [], [])
+
+
 def test_generate_requires_a_model_when_the_key_exists(monkeypatch: Any) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
@@ -180,6 +197,23 @@ def test_generate_streaming_forwards_deltas_and_returns_terminal_response(
     assert deltas == ["Hel", "lo"]
     assert captured["stream"] is True
     assert stream.closed
+
+
+def test_generate_streaming_rejects_missing_stream(monkeypatch: Any) -> None:
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> None:
+            return None
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(provider.ProviderProtocolError, match="no streaming response"):
+        provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
 
 
 def test_generate_streaming_accepts_openrouter_done_event(monkeypatch: Any) -> None:
@@ -334,5 +368,8 @@ def test_provider_retry_classification_and_bounded_delay() -> None:
 
     assert provider.retryable_provider_error(transient)
     assert provider.retryable_provider_error(limited)
+    assert provider.retryable_provider_error(
+        provider.ProviderProtocolError("bad shape")
+    )
     assert provider.provider_retry_delay(limited, 1) == 30.0
     assert not provider.retryable_provider_error(RuntimeError("bad request"))

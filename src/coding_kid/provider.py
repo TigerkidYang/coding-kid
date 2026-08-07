@@ -28,6 +28,21 @@ class ProviderIncompleteError(RuntimeError):
         self.reason = reason
 
 
+class ProviderProtocolError(RuntimeError):
+    """The compatible endpoint or SDK returned an unusable protocol shape."""
+
+
+def _raise_protocol_error(error: TypeError) -> None:
+    """Translate the observed null-collection SDK failure into a retryable error."""
+    rendered = str(error).casefold()
+    if "nonetype" not in rendered or "iterable" not in rendered:
+        raise error
+    raise ProviderProtocolError(
+        "Provider returned a null collection where the Responses protocol requires "
+        "an iterable value"
+    ) from error
+
+
 def required_environment(name: str) -> str:
     """Read one required setting and fail with a useful message if absent."""
     value = os.getenv(name)
@@ -90,9 +105,10 @@ def generate(
         "tools": tools,
     }
     request.update(_request_options(max_output_tokens))
-    return client.responses.create(
-        **request,
-    )
+    try:
+        return client.responses.create(**request)
+    except TypeError as error:
+        _raise_protocol_error(error)
 
 
 def generate_streaming(
@@ -120,29 +136,37 @@ def generate_streaming(
     }
     request.update(_request_options(max_output_tokens))
 
-    stream = client.responses.create(**request)
+    try:
+        stream = client.responses.create(**request)
+    except TypeError as error:
+        _raise_protocol_error(error)
+    if stream is None:
+        raise ProviderProtocolError("Provider returned no streaming response object")
     final_response: Any | None = None
     try:
-        for event in stream:
-            if cancellation_token is not None:
-                cancellation_token.raise_if_cancelled()
-            event_type = getattr(event, "type", "")
-            if event_type in {
-                "response.output_text.delta",
-                "response.content_part.delta",
-            }:
-                delta = getattr(event, "delta", None)
-                if isinstance(delta, str) and delta:
-                    on_text_delta(delta)
-            elif event_type in {"response.completed", "response.done"}:
-                final_response = getattr(event, "response", None)
-            elif event_type == "response.incomplete":
-                response = getattr(event, "response", None)
-                details = getattr(response, "incomplete_details", None)
-                reason = getattr(details, "reason", None) or "unknown"
-                raise ProviderIncompleteError(str(reason))
-            elif event_type in {"response.error", "response.failed"}:
-                raise RuntimeError(_stream_error_message(event))
+        try:
+            for event in stream:
+                if cancellation_token is not None:
+                    cancellation_token.raise_if_cancelled()
+                event_type = getattr(event, "type", "")
+                if event_type in {
+                    "response.output_text.delta",
+                    "response.content_part.delta",
+                }:
+                    delta = getattr(event, "delta", None)
+                    if isinstance(delta, str) and delta:
+                        on_text_delta(delta)
+                elif event_type in {"response.completed", "response.done"}:
+                    final_response = getattr(event, "response", None)
+                elif event_type == "response.incomplete":
+                    response = getattr(event, "response", None)
+                    details = getattr(response, "incomplete_details", None)
+                    reason = getattr(details, "reason", None) or "unknown"
+                    raise ProviderIncompleteError(str(reason))
+                elif event_type in {"response.error", "response.failed"}:
+                    raise RuntimeError(_stream_error_message(event))
+        except TypeError as error:
+            _raise_protocol_error(error)
     finally:
         close = getattr(stream, "close", None)
         if callable(close):
@@ -225,6 +249,8 @@ def is_output_limit_error(error: Exception) -> bool:
 
 def retryable_provider_error(error: Exception) -> bool:
     """Retry only transient transport and server failures."""
+    if isinstance(error, ProviderProtocolError):
+        return True
     status = getattr(error, "status_code", None)
     if isinstance(status, int):
         return status in {408, 409, 429} or status >= 500
