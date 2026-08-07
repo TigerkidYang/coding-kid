@@ -11,7 +11,7 @@ from pathlib import Path
 
 from coding_kid import cli
 
-LATEST_VERSION = "v15"
+LATEST_VERSION = "v16"
 AVAILABLE_VERSIONS = (
     "v1",
     "v2",
@@ -27,6 +27,7 @@ AVAILABLE_VERSIONS = (
     "v12",
     "v13",
     "v14",
+    "v15",
     LATEST_VERSION,
 )
 BUNDLED_RUNTIME_DIRS = {
@@ -44,6 +45,7 @@ BUNDLED_RUNTIME_DIRS = {
     "v12": "v12",
     "v13": "v13",
     "v14": "v14",
+    "v15": "v15",
 }
 RUNTIME_ENTRYPOINT = "from coding_kid.cli import main; main()"
 
@@ -110,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sessions = parser.add_mutually_exclusive_group()
     sessions.add_argument(
-        "--new", action="store_true", help="start a new Version 15 session"
+        "--new", action="store_true", help="start a new Version 16 session"
     )
     sessions.add_argument(
         "--continue",
@@ -124,40 +126,58 @@ def build_parser() -> argparse.ArgumentParser:
     sessions.add_argument(
         "--list-sessions",
         action="store_true",
-        help="list Version 15 sessions for the current project",
+        help="list Version 16 sessions for the current project",
     )
     sessions.add_argument(
         "--delete-session",
         metavar="SESSION",
-        help="soft-delete a Version 15 session while retaining evidence",
+        help="soft-delete a Version 16 session while retaining evidence",
     )
     parser.add_argument(
         "--sandbox",
         choices=("read-only", "workspace-write", "danger-full-access"),
         default="workspace-write",
-        help="Version 15 local-tool policy (default: workspace-write)",
+        help="Version 16 local-tool policy (default: workspace-write)",
     )
     parser.add_argument(
         "--sandbox-image",
         default=cli.DEFAULT_SANDBOX_IMAGE,
-        help="Docker image for a restricted Version 15 sandbox",
+        help="Docker image for a restricted Version 16 sandbox",
     )
     parser.add_argument(
         "--sandbox-network",
         action="store_true",
-        help="allow network for restricted Version 15 tools and sandboxes",
+        help="allow network for restricted Version 16 tools and sandboxes",
     )
     parser.add_argument(
         "--mode",
         choices=("plan", "implementation", "review"),
         default="implementation",
-        help="Version 15 workflow mode for a new session (default: implementation)",
+        help="Version 16 workflow mode for a new session (default: implementation)",
     )
     parser.add_argument(
         "--approval",
         choices=("cautious", "auto", "full-access"),
         default="cautious",
-        help="Version 15 approval policy (default: cautious)",
+        help="Version 16 approval policy (default: cautious)",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        choices=("required", "best-effort", "off"),
+        default=None,
+        help=(
+            "Version 16 recovery policy (default: required for cautious; "
+            "best-effort otherwise)"
+        ),
+    )
+    parser.add_argument(
+        "--dangerously-bypass-approvals-and-sandbox",
+        action="store_true",
+        help=(
+            "skip approvals, the local sandbox, and application checkpoints; "
+            "EXTREMELY DANGEROUS and only for an existing external container, "
+            "virtual machine, or equivalent isolation"
+        ),
     )
     parser.add_argument(
         "--list-versions",
@@ -169,8 +189,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse the requested version and start its runtime."""
+    raw_arguments = tuple(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    arguments = parser.parse_args(argv)
+    arguments = parser.parse_args(raw_arguments)
 
     if arguments.list_versions:
         for version in AVAILABLE_VERSIONS:
@@ -207,15 +228,48 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
     uses_workflow_options = any(
-        (arguments.mode != "implementation", arguments.approval != "cautious")
+        (
+            arguments.mode != "implementation",
+            arguments.approval != "cautious",
+            arguments.checkpoint is not None,
+            arguments.dangerously_bypass_approvals_and_sandbox,
+        )
     )
     if selected_version != LATEST_VERSION and (
         uses_session_options or uses_sandbox_options or uses_workflow_options
     ):
         parser.error(
             "session, workflow, approval, and sandbox options are available only "
-            "for Version 15"
+            "for Version 16"
         )
+    explicitly_selected = {
+        name
+        for name in ("--sandbox", "--approval", "--checkpoint")
+        if name in raw_arguments
+    }
+    if arguments.dangerously_bypass_approvals_and_sandbox:
+        if explicitly_selected:
+            parser.error(
+                "--dangerously-bypass-approvals-and-sandbox cannot be combined "
+                f"with {', '.join(sorted(explicitly_selected))}"
+            )
+        sandbox_mode = "danger-full-access"
+        approval_policy = "full-access"
+        checkpoint_policy = "off"
+    else:
+        sandbox_mode = arguments.sandbox
+        approval_policy = arguments.approval
+        checkpoint_policy = arguments.checkpoint or (
+            "required" if approval_policy == "cautious" else "best-effort"
+        )
+        if checkpoint_policy == "off" and not (
+            sandbox_mode == "danger-full-access"
+            and approval_policy == "full-access"
+        ):
+            parser.error(
+                "--checkpoint off requires both --approval full-access and "
+                "--sandbox danger-full-access"
+            )
     options = cli.SessionOptions(
         mode=(
             "continue"
@@ -227,10 +281,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         session_id=arguments.resume,
         list_only=arguments.list_sessions,
         delete_session=arguments.delete_session,
-        sandbox_mode=arguments.sandbox,
+        sandbox_mode=sandbox_mode,
         sandbox_image=arguments.sandbox_image,
         sandbox_network=arguments.sandbox_network,
         collaboration_mode=arguments.mode,
-        approval_policy=arguments.approval,
+        approval_policy=approval_policy,
+        checkpoint_policy=checkpoint_policy,
+        dangerous_bypass=arguments.dangerously_bypass_approvals_and_sandbox,
     )
     return launch_version(selected_version, options)

@@ -9,6 +9,8 @@ import pytest
 from coding_kid.checkpoints import (
     CheckpointError,
     CheckpointManager,
+    CheckpointPolicy,
+    RecoveryCoverage,
     RollbackConflict,
 )
 
@@ -179,6 +181,102 @@ def test_checkpoint_works_outside_a_git_repository(tmp_path: Path) -> None:
     manager.rollback(checkpoint)
 
     assert (project / "data.txt").read_text(encoding="utf-8") == "before"
+
+
+def test_best_effort_non_git_scopes_recovery_without_scanning_large_artifact(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "plain-project"
+    project.mkdir()
+    (project / "source.py").write_text("before\n", encoding="utf-8")
+    with (project / "artifact.bin").open("wb") as stream:
+        stream.seek(150 * 1024 * 1024 - 1)
+        stream.write(b"\0")
+    manager = CheckpointManager(project, tmp_path / "state", max_bytes=1024)
+
+    checkpoint = manager.create(CheckpointPolicy.BEST_EFFORT)
+    status = manager.status(checkpoint)
+    assert status.coverage is RecoveryCoverage.SCOPED
+    manager.prepare_effect(checkpoint, paths=("source.py",), effect_label="write")
+    (project / "source.py").write_text("after\n", encoding="utf-8")
+    manager.record_effect(checkpoint)
+    manager.rollback(checkpoint)
+
+    assert (project / "source.py").read_text(encoding="utf-8") == "before\n"
+    assert (project / "artifact.bin").stat().st_size == 150 * 1024 * 1024
+
+
+def test_best_effort_falls_back_when_full_checkpoint_is_too_large(
+    project: Path, tmp_path: Path
+) -> None:
+    manager = CheckpointManager(project, tmp_path / "state", max_bytes=1)
+
+    checkpoint = manager.create(CheckpointPolicy.BEST_EFFORT)
+
+    status = manager.status(checkpoint)
+    assert status.coverage is RecoveryCoverage.SCOPED
+    assert "Full checkpoint unavailable" in (status.degraded_reason or "")
+
+
+def test_scoped_unknown_effect_requires_explicit_partial_rollback(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "plain-project"
+    project.mkdir()
+    target = project / "source.py"
+    target.write_text("before", encoding="utf-8")
+    manager = CheckpointManager(project, tmp_path / "state")
+    checkpoint = manager.create(CheckpointPolicy.BEST_EFFORT)
+    manager.prepare_effect(checkpoint, paths=("source.py",), effect_label="write")
+    target.write_text("after", encoding="utf-8")
+    manager.record_effect(checkpoint)
+    warning = manager.prepare_effect(checkpoint, paths=None, effect_label="execute")
+    manager.record_effect(checkpoint)
+
+    assert warning is not None
+    with pytest.raises(CheckpointError, match="--partial"):
+        manager.rollback(checkpoint)
+    manager.rollback(checkpoint, allow_partial=True)
+    assert target.read_text(encoding="utf-8") == "before"
+
+
+def test_checkpoint_off_never_provides_application_rollback(
+    project: Path, tmp_path: Path
+) -> None:
+    manager = CheckpointManager(project, tmp_path / "state")
+    checkpoint = manager.create(CheckpointPolicy.OFF)
+    manager.prepare_effect(checkpoint, paths=("tracked.txt",), effect_label="write")
+    (project / "tracked.txt").write_text("after", encoding="utf-8")
+    manager.record_effect(checkpoint)
+
+    assert manager.status(checkpoint).coverage is RecoveryCoverage.NONE
+    assert "Unattributed Git" in manager.diff_text(checkpoint)
+    with pytest.raises(CheckpointError, match="unavailable"):
+        manager.rollback(checkpoint)
+
+
+def test_version_one_manifest_loads_as_required_full(
+    project: Path, tmp_path: Path
+) -> None:
+    manager = CheckpointManager(project, tmp_path / "state")
+    checkpoint = manager.create()
+    manifest = tmp_path / "state" / checkpoint / "manifest.json"
+    payload = __import__("json").loads(manifest.read_text(encoding="utf-8"))
+    payload["version"] = 1
+    for key in (
+        "policy",
+        "coverage",
+        "degraded_reason",
+        "scoped_paths",
+        "uncovered_effects",
+        "uncovered_effect_counts",
+    ):
+        payload.pop(key, None)
+    manifest.write_text(__import__("json").dumps(payload), encoding="utf-8")
+
+    status = manager.status(checkpoint)
+    assert status.policy is CheckpointPolicy.REQUIRED
+    assert status.coverage is RecoveryCoverage.FULL
 
 
 def test_diff_is_bounded_and_accept_removes_protected_snapshot(

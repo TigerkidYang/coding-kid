@@ -7,12 +7,7 @@ import json
 from threading import Lock, RLock
 from typing import Any, Callable
 
-from coding_kid.checkpoints import (
-    ChangeSummary,
-    CheckpointManager,
-    CheckpointPolicy,
-    RecoveryCoverage,
-)
+from coding_kid.checkpoints import ChangeSummary, CheckpointManager
 from coding_kid.permissions import ToolEffect
 from coding_kid.tools import ToolRegistry
 from coding_kid.workflow import CollaborationMode, WorkflowState
@@ -42,12 +37,10 @@ class WorkflowRuntime:
         state: WorkflowState,
         checkpoints: CheckpointManager,
         *,
-        checkpoint_policy: CheckpointPolicy = CheckpointPolicy.REQUIRED,
         interaction_handler: InteractionHandler | None = None,
     ) -> None:
         self.state = state
         self.checkpoints = checkpoints
-        self.checkpoint_policy = CheckpointPolicy(checkpoint_policy)
         self._interaction_handler = interaction_handler
         self._clear_context_requested = False
         self._lock = RLock()
@@ -96,7 +89,7 @@ class WorkflowRuntime:
                 "effect": ToolEffect.INTERACTION,
             },
         )
-        registry = registry.with_tool(
+        return registry.with_tool(
             "propose_plan",
             {
                 "description": (
@@ -111,23 +104,6 @@ class WorkflowRuntime:
                 },
                 "function": self.propose_plan,
                 "effect": ToolEffect.INTERACTION,
-            },
-        )
-        return registry.with_tool(
-            "diff",
-            {
-                "description": (
-                    "Show the best bounded diff available for the current "
-                    "implementation stage, including recovery-coverage warnings."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
-                },
-                "function": self.diff,
-                "effect": ToolEffect.READ_ONLY,
-                "parallel_safe": True,
             },
         )
 
@@ -157,7 +133,7 @@ class WorkflowRuntime:
         if response.action == "revise":
             feedback = response.feedback or "Revise the plan and submit it again."
             return f"Plan was not approved. User feedback: {feedback}"
-        checkpoint_id = self.checkpoints.create(self.checkpoint_policy)
+        checkpoint_id = self.checkpoints.create()
         self.state.approve_plan(plan, checkpoint_id)
         with self._lock:
             self._clear_context_requested = response.action == "approve_fresh"
@@ -166,33 +142,21 @@ class WorkflowRuntime:
             if self._clear_context_requested
             else "current context"
         )
-        status = self.checkpoints.status(checkpoint_id)
         return (
-            f"Plan approved. Implementation stage {checkpoint_id} started with "
-            f"{status.coverage.value} recovery coverage; continue in implementation "
-            f"mode using {context}."
+            f"Plan approved. Checkpoint {checkpoint_id} was created; continue in "
+            f"implementation mode using {context}."
         )
 
-    def before_effect(
-        self,
-        effect: ToolEffect,
-        *,
-        tool_name: str = "unknown",
-        recovery_paths: tuple[str, ...] | None = None,
-    ) -> str | None:
+    def before_effect(self, effect: ToolEffect) -> None:
         if effect in {ToolEffect.READ_ONLY, ToolEffect.INTERACTION, ToolEffect.CONTROL}:
             return
         self._effect_lock.acquire()
         try:
             checkpoint_id = self.state.checkpoint_id
             if checkpoint_id is None:
-                checkpoint_id = self.checkpoints.create(self.checkpoint_policy)
+                checkpoint_id = self.checkpoints.create()
                 self.state.ensure_checkpoint(checkpoint_id)
-            return self.checkpoints.prepare_effect(
-                checkpoint_id,
-                paths=recovery_paths,
-                effect_label=f"{tool_name}:{effect.value}",
-            )
+            self.checkpoints.prepare_effect(checkpoint_id)
         except BaseException:
             self._effect_lock.release()
             raise
@@ -229,31 +193,12 @@ class WorkflowRuntime:
         checkpoint_id = self.state.checkpoint_id
         if checkpoint_id is None:
             return "No implementation checkpoint or stage changes."
-        status = self.checkpoints.status(checkpoint_id)
-        lines = [
-            f"Stage: {checkpoint_id}",
-            f"Checkpoint policy: {status.policy.value}",
-            f"Recovery coverage: {status.coverage.value}",
-            self.checkpoints.changes(checkpoint_id).text(),
-        ]
-        if status.degraded_reason:
-            lines.append(f"Recovery note: {status.degraded_reason}")
-        if status.uncovered_effects:
-            lines.append(
-                f"Uncovered effects: {len(status.uncovered_effects)}; rollback is partial."
-            )
-        elif status.coverage is RecoveryCoverage.FULL:
-            lines.append(
-                "Rollback covers tracked and non-ignored untracked project files."
-            )
-        elif status.coverage is RecoveryCoverage.SCOPED:
-            lines.append("Rollback covers only files targeted by built-in edits.")
-        else:
-            lines.append("Application rollback is unavailable for this stage.")
-        lines.append(
+        return (
+            f"Checkpoint: {checkpoint_id}\n"
+            f"{self.checkpoints.changes(checkpoint_id).text()}\n\n"
+            "Rollback covers tracked and non-ignored untracked project files. "
             "Ignored files, project-external effects, and remote side effects are excluded."
         )
-        return "\n".join(lines)
 
     def review_text(self) -> str:
         checkpoint_id = self.state.checkpoint_id
@@ -261,16 +206,11 @@ class WorkflowRuntime:
             return "No stage changes to review."
         return f"{self.status_text()}\n\n{self.checkpoints.diff_text(checkpoint_id)}"
 
-    def diff(self) -> str:
-        return self.review_text()
-
-    def rollback(self, *, allow_partial: bool = False) -> ChangeSummary:
+    def rollback(self) -> ChangeSummary:
         checkpoint_id = self.state.checkpoint_id
         if checkpoint_id is None:
             raise RuntimeError("No checkpoint is available")
-        changes = self.checkpoints.rollback(
-            checkpoint_id, allow_partial=allow_partial
-        )
+        changes = self.checkpoints.rollback(checkpoint_id)
         for listener in tuple(self._rollback_listeners):
             listener()
         self.state.clear_checkpoint()

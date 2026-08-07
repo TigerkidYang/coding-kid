@@ -605,7 +605,6 @@ TOOLS: dict[str, ToolEntry] = {
             "additionalProperties": False,
         },
         "function": write,
-        "recovery_paths": lambda arguments: (arguments["path"],),
     },
     "search": {
         "effect": ToolEffect.READ_ONLY,
@@ -641,7 +640,6 @@ TOOLS: dict[str, ToolEntry] = {
             "additionalProperties": False,
         },
         "function": patch,
-        "recovery_paths": lambda arguments: (arguments["path"],),
     },
     "delete": {
         "effect": ToolEffect.DESTRUCTIVE,
@@ -653,7 +651,6 @@ TOOLS: dict[str, ToolEntry] = {
             "additionalProperties": False,
         },
         "function": delete,
-        "recovery_paths": lambda arguments: (arguments["path"],),
     },
     "todo": {
         "effect": ToolEffect.CONTROL,
@@ -960,22 +957,13 @@ class ToolRegistry:
                 "search",
                 "web_search",
                 "web_fetch",
-                "diff",
                 "skill",
                 "task",
                 "request_user_input",
                 "propose_plan",
             }
             if mode is CollaborationMode.PLAN
-            else {
-                "read",
-                "search",
-                "web_search",
-                "web_fetch",
-                "diff",
-                "skill",
-                "task",
-            }
+            else {"read", "search", "web_search", "web_fetch", "skill", "task"}
         )
         definitions = [
             definition
@@ -1043,24 +1031,6 @@ class ToolRegistry:
         """Return true only for tools explicitly safe to overlap."""
         entry = self._entries.get(name)
         return bool(entry is not None and entry.get("parallel_safe", False))
-
-    def recovery_paths(
-        self, name: str, arguments: dict[str, Any]
-    ) -> tuple[str, ...] | None:
-        """Return predictable project-file targets for scoped recovery."""
-        entry = self._entries.get(name)
-        resolver = None if entry is None else entry.get("recovery_paths")
-        if not callable(resolver):
-            return None
-        try:
-            paths = resolver(arguments)
-        except (KeyError, TypeError, ValueError):
-            return None
-        if not isinstance(paths, (list, tuple)) or not all(
-            isinstance(path, str) and path for path in paths
-        ):
-            return None
-        return tuple(paths)
 
     def dispatch(self, name: str, arguments: dict[str, Any]) -> str:
         entry = self._entries.get(name)

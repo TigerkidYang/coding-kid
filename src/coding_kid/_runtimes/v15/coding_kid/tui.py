@@ -224,7 +224,6 @@ class CodingKidApp(App[None]):
         permission_broker: PermissionBroker | None = None,
         workflow_runtime: WorkflowRuntime | None = None,
         web_runtime: WebRuntime | None = None,
-        dangerous_bypass: bool = False,
     ) -> None:
         super().__init__()
         self.session_context = session_context
@@ -245,7 +244,6 @@ class CodingKidApp(App[None]):
         self.permission_broker = permission_broker
         self.workflow_runtime = workflow_runtime
         self.web_runtime = web_runtime
-        self.dangerous_bypass = dangerous_bypass
         self.background_tasks = background_tasks or BackgroundTaskManager(
             sandbox_runtime=sandbox_runtime
         )
@@ -314,25 +312,16 @@ class CodingKidApp(App[None]):
         cwd = escape(str(self.session_context.cwd))
         self._append_cell(
             Static(
-                "[dim]>_ [/][b]Coding Kid[/] [dim](v16)[/]\n\n"
+                "[dim]>_ [/][b]Coding Kid[/] [dim](v15)[/]\n\n"
                 f"[dim]model:     [/]{model}\n"
                 f"[dim]directory: [/]{cwd}\n"
                 f"[dim]session:   [/]{self._session_label()}\n"
                 f"[dim]mode:      [/]{escape(self.workflow_state.mode.value)}\n"
                 f"[dim]approval:  [/]{escape(self._approval_label())}\n"
-                f"[dim]sandbox:   [/]{escape(self._sandbox_label())}\n"
-                f"[dim]checkpoint:[/]{escape(self._checkpoint_label())}",
+                f"[dim]sandbox:   [/]{escape(self._sandbox_label())}",
                 classes="session-card",
             )
         )
-        if self.dangerous_bypass:
-            self._append_cell(
-                Static(
-                    "[b red]WARNING: approvals, the local sandbox, and application "
-                    "checkpoints are bypassed. Use only inside external isolation.[/]",
-                    classes="error-cell",
-                )
-            )
         self._append_cell(
             Static(
                 "[dim]  Describe a task, or use /agents, /tasks, /task, /session, /sessions, "
@@ -400,13 +389,7 @@ class CodingKidApp(App[None]):
             self._finish_changes(accept=True)
             return
         if text == "/changes rollback":
-            self._finish_changes(accept=False, allow_partial=False)
-            return
-        if text in {"/changes rollback --partial", "/rollback --partial"}:
-            self._finish_changes(accept=False, allow_partial=True)
-            return
-        if text == "/rollback":
-            self._finish_changes(accept=False, allow_partial=False)
+            self._finish_changes(accept=False)
             return
         if text.startswith("/agent "):
             parts = text.split()
@@ -866,16 +849,6 @@ class CodingKidApp(App[None]):
             else "not configured"
         )
 
-    def _checkpoint_label(self) -> str:
-        if self.workflow_runtime is None:
-            return "not configured"
-        checkpoint_id = self.workflow_state.checkpoint_id
-        if checkpoint_id is None:
-            return self.workflow_runtime.checkpoint_policy.value
-        status = self.workflow_runtime.checkpoints.status(checkpoint_id)
-        suffix = " (degraded)" if status.degraded_reason else ""
-        return f"{status.policy.value}/{status.coverage.value}{suffix}"
-
     def _show_sandbox(self) -> None:
         rendered = (
             self.sandbox_runtime.status_text()
@@ -900,7 +873,6 @@ class CodingKidApp(App[None]):
             f"Workflow mode: {self.workflow_state.mode.value}\n"
             f"Approval policy: {self._approval_label()}\n"
             f"Sandbox policy: {self._sandbox_label()}\n"
-            f"Checkpoint policy/coverage: {self._checkpoint_label()}\n"
             f"Session grants: {grants}"
         )
         self._append_cell(
@@ -953,7 +925,7 @@ class CodingKidApp(App[None]):
         )
         self._append_cell(Static(Text(rendered), classes="context-cell", markup=False))
 
-    def _finish_changes(self, *, accept: bool, allow_partial: bool = False) -> None:
+    def _finish_changes(self, *, accept: bool) -> None:
         if self.active_turn:
             self._append_cell(
                 Static(
@@ -969,7 +941,7 @@ class CodingKidApp(App[None]):
             changes = (
                 self.workflow_runtime.accept()
                 if accept
-                else self.workflow_runtime.rollback(allow_partial=allow_partial)
+                else self.workflow_runtime.rollback()
             )
             self._commit_workflow()
         except Exception as error:  # noqa: BLE001
@@ -1396,7 +1368,6 @@ class CodingKidApp(App[None]):
         left = (
             f"{self.session_context.model} · {self.workflow_state.mode.value} · "
             f"{self._approval_label()} · {self._sandbox_label()} · "
-            f"checkpoint {self._checkpoint_label()} · "
             f"{self.session_context.cwd}"
         )
         remaining = self.manager.context_remaining_percent()
@@ -1707,7 +1678,6 @@ def run_tui(
     permission_broker: PermissionBroker | None = None,
     workflow_runtime: WorkflowRuntime | None = None,
     web_runtime: WebRuntime | None = None,
-    dangerous_bypass: bool = False,
 ) -> None:
     """Capture one session and run the full-screen application."""
     context = session_context or SessionContext.capture()
@@ -1725,5 +1695,4 @@ def run_tui(
         permission_broker=permission_broker,
         workflow_runtime=workflow_runtime,
         web_runtime=web_runtime,
-        dangerous_bypass=dangerous_bypass,
     ).run()

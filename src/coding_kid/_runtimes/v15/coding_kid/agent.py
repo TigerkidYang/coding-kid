@@ -471,13 +471,7 @@ def run_turn(
                         return result
                 if workflow_runtime is not None:
                     try:
-                        recovery_warning = workflow_runtime.before_effect(
-                            effect,
-                            tool_name=tool_call.name,
-                            recovery_paths=registry.recovery_paths(
-                                tool_call.name, tool_call.arguments
-                            ),
-                        )
+                        workflow_runtime.before_effect(effect)
                     except Exception as error:  # noqa: BLE001
                         result = f"ERROR: {type(error).__name__}: {error}"
                         emit(
@@ -489,8 +483,6 @@ def run_turn(
                             ),
                         )
                         return result
-                    if recovery_warning:
-                        emit(event_sink, ContextWarning(recovery_warning))
                 emit(
                     event_sink,
                     ToolStarted(tool_call.name, dict(tool_call.arguments)),

@@ -12,7 +12,7 @@ from coding_kid.agent import current_instructions, run_turn
 from coding_kid.agents import AgentEvent, AgentManager
 from coding_kid.background_tasks import BackgroundTaskManager, TaskEvent
 from coding_kid.capabilities import CapabilityRuntime
-from coding_kid.checkpoints import CheckpointManager, CheckpointPolicy
+from coding_kid.checkpoints import CheckpointManager
 from coding_kid.compaction import compact_context
 from coding_kid.context import SessionContext
 from coding_kid.context_manager import ContextManager
@@ -95,8 +95,6 @@ class SessionOptions:
     sandbox_network: bool = False
     collaboration_mode: str = CollaborationMode.IMPLEMENTATION.value
     approval_policy: str = ApprovalPolicy.CAUTIOUS.value
-    checkpoint_policy: str = CheckpointPolicy.REQUIRED.value
-    dangerous_bypass: bool = False
 
 
 def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
@@ -223,12 +221,7 @@ def chat(
     if sandbox_runtime is not None:
         output_function(sandbox_runtime.status_text())
     output_function(
-        _permissions_text(
-            workflow_state,
-            permission_broker,
-            sandbox_runtime,
-            workflow_runtime,
-        )
+        _permissions_text(workflow_state, permission_broker, sandbox_runtime)
     )
     if capability_runtime is not None:
         output_function(capability_runtime.summary())
@@ -288,12 +281,7 @@ def chat(
             continue
         if user_input == "/permissions":
             output_function(
-                _permissions_text(
-                    workflow_state,
-                    permission_broker,
-                    sandbox_runtime,
-                    workflow_runtime,
-                )
+                _permissions_text(workflow_state, permission_broker, sandbox_runtime)
             )
             continue
         if user_input == "/mode":
@@ -331,19 +319,12 @@ def chat(
                 else:
                     output_function(f"Accepted stage changes.\n{changes.text()}")
             continue
-        if user_input in {
-            "/changes rollback",
-            "/changes rollback --partial",
-            "/rollback",
-            "/rollback --partial",
-        }:
+        if user_input == "/changes rollback":
             if workflow_runtime is None:
                 output_function("Change workflow is not active.")
             else:
                 try:
-                    changes = workflow_runtime.rollback(
-                        allow_partial=user_input.endswith("--partial")
-                    )
+                    changes = workflow_runtime.rollback()
                     _commit_workflow_state(session_handle, todo_state)
                 except Exception as error:  # noqa: BLE001
                     output_function(f"Error: {error}")
@@ -765,23 +746,17 @@ def _permissions_text(
     workflow: WorkflowState,
     broker: PermissionBroker | None,
     sandbox: SandboxRuntime | None,
-    runtime: WorkflowRuntime | None = None,
 ) -> str:
     approval = broker.policy.value if broker is not None else "not configured"
     sandbox_mode = (
         sandbox.config.mode.value if sandbox is not None else "not configured"
     )
     grants = len(broker.session_grants) if broker is not None else 0
-    checkpoint = (
-        f"\nCheckpoint policy: {runtime.checkpoint_policy.value}"
-        if runtime is not None
-        else ""
-    )
     return (
         f"Workflow mode: {workflow.mode.value}\n"
         f"Approval policy: {approval}\n"
         f"Sandbox policy: {sandbox_mode}\n"
-        f"Session grants: {grants}{checkpoint}"
+        f"Session grants: {grants}"
     )
 
 
@@ -997,11 +972,7 @@ def main(options: SessionOptions | None = None) -> None:
                 managers["agent"].running_count if "agent" in managers else 0
             ),
         )
-        workflow_runtime = WorkflowRuntime(
-            handle.workflow,
-            checkpoint_manager,
-            checkpoint_policy=CheckpointPolicy(selection.checkpoint_policy),
-        )
+        workflow_runtime = WorkflowRuntime(handle.workflow, checkpoint_manager)
         permission_broker = PermissionBroker(
             ApprovalPolicy(selection.approval_policy), handle.workflow
         )
@@ -1039,15 +1010,8 @@ def main(options: SessionOptions | None = None) -> None:
                 tui_options["agent_manager"] = agent_manager
             if "web_runtime" in inspect.signature(run_tui).parameters:
                 tui_options["web_runtime"] = web_runtime
-            if "dangerous_bypass" in inspect.signature(run_tui).parameters:
-                tui_options["dangerous_bypass"] = selection.dangerous_bypass
             run_tui(handle.context, handle.manager, **tui_options)
         else:
-            if selection.dangerous_bypass:
-                print(
-                    "WARNING: approvals, the local sandbox, and application "
-                    "checkpoints are bypassed. Use only inside external isolation."
-                )
             chat_options: dict[str, Any] = {
                 "session_handle": handle,
                 "memory_manager": memory_manager,
