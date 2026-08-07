@@ -956,7 +956,7 @@ class CodingKidApp(App[None]):
 
     def _show_changes(self) -> None:
         rendered = (
-            self.workflow_runtime.status_text()
+            self.workflow_runtime.review_text()
             if self.workflow_runtime is not None
             else "Change workflow is not active."
         )

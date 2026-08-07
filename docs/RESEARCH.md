@@ -47,6 +47,29 @@ Research notes should support two outcomes:
 
 ## Supplementary Improvements
 
+### Version 16 Recoverable-Autonomy Source Reading
+
+V16 follows the existing loop/workflow-control and minimum SWE tool-set topics.
+It uses Codex and Claude Code only as design evidence; neither source tree is a
+runtime dependency.
+
+- Codex official source at local commit `bdd282f`, with the benchmark-era
+  `44918ea` submission reference, separates application sandbox/approval from an
+  explicit `dangerously-bypass-approvals-and-sandbox` mode intended solely for
+  external isolation. Its patch grammar and unified diff machinery demonstrate
+  efficient model-visible multi-file changes and bounded review evidence.
+- The Claude Code source archive at `a371abb` is an unofficial public sourcemap
+  reconstruction, not authoritative Anthropic source. Its built-in file-edit
+  history protects directly edited target files, while arbitrary Bash effects
+  are not claimed as completely reversible. Its todo guidance informs work but
+  does not gate query completion.
+
+Coding Kid combines those general boundaries: required/full for conservative
+local work, best-effort/scoped preimages for predictable direct edits, and off
+only under explicit unrestricted selection. It deliberately keeps the simpler
+`execute + task` teaching split, JSON function tools, fixed loop limits, and no
+model- or benchmark-specific prompt.
+
 ### Version 15 Benchmark-Driven Hardening
 
 Terminal-Bench 2.1 exercised the completed core and advanced capability topics

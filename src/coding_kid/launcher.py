@@ -244,7 +244,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     explicitly_selected = {
         name
-        for name in ("--sandbox", "--approval", "--checkpoint")
+        for name in (
+            "--sandbox",
+            "--sandbox-image",
+            "--sandbox-network",
+            "--approval",
+            "--checkpoint",
+        )
         if name in raw_arguments
     }
     if arguments.dangerously_bypass_approvals_and_sandbox:
@@ -263,8 +269,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "required" if approval_policy == "cautious" else "best-effort"
         )
         if checkpoint_policy == "off" and not (
-            sandbox_mode == "danger-full-access"
-            and approval_policy == "full-access"
+            sandbox_mode == "danger-full-access" and approval_policy == "full-access"
         ):
             parser.error(
                 "--checkpoint off requires both --approval full-access and "

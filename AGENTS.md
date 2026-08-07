@@ -219,6 +219,19 @@ In particular:
 
 ## Current State
 
+- Version 16 Recoverable Autonomy is implemented and root verification is
+  complete, awaiting user confirmation before archive/tag/push. It adds
+  required/best-effort/off checkpoint policies, full/scoped/none recovery,
+  explicit partial rollback, an external-isolation bypass, atomic multi-file
+  `apply_patch`, shared diff evidence, improved exact replacement, soft todo
+  completion, provider collection normalization, and controlled loop-boundary
+  results without merging `execute + task` or adding benchmark-specific logic.
+  V15 is frozen and V16 is the living V1-V16 default. The root passes 483 of
+  485 tests with two Windows symlink skips, Ruff over 336 files, ten stress
+  rounds, final wheel/clean Python 3.11/V1-V16 launches, real Luna required and
+  best-effort workflows, a disposable Docker bypass, cross-session todo
+  convergence, and a real Windows ConPTY TUI. Estimated live spend stayed below
+  USD 0.30; no benchmark ran. See `docs/reports/v16-verification.md`.
 - Version 15 is complete as a benchmark-driven maintenance release. It hardens
   bounded and binary-aware inspection, runtime-aware tool exposure, command
   guidance, non-Git checkpoints, OpenAI-compatible provider behavior, and

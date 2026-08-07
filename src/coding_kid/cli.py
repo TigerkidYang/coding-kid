@@ -316,7 +316,7 @@ def chat(
             continue
         if user_input == "/changes":
             output_function(
-                workflow_runtime.status_text()
+                workflow_runtime.review_text()
                 if workflow_runtime is not None
                 else "Change workflow is not active."
             )

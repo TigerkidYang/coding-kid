@@ -1,5 +1,37 @@
 # Decisions
 
+## Make recovery proportional and explicit in Version 16
+
+Decision:
+Keep required full-stage checkpoints as the cautious default, add best-effort
+full-to-scoped degradation for ordinary autonomous work, and allow checkpoint
+off only with explicit full unrestricted access. Provide one separate bypass
+preset solely for environments already isolated by a disposable container, VM,
+or equivalent boundary. Never describe scoped or absent coverage as full
+rollback.
+
+Consequence:
+Large/non-Git projects no longer fail before useful work solely because the
+application cannot copy the entire tree. Direct built-in edits remain locally
+recoverable; shell, MCP, dynamic, ignored, external, and remote effects remain
+honestly uncovered. Partial rollback requires explicit user intent and active
+V15 manifests keep their original required/full semantics.
+
+## Prefer atomic reviewable patches without replacing teaching modules
+
+Decision:
+Add a provider-neutral JSON `apply_patch` tool with bounded Codex-style markers,
+complete preflight validation, path policy, and call-local recovery. Keep
+`write`, exact `patch`, `delete`, and the separate `execute + task` model. Make
+todo use recommended and persistent, but never a fatal completion condition.
+
+Consequence:
+Models can perform efficient multi-file edits without provider-specific custom
+tools, while the small tool registry remains inspectable. Plans still teach
+decomposition, but stale or deliberately deferred work cannot crash a valid
+turn. Safety violations, malformed provider protocol, persistence damage, and
+unconfirmed rollback conflicts remain fatal boundaries.
+
 ## Treat benchmark feedback as one maintenance version
 
 Decision:
@@ -506,11 +538,11 @@ next action.
 ## Never accept an empty final answer
 
 Decision:
-Retry one isolated empty model response and turn repeated empty responses into
-an explicit error. In Version 10, commit each complete model/tool protocol round
-as evidence. On failure or interruption, retain those rounds and their todo
-effects while discarding incomplete assistant streaming text and temporary
-compaction projections.
+Retry one isolated empty model response and, since Version 16, turn repeated
+empty responses into a controlled incomplete result. Commit each complete
+model/tool protocol round as evidence. On failure or interruption, retain those
+rounds and their todo effects while discarding incomplete assistant streaming
+text and temporary compaction projections.
 
 Consequence:
 The terminal never presents a blank `Coding Kid>` response as success, and an

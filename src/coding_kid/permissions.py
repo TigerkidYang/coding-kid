@@ -354,9 +354,7 @@ def approval_summary(
             try:
                 from coding_kid.patching import patch_paths
 
-                targets = ", ".join(
-                    patch_paths(str(arguments.get("patch", "")))
-                )
+                targets = ", ".join(patch_paths(str(arguments.get("patch", ""))))
             except (TypeError, ValueError):
                 targets = "invalid patch"
             return (

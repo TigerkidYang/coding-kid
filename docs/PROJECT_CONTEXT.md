@@ -64,6 +64,20 @@ without explicit permission.
 
 ## Current State
 
+- Version 16 Recoverable Autonomy is implemented and root verification is
+  complete, awaiting user confirmation before archive/tag/push.
+  It preserves the explicit teaching architecture while adding required,
+  best-effort, and off checkpoint policies; full/scoped/none recovery evidence;
+  explicit partial rollback; externally isolated bypass; atomic multi-file
+  `apply_patch`; shared model/UI diff; improved exact replacement; soft todo
+  completion; and controlled loop-boundary results. V15 is frozen and the
+  launcher selects V1-V16 with V16 as the living default. The root passes 483
+  of 485 collected tests with two Windows symlink skips, Ruff, ten stress
+  rounds, final-wheel inspection, clean Python 3.11 installation, V1-V16
+  launches, real Luna CLI workflows, a disposable Docker bypass workflow, and
+  a real Windows ConPTY TUI. No benchmark rerun is part of V16. See
+  `docs/reports/v16-verification.md`.
+
 - Version 15 benchmark-driven hardening is complete. It packages the
   cross-cutting maintenance work exposed by Terminal-Bench rather than adding a
   new headline capability. Coding Kid V15 with `gpt-5.6-luna`, max reasoning,

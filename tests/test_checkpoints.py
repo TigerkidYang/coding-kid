@@ -255,6 +255,15 @@ def test_checkpoint_off_never_provides_application_rollback(
         manager.rollback(checkpoint)
 
 
+def test_checkpoint_off_non_git_reports_diff_unavailable(tmp_path: Path) -> None:
+    project = tmp_path / "plain"
+    project.mkdir()
+    manager = CheckpointManager(project, tmp_path / "state")
+    checkpoint = manager.create(CheckpointPolicy.OFF)
+
+    assert "Diff unavailable" in manager.diff_text(checkpoint)
+
+
 def test_version_one_manifest_loads_as_required_full(
     project: Path, tmp_path: Path
 ) -> None:

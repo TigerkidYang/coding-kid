@@ -53,6 +53,17 @@ request timeout for slow high-effort endpoints. The existing key and model
 variables remain unchanged so default OpenRouter behavior is backward
 compatible.
 
+## Version 16 Recoverable Autonomy
+
+Version 16 keeps the explicit `execute + task` teaching architecture while
+making recovery proportional to the environment. `required` preserves the
+full fail-closed stage snapshot; `best-effort` can degrade to target-file
+recovery and reports unknown shell/MCP effects honestly; `off` is available
+only with unrestricted access. A provider-neutral `apply_patch` edits multiple
+files atomically after complete validation, `diff` shares the same bounded
+review evidence as `/changes`, and unfinished todos are visible resumable state
+rather than a fatal completion gate.
+
 ## Version 15 Maintenance Release
 
 Version 15 packages reliability fixes found through a complete Terminal-Bench
@@ -90,7 +101,7 @@ teaching version:
 ```powershell
 cd D:\Projects\some-project
 
-coding-kid       # latest living core version (currently v15; new session)
+coding-kid       # latest living core version (currently v16; new session)
 coding-kid v1    # minimal agent
 coding-kid v2    # task decomposition
 coding-kid v3    # context assembly
@@ -106,6 +117,7 @@ coding-kid v12   # permission-governed change workflow
 coding-kid v13   # continuous interactive execution sessions
 coding-kid v14   # isolated Agent collaboration and bounded Web research
 coding-kid v15   # benchmark-driven reliability and portability hardening
+coding-kid v16   # recoverable autonomy and atomic multi-file editing
 ```
 
 Numeric aliases such as `coding-kid 1` and `coding-kid 03` are also accepted.
@@ -115,9 +127,9 @@ To inspect the installed choices without starting a chat:
 coding-kid --list-versions
 ```
 
-The command preserves the directory from which it was invoked. Versions 03–15
+The command preserves the directory from which it was invoked. Versions 03–16
 therefore discover that project's Git root and layered `AGENTS.md` files;
-Versions 01 and 02 retain their original historical behavior. Version 15 is
+Versions 01 and 02 retain their original historical behavior. Version 16 is
 the default while it is the living core version.
 
 During repository development, the module entry point accepts the same version
@@ -128,7 +140,7 @@ uv run python -m coding_kid
 uv run python -m coding_kid v1
 ```
 
-Living Version 15 session selection is explicit:
+Living Version 16 session selection is explicit:
 
 ```powershell
 coding-kid --continue
@@ -141,7 +153,7 @@ The default creates a new session. IDs may be complete or unique prefixes.
 Resume from the original directory with the original `OPENROUTER_MODEL`.
 Deletion is soft: it hides the session but retains its JSONL evidence.
 
-In the Version 15 TUI, enter a task in the bottom composer. `Enter` submits and
+In the Version 16 TUI, enter a task in the bottom composer. `Enter` submits and
 `Shift+Enter` inserts a newline. Submitting while work is active queues a steer
 instruction FIFO and stops the current step before continuing with retained
 completed evidence. Up to eight pending inputs are kept; a ninth remains in the
@@ -155,7 +167,7 @@ control their respective layers.
 
 ## Permission-Governed Change Workflow
 
-Version 15 retains Version 12's permission workflow and defaults to
+Version 16 retains Version 12's permission workflow and defaults to
 Implementation mode, Cautious approval, and the existing
 `workspace-write` sandbox. These three settings are independent:
 
@@ -178,16 +190,38 @@ overrides workflow restrictions, protected metadata, or the sandbox. Prompts
 support approve once, approve the same conservative action for this process,
 deny with feedback, or abort. Grants and pending prompts do not survive restart.
 
-The first sensitive action captures tracked and non-ignored untracked project
-content. `/changes` reports the stage, `/mode review` begins read-only review,
-`/changes accept` accepts it, and `/changes rollback` safely restores the
-baseline. Rollback refuses while child/background work is active or when a file
-changed outside the last recorded Agent effect. Ignored output, outside-project
-effects, and remote MCP effects are not rollback promises.
+Checkpoint policy is selected independently:
+
+```powershell
+coding-kid --checkpoint required
+coding-kid --approval auto --checkpoint best-effort
+coding-kid --approval full-access --sandbox danger-full-access --checkpoint off
+```
+
+`cautious` defaults to `required`; `auto` and `full-access` default to
+`best-effort`. Required captures tracked and non-ignored untracked content and
+fails closed if it cannot promise full rollback. Best effort uses the full
+snapshot when practical, but non-Git or oversized projects protect only files
+targeted by built-in edits. Shell, MCP, and unknown effects mark that coverage
+partial; `/rollback --partial` is then required. Off stores no project bytes
+and offers no application rollback. `/changes`, model `diff`, and Review mode
+use one bounded evidence source.
+
+For an already isolated disposable container or VM only, the explicit preset
+below selects danger-full-access, full-access approval, and checkpoint off:
+
+```powershell
+coding-kid --dangerously-bypass-approvals-and-sandbox
+```
+
+It is intentionally unsafe on an ordinary host and prints a prominent warning.
+Rollback always refuses while child/background work is active or when protected
+files changed outside the last recorded Agent effect. Full and scoped rollback
+restore the exact pre-stage dirty/untracked bytes, not Git HEAD.
 
 ## Sandbox Control
 
-Version 15 retains Version 11's immutable startup policy. The default is a Docker-backed
+Version 16 retains Version 11's immutable startup policy. The default is a Docker-backed
 workspace sandbox with network disabled:
 
 ```powershell
@@ -233,7 +267,7 @@ tools remain exclusive unless their registry metadata explicitly opts in.
 
 ## Multi-Agent Workflows
 
-Version 15 retains Version 09's bounded child lifecycle and defaults writing
+Version 16 retains Version 09's bounded child lifecycle and defaults writing
 children to application-owned Git worktrees. `spawn_agent` selects `worktree`
 or explicit `shared` isolation and may fork up to eight recent visible turns.
 The `agent` tool lists, polls, waits, follows up, stops, reviews diffs,
@@ -477,10 +511,11 @@ instructions. These contextual messages are assembled only in the request copy;
 they never enter or inflate the real conversation history. Todo changes and
 recovery guidance are rendered again for each model/tool step.
 
-If OpenRouter returns an empty response once, Coding Kid automatically asks the
-model to continue. Repeated empty responses become a visible error instead of a
-blank `Coding Kid>` answer. Failed and interrupted turns are removed from chat
-history before the next prompt.
+If the provider returns an empty response once, Coding Kid automatically asks
+the model to continue. Repeated empty responses become a visible controlled
+incomplete result instead of a blank answer or protocol crash. Failed and
+interrupted turns retain complete model/tool evidence while removing incomplete
+streaming projections before the next prompt.
 
 Each user turn executes at most 64 built-in/MCP work calls. Todo checklist
 updates and Skill loads do not count toward that budget. Calls beyond the
@@ -489,9 +524,10 @@ evidence already collected.
 Repository-overview requests are guided toward selective inspection instead of
 recursive trees, dependency scans, test runs, or Git archaeology.
 
-Before returning a final answer, Coding Kid gives the model one chance to
-reconcile any todo still marked `in_progress`. A second unreconciled final
-answer becomes an explicit error rather than committing misleading progress.
+Before returning a final answer, Coding Kid gives the model one soft chance to
+reconcile any todo still marked `in_progress`. A second final answer is accepted
+and the unfinished list remains visible and durable. Pending-only lists may end
+immediately; completed lists are cleared automatically.
 
 ## Context Management
 
@@ -529,7 +565,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V13 are preserved under `versions/` and by matching
+Completed checkpoints V1–V15 are preserved under `versions/` and by matching
 annotated tags. Version 13 remains the living default implementation. The
 installed launcher bundles V1–V12 runtime source and shares one Python
 environment and one set of third-party dependencies across all versions.

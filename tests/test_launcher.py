@@ -167,17 +167,20 @@ def test_main_accepts_explicit_checkpoint_off_with_required_access(
         lambda version, options: selected.append(options) or 0,
     )
 
-    assert launcher.main(
-        [
-            "v16",
-            "--checkpoint",
-            "off",
-            "--approval",
-            "full-access",
-            "--sandbox",
-            "danger-full-access",
-        ]
-    ) == 0
+    assert (
+        launcher.main(
+            [
+                "v16",
+                "--checkpoint",
+                "off",
+                "--approval",
+                "full-access",
+                "--sandbox",
+                "danger-full-access",
+            ]
+        )
+        == 0
+    )
     assert selected[0].checkpoint_policy == "off"
 
 
@@ -191,9 +194,7 @@ def test_main_dangerous_bypass_selects_all_three_unsafe_modes(
         lambda version, options: selected.append(options) or 0,
     )
 
-    assert launcher.main(
-        ["v16", "--dangerously-bypass-approvals-and-sandbox"]
-    ) == 0
+    assert launcher.main(["v16", "--dangerously-bypass-approvals-and-sandbox"]) == 0
     assert selected[0].sandbox_mode == "danger-full-access"
     assert selected[0].approval_policy == "full-access"
     assert selected[0].checkpoint_policy == "off"
@@ -208,6 +209,17 @@ def test_main_dangerous_bypass_rejects_conflicting_explicit_modes() -> None:
                 "--dangerously-bypass-approvals-and-sandbox",
                 "--approval",
                 "full-access",
+            ]
+        )
+
+
+def test_main_dangerous_bypass_rejects_sandbox_network_option() -> None:
+    with pytest.raises(SystemExit, match="2"):
+        launcher.main(
+            [
+                "v16",
+                "--dangerously-bypass-approvals-and-sandbox",
+                "--sandbox-network",
             ]
         )
 
@@ -330,7 +342,20 @@ def test_bundled_runtime_matches_archive(version: str, archive: str) -> None:
     excluded = (
         {"__main__.py", "launcher.py"}
         if version
-        in {"v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12", "v13", "v14", "v15"}
+        in {
+            "v04",
+            "v05",
+            "v06",
+            "v07",
+            "v08",
+            "v09",
+            "v10",
+            "v11",
+            "v12",
+            "v13",
+            "v14",
+            "v15",
+        }
         else set()
     )
     archived_files = {

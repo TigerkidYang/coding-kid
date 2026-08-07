@@ -96,7 +96,9 @@ def parse_patch(patch: str) -> tuple[FilePatch, ...]:
         if action == "add":
             if any(not line.startswith("+") for line in body):
                 raise PatchError(f"{path}: added file lines must start with +")
-            files.append(FilePatch(action, path, added_lines=tuple(line[1:] for line in body)))
+            files.append(
+                FilePatch(action, path, added_lines=tuple(line[1:] for line in body))
+            )
         elif action == "delete":
             if body:
                 raise PatchError(f"{path}: delete marker must not contain hunks")
@@ -187,7 +189,9 @@ def apply_patch_text(
                 updated = updated.replace("\n", newline)
             after = updated.encode("utf-8")
         if after is not None and len(after) > MAX_PATCH_FILE_BYTES:
-            raise PatchError(f"{item.path}: result exceeds {MAX_PATCH_FILE_BYTES} bytes")
+            raise PatchError(
+                f"{item.path}: result exceeds {MAX_PATCH_FILE_BYTES} bytes"
+            )
         changed_chars += max(len(before or b""), len(after or b""))
         if changed_chars > MAX_PATCH_CHANGED_CHARS:
             raise PatchError(
@@ -282,20 +286,21 @@ def _resolve_target(path: str, sandbox_runtime: SandboxRuntime | None) -> Path:
         else Path.cwd().resolve()
     )
     base = sandbox_runtime.config.cwd if sandbox_runtime is not None else Path.cwd()
+    lexical = Path(os.path.abspath(base / path))
     if sandbox_runtime is not None:
-        target = sandbox_runtime.resolve_path(path, write=True)
-    else:
-        target = base / path
-    resolved = target.resolve(strict=False)
+        sandbox_runtime.resolve_path(path, write=True)
+    resolved = lexical.resolve(strict=False)
     try:
         resolved.relative_to(root.resolve())
     except ValueError as error:
         raise PatchError(f"path escapes project: {path}") from error
-    return resolved
+    return lexical
 
 
 def _newline_style(text: str) -> str:
-    return "\r\n" if text.count("\r\n") > text.count("\n") - text.count("\r\n") else "\n"
+    return (
+        "\r\n" if text.count("\r\n") > text.count("\n") - text.count("\r\n") else "\n"
+    )
 
 
 def _commit_change(change: _Change) -> None:
@@ -303,7 +308,9 @@ def _commit_change(change: _Change) -> None:
         change.path.unlink()
         return
     change.path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = change.path.with_name(f".{change.path.name}.coding-kid-patch-{os.getpid()}")
+    temporary = change.path.with_name(
+        f".{change.path.name}.coding-kid-patch-{os.getpid()}"
+    )
     try:
         temporary.write_bytes(change.after)
         if change.mode is not None:

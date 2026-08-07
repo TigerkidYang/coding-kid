@@ -411,9 +411,7 @@ def patch(
     count = content.count(matching_old)
     if count == 0:
         excerpt = content[:600]
-        raise ValueError(
-            f"old_text matched 0 times. Bounded file context: {excerpt!r}"
-        )
+        raise ValueError(f"old_text matched 0 times. Bounded file context: {excerpt!r}")
     if count > 1 and not replace_all:
         position = content.find(matching_old)
         excerpt = content[max(0, position - 200) : position + len(matching_old) + 200]
@@ -429,9 +427,7 @@ def patch(
     return f"Patched {file_path} ({replacements} replacement(s))"
 
 
-def apply_patch(
-    patch: str, *, sandbox_runtime: SandboxRuntime | None = None
-) -> str:
+def apply_patch(patch: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
     """Apply one validated multi-file patch atomically at the tool-call boundary."""
     return apply_patch_text(patch, sandbox_runtime=sandbox_runtime)
 
@@ -1209,7 +1205,11 @@ def build_tool_registry(
         )
         write_effect = name in {"write", "patch", "apply_patch", "delete"}
         entries[name]["sandbox_check"] = (
-            (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+            (
+                lambda arguments: _validate_patch_targets(
+                    arguments["patch"], sandbox_runtime
+                )
+            )
             if name == "apply_patch"
             else lambda arguments, write=write_effect: (
                 sandbox_runtime.resolve_path(arguments["path"], write=write)
@@ -1219,10 +1219,26 @@ def build_tool_registry(
         )
         if write_effect:
             entries[name]["hard_check"] = (
-                (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+                (
+                    lambda arguments: _validate_patch_targets(
+                        arguments["patch"], sandbox_runtime
+                    )
+                )
                 if name == "apply_patch"
                 else lambda arguments: _protect_metadata_path(
                     arguments["path"], sandbox_runtime
+                )
+            )
+            entries[name]["recovery_paths"] = (
+                (
+                    lambda arguments: tuple(
+                        _recovery_path(path, sandbox_runtime)
+                        for path in patch_paths(arguments["patch"])
+                    )
+                )
+                if name == "apply_patch"
+                else lambda arguments: (
+                    _recovery_path(arguments["path"], sandbox_runtime),
                 )
             )
     if todo_state is not None:
@@ -1325,7 +1341,11 @@ def build_child_tool_registry(
         )
         write_effect = name in {"write", "patch", "apply_patch", "delete"}
         entries[name]["sandbox_check"] = (
-            (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+            (
+                lambda arguments: _validate_patch_targets(
+                    arguments["patch"], sandbox_runtime
+                )
+            )
             if name == "apply_patch"
             else lambda arguments, write=write_effect: (
                 sandbox_runtime.resolve_path(arguments["path"], write=write)
@@ -1335,10 +1355,26 @@ def build_child_tool_registry(
         )
         if write_effect:
             entries[name]["hard_check"] = (
-                (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+                (
+                    lambda arguments: _validate_patch_targets(
+                        arguments["patch"], sandbox_runtime
+                    )
+                )
                 if name == "apply_patch"
                 else lambda arguments: _protect_metadata_path(
                     arguments["path"], sandbox_runtime
+                )
+            )
+            entries[name]["recovery_paths"] = (
+                (
+                    lambda arguments: tuple(
+                        _recovery_path(path, sandbox_runtime)
+                        for path in patch_paths(arguments["patch"])
+                    )
+                )
+                if name == "apply_patch"
+                else lambda arguments: (
+                    _recovery_path(arguments["path"], sandbox_runtime),
                 )
             )
     entries["execute"]["description"] = (
@@ -1419,14 +1455,21 @@ def _protect_metadata_path(path: str, sandbox_runtime: SandboxRuntime | None) ->
         raise PermissionError(f"protected project metadata: {relative.parts[0]}")
 
 
-def _validate_patch_targets(
-    patch: str, sandbox_runtime: SandboxRuntime | None
-) -> None:
+def _validate_patch_targets(patch: str, sandbox_runtime: SandboxRuntime | None) -> None:
     """Run patch path validation at the permission/sandbox boundary."""
     for path in patch_paths(patch):
         _protect_metadata_path(path, sandbox_runtime)
         if sandbox_runtime is not None:
             sandbox_runtime.resolve_path(path, write=True)
+
+
+def _recovery_path(path: str, sandbox_runtime: SandboxRuntime | None) -> str:
+    """Resolve a model path exactly as the bound file tool will resolve it."""
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return str(candidate)
+    base = sandbox_runtime.config.cwd if sandbox_runtime is not None else Path.cwd()
+    return str(base / candidate)
 
 
 def _protect_command(command: str) -> None:

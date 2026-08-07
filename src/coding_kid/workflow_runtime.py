@@ -238,7 +238,7 @@ class WorkflowRuntime:
         ]
         if status.degraded_reason:
             lines.append(f"Recovery note: {status.degraded_reason}")
-        if status.uncovered_effects:
+        if status.coverage is RecoveryCoverage.SCOPED and status.uncovered_effects:
             lines.append(
                 f"Uncovered effects: {len(status.uncovered_effects)}; rollback is partial."
             )
@@ -249,6 +249,11 @@ class WorkflowRuntime:
         elif status.coverage is RecoveryCoverage.SCOPED:
             lines.append("Rollback covers only files targeted by built-in edits.")
         else:
+            if status.uncovered_effects:
+                lines.append(
+                    f"Uncovered effects: {len(status.uncovered_effects)}; "
+                    "no application rollback is available."
+                )
             lines.append("Application rollback is unavailable for this stage.")
         lines.append(
             "Ignored files, project-external effects, and remote side effects are excluded."
@@ -268,9 +273,7 @@ class WorkflowRuntime:
         checkpoint_id = self.state.checkpoint_id
         if checkpoint_id is None:
             raise RuntimeError("No checkpoint is available")
-        changes = self.checkpoints.rollback(
-            checkpoint_id, allow_partial=allow_partial
-        )
+        changes = self.checkpoints.rollback(checkpoint_id, allow_partial=allow_partial)
         for listener in tuple(self._rollback_listeners):
             listener()
         self.state.clear_checkpoint()

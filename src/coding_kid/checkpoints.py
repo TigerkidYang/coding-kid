@@ -102,9 +102,7 @@ class CheckpointStatus:
 
     @property
     def partial(self) -> bool:
-        return self.coverage is RecoveryCoverage.SCOPED and bool(
-            self.uncovered_effects
-        )
+        return self.coverage is RecoveryCoverage.SCOPED and bool(self.uncovered_effects)
 
 
 @dataclass(frozen=True)
@@ -135,9 +133,7 @@ class CheckpointManager:
         self._running_agents = running_agents or (lambda: 0)
         self._lock = RLock()
 
-    def create(
-        self, policy: CheckpointPolicy = CheckpointPolicy.REQUIRED
-    ) -> str:
+    def create(self, policy: CheckpointPolicy = CheckpointPolicy.REQUIRED) -> str:
         """Start a stage with the strongest coverage allowed by ``policy``."""
         with self._lock:
             policy = CheckpointPolicy(policy)
@@ -181,12 +177,8 @@ class CheckpointManager:
                 raise CheckpointError(
                     f"Checkpoint is {total} bytes; limit is {self.max_bytes}"
                 )
-            status = CheckpointStatus(
-                policy, RecoveryCoverage.FULL, None, (), ()
-            )
-            self._write_manifest(
-                directory, _Manifest(baseline, dict(baseline), status)
-            )
+            status = CheckpointStatus(policy, RecoveryCoverage.FULL, None, (), ())
+            self._write_manifest(directory, _Manifest(baseline, dict(baseline), status))
         except BaseException:
             shutil.rmtree(directory, ignore_errors=True)
             raise
@@ -218,7 +210,10 @@ class CheckpointManager:
             status = manifest.status
             if status.coverage is RecoveryCoverage.NONE:
                 self._append_uncovered_effect(checkpoint_id, manifest, effect_label)
-                return None
+                return status.degraded_reason or (
+                    "Application checkpointing is off; this effect cannot be "
+                    "rolled back by Coding Kid."
+                )
             if status.coverage is RecoveryCoverage.FULL:
                 current = self._capture(self._listed_paths(), None, save_blobs=False)
                 conflicts = _state_differences(manifest.observed, current)
@@ -469,7 +464,13 @@ class CheckpointManager:
     def _is_git_project(self) -> bool:
         try:
             result = subprocess.run(
-                ["git", "-C", str(self.project_root), "rev-parse", "--is-inside-work-tree"],
+                [
+                    "git",
+                    "-C",
+                    str(self.project_root),
+                    "rev-parse",
+                    "--is-inside-work-tree",
+                ],
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 check=False,
@@ -722,9 +723,7 @@ class CheckpointManager:
                         else None
                     ),
                     tuple(str(item) for item in payload.get("scoped_paths", [])),
-                    tuple(
-                        str(item) for item in payload.get("uncovered_effects", [])
-                    ),
+                    tuple(str(item) for item in payload.get("uncovered_effects", [])),
                 )
             except (KeyError, TypeError, ValueError) as error:
                 raise CheckpointError("Invalid checkpoint recovery metadata") from error

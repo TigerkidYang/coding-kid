@@ -2,16 +2,16 @@
 
 ## Overview
 
-Version 15 is a benchmark-driven maintenance layer over Version 14. It keeps the
-same collaboration, Web, execution, workflow, and UI architecture while
-hardening resource-bounded inspection, runtime-aware tool exposure, non-Git
-checkpoints, OpenAI-compatible provider behavior, and reproducible evaluation
-operations. Version 14 remains frozen as the pre-maintenance runtime.
+Version 16 adds recoverable autonomy over Version 15 without merging the
+teaching-oriented `execute + task` layers. Recovery policy, actual coverage,
+atomic multi-file editing, shared diff evidence, and soft todo completion now
+sit in the existing workflow and Agent loop. Version 15 remains frozen as the
+pre-V16 runtime.
 
 ```text
 launcher.py
-  |-- v1-v14 -> isolated bundled runtime process
-  `-- v15/default -> cli.py
+  |-- v1-v15 -> isolated bundled runtime process
+  `-- v16/default -> cli.py
                      |-- SessionStore / MemoryManager
                      |-- WorkflowState / PermissionBroker
                      |-- WorkflowRuntime / CheckpointManager
@@ -81,19 +81,36 @@ first sensitive action. Approval may retain context or replace only the
 model-visible projection with the approved implementation instruction while
 preserving the canonical transcript.
 
-## Change Checkpoints
+## Recovery Policies and Change Evidence
 
-`checkpoints.py` enumerates Git-tracked and non-ignored untracked files, stores
-content-addressed baseline bytes and types in protected session state, and
-records hashes after each sensitive effect. File count and byte limits are hard
-boundaries; an unreadable, unsupported, or oversized tree blocks mutation.
+`checkpoints.py` stores a versioned manifest with requested policy and actual
+`full`, `scoped`, or `none` coverage. Required uses the V15 content-addressed
+snapshot and fails closed. Best effort prefers that snapshot in Git projects,
+starts scoped in non-Git projects, and degrades to scoped on bounded capture
+failure. Tool registry entries resolve their actual target paths before direct
+write, patch, delete, or apply-patch effects; unknown command/MCP effects are
+counted as uncovered. Off stores no project contents and can show only an
+explicitly unattributed Git working-tree view.
 
-Rollback requires execution sessions and child Agents to stop, then compares the
-live tree with the last application-recorded tree. Any difference is treated as
-a possible external edit and refuses the whole rollback. A safe rollback
-restores the exact pre-stage state and removes stage-created non-ignored files.
-Ignored output, project-external effects, and remote MCP effects are outside the
-promise. Accepting changes removes the protected checkpoint.
+Rollback requires execution sessions and child Agents to stop and rejects live
+changes outside the most recently recorded application effect. Full restores
+the complete captured tree. Scoped restores protected paths; uncovered effects
+require explicit partial rollback. Both restore pre-stage dirty/untracked bytes,
+not Git HEAD. V15 version-one manifests load as required/full, and an active
+stage retains its creation policy across session resume.
+
+`patching.py` parses the bounded JSON `apply_patch(patch)` protocol, resolves and
+validates every path and hunk before mutation, then uses atomic replacement and
+call-local preimages to recover from mid-write failure. `workflow_runtime.py`
+binds one model-visible `diff`; Review, `/changes`, and the model therefore see
+the same bounded rendering and coverage warnings.
+
+The Agent loop treats todo as persistent teaching state rather than a success
+gate. Pending items may end directly. An in-progress item receives one soft
+reconciliation suggestion; a second final answer is accepted with a typed
+deferred-plan event. Missing provider output/content collections normalize to
+empty collections, while step/time/recovery boundaries return a controlled
+incomplete result that preserves complete protocol evidence.
 
 ## Sandbox Control Plane
 

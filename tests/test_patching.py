@@ -13,9 +13,7 @@ from coding_kid.tools import build_tool_registry
 
 
 def _apply(root: Path, body: str) -> str:
-    sandbox = SandboxRuntime(
-        SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, root, root)
-    )
+    sandbox = SandboxRuntime(SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, root, root))
     return apply_patch_text(body, sandbox_runtime=sandbox)
 
 
@@ -39,7 +37,9 @@ def test_multi_file_multi_hunk_add_update_delete_and_unicode(tmp_path: Path) -> 
     result = _apply(tmp_path, patch)
 
     assert "3 file(s)" in result
-    assert (tmp_path / "source.txt").read_text(encoding="utf-8") == "你好\nbeta\nomega\n"
+    assert (tmp_path / "source.txt").read_text(
+        encoding="utf-8"
+    ) == "你好\nbeta\nomega\n"
     assert (tmp_path / "added.txt").read_text(encoding="utf-8") == "new\n内容\n"
     assert not (tmp_path / "old.txt").exists()
 
@@ -66,6 +66,23 @@ def test_update_preserves_crlf_and_missing_final_newline(tmp_path: Path) -> None
     assert (tmp_path / "noeol.txt").read_bytes() == b"value=2"
 
 
+def test_add_supports_an_empty_file(tmp_path: Path) -> None:
+    _apply(
+        tmp_path,
+        "*** Begin Patch\n*** Add File: empty.txt\n*** End Patch",
+    )
+
+    assert (tmp_path / "empty.txt").read_bytes() == b""
+
+
+def test_delete_of_missing_file_is_validation_failure(tmp_path: Path) -> None:
+    with pytest.raises(PatchError, match="does not exist"):
+        _apply(
+            tmp_path,
+            "*** Begin Patch\n*** Delete File: absent.txt\n*** End Patch",
+        )
+
+
 @pytest.mark.parametrize(
     "patch, message",
     [
@@ -80,9 +97,7 @@ def test_update_preserves_crlf_and_missing_final_newline(tmp_path: Path) -> None
         ("*** Begin Patch\n*** Delete File: absent\n+bad\n*** End Patch", "must not"),
     ],
 )
-def test_invalid_patch_syntax_and_paths_are_rejected(
-    patch: str, message: str
-) -> None:
+def test_invalid_patch_syntax_and_paths_are_rejected(patch: str, message: str) -> None:
     with pytest.raises(PatchError, match=message):
         parse_patch(patch)
 
@@ -210,7 +225,9 @@ def test_patch_rejects_symbolic_link_target(tmp_path: Path) -> None:
         )
 
 
-def test_registry_declares_recovery_paths_and_destructive_delete(tmp_path: Path) -> None:
+def test_registry_declares_recovery_paths_and_destructive_delete(
+    tmp_path: Path,
+) -> None:
     sandbox = SandboxRuntime(
         SandboxConfig(SandboxMode.DANGER_FULL_ACCESS, tmp_path, tmp_path)
     )
@@ -222,7 +239,7 @@ def test_registry_declares_recovery_paths_and_destructive_delete(tmp_path: Path)
 *** End Patch"""
 
     assert registry.recovery_paths("apply_patch", {"patch": patch}) == (
-        "a.txt",
-        "b.txt",
+        str(tmp_path / "a.txt"),
+        str(tmp_path / "b.txt"),
     )
     assert registry.effect("apply_patch", {"patch": patch}) is ToolEffect.DESTRUCTIVE
