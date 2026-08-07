@@ -12,6 +12,7 @@ from typing import Any, Callable, Mapping, TYPE_CHECKING
 from coding_kid.background_tasks import BackgroundTaskManager
 from coding_kid.events import CancellationToken, TurnCancelled
 from coding_kid.permissions import PermissionBroker, ToolEffect
+from coding_kid.patching import apply_patch_text, patch_is_destructive, patch_paths
 from coding_kid.sandbox import SandboxRuntime, SandboxViolation
 from coding_kid.terminal import run_command
 from coding_kid.workflow import CollaborationMode
@@ -393,20 +394,46 @@ def patch(
     path: str,
     old_text: str,
     new_text: str,
+    replace_all: bool = False,
     *,
     sandbox_runtime: SandboxRuntime | None = None,
 ) -> str:
-    """Replace one unique, exact text fragment in a UTF-8 file."""
+    """Replace one or all exact text fragments in a UTF-8 file."""
     file_path = _tool_path(path, sandbox_runtime, write=True)
-    content = file_path.read_text(encoding="utf-8")
-    count = content.count(old_text)
+    raw = file_path.read_bytes()
+    content = raw.decode("utf-8")
+    newline = "\r\n" if "\r\n" in content else "\n"
+    matching_old = old_text.replace("\r\n", "\n").replace("\r", "\n")
+    matching_new = new_text.replace("\r\n", "\n").replace("\r", "\n")
+    if newline == "\r\n":
+        matching_old = matching_old.replace("\n", "\r\n")
+        matching_new = matching_new.replace("\n", "\r\n")
+    count = content.count(matching_old)
     if count == 0:
-        raise ValueError("old_text was not found")
-    if count > 1:
-        raise ValueError(f"old_text appears {count} times; make it unique")
+        excerpt = content[:600]
+        raise ValueError(
+            f"old_text matched 0 times. Bounded file context: {excerpt!r}"
+        )
+    if count > 1 and not replace_all:
+        position = content.find(matching_old)
+        excerpt = content[max(0, position - 200) : position + len(matching_old) + 200]
+        raise ValueError(
+            f"old_text matched {count} times; make it unique or set "
+            f"replace_all=true. Bounded match context: {excerpt!r}"
+        )
 
-    file_path.write_text(content.replace(old_text, new_text, 1), encoding="utf-8")
-    return f"Patched {file_path}"
+    replacements = count if replace_all else 1
+    file_path.write_bytes(
+        content.replace(matching_old, matching_new, replacements).encode("utf-8")
+    )
+    return f"Patched {file_path} ({replacements} replacement(s))"
+
+
+def apply_patch(
+    patch: str, *, sandbox_runtime: SandboxRuntime | None = None
+) -> str:
+    """Apply one validated multi-file patch atomically at the tool-call boundary."""
+    return apply_patch_text(patch, sandbox_runtime=sandbox_runtime)
 
 
 def delete(path: str, *, sandbox_runtime: SandboxRuntime | None = None) -> str:
@@ -629,19 +656,50 @@ TOOLS: dict[str, ToolEntry] = {
     },
     "patch": {
         "effect": ToolEffect.PROJECT_WRITE,
-        "description": "Replace one unique, exact text fragment in a file.",
+        "description": (
+            "Replace one exact text fragment in a file, or every exact match when "
+            "replace_all is true. Failure reports bounded matching context."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "minLength": 1},
                 "old_text": {"type": "string", "minLength": 1},
                 "new_text": {"type": "string"},
+                "replace_all": {"type": "boolean", "default": False},
             },
-            "required": ["path", "old_text", "new_text"],
+            "required": ["path", "old_text", "new_text", "replace_all"],
             "additionalProperties": False,
         },
         "function": patch,
         "recovery_paths": lambda arguments: (arguments["path"],),
+    },
+    "apply_patch": {
+        "effect": lambda arguments: (
+            ToolEffect.DESTRUCTIVE
+            if patch_is_destructive(arguments.get("patch", ""))
+            else ToolEffect.PROJECT_WRITE
+        ),
+        "description": (
+            "Apply one bounded Codex-style *** Begin Patch envelope. Prefer this "
+            "for deliberate multi-file or multi-location edits. The whole patch "
+            "is parsed, path-checked, and context-validated before any file write; "
+            "supports Add File, Update File with multiple @@ hunks, and Delete File."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "patch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200_000,
+                }
+            },
+            "required": ["patch"],
+            "additionalProperties": False,
+        },
+        "function": apply_patch,
+        "recovery_paths": lambda arguments: patch_paths(arguments["patch"]),
     },
     "delete": {
         "effect": ToolEffect.DESTRUCTIVE,
@@ -1142,21 +1200,30 @@ def build_tool_registry(
         "write": write,
         "search": search,
         "patch": patch,
+        "apply_patch": apply_patch,
         "delete": delete,
     }.items():
         entries[name]["function"] = lambda function=function, **arguments: function(
             **arguments,
             sandbox_runtime=sandbox_runtime,
         )
-        write_effect = name in {"write", "patch", "delete"}
-        entries[name]["sandbox_check"] = lambda arguments, write=write_effect: (
-            sandbox_runtime.resolve_path(arguments["path"], write=write)
-            if sandbox_runtime is not None
-            else None
+        write_effect = name in {"write", "patch", "apply_patch", "delete"}
+        entries[name]["sandbox_check"] = (
+            (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+            if name == "apply_patch"
+            else lambda arguments, write=write_effect: (
+                sandbox_runtime.resolve_path(arguments["path"], write=write)
+                if sandbox_runtime is not None
+                else None
+            )
         )
         if write_effect:
-            entries[name]["hard_check"] = lambda arguments: _protect_metadata_path(
-                arguments["path"], sandbox_runtime
+            entries[name]["hard_check"] = (
+                (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+                if name == "apply_patch"
+                else lambda arguments: _protect_metadata_path(
+                    arguments["path"], sandbox_runtime
+                )
             )
     if todo_state is not None:
         entries["todo"]["function"] = lambda todos: _todo_for_state(todo_state, todos)
@@ -1249,21 +1316,30 @@ def build_child_tool_registry(
         "write": write,
         "search": search,
         "patch": patch,
+        "apply_patch": apply_patch,
         "delete": delete,
     }.items():
         entries[name]["function"] = lambda function=function, **arguments: function(
             **arguments,
             sandbox_runtime=sandbox_runtime,
         )
-        write_effect = name in {"write", "patch", "delete"}
-        entries[name]["sandbox_check"] = lambda arguments, write=write_effect: (
-            sandbox_runtime.resolve_path(arguments["path"], write=write)
-            if sandbox_runtime is not None
-            else None
+        write_effect = name in {"write", "patch", "apply_patch", "delete"}
+        entries[name]["sandbox_check"] = (
+            (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+            if name == "apply_patch"
+            else lambda arguments, write=write_effect: (
+                sandbox_runtime.resolve_path(arguments["path"], write=write)
+                if sandbox_runtime is not None
+                else None
+            )
         )
         if write_effect:
-            entries[name]["hard_check"] = lambda arguments: _protect_metadata_path(
-                arguments["path"], sandbox_runtime
+            entries[name]["hard_check"] = (
+                (lambda arguments: _validate_patch_targets(arguments["patch"], sandbox_runtime))
+                if name == "apply_patch"
+                else lambda arguments: _protect_metadata_path(
+                    arguments["path"], sandbox_runtime
+                )
             )
     entries["execute"]["description"] = (
         "Run a POSIX command in the Agent's continuing sandbox session."
@@ -1341,6 +1417,16 @@ def _protect_metadata_path(path: str, sandbox_runtime: SandboxRuntime | None) ->
         return
     if relative.parts and relative.parts[0].casefold() in {".git", ".coding-kid"}:
         raise PermissionError(f"protected project metadata: {relative.parts[0]}")
+
+
+def _validate_patch_targets(
+    patch: str, sandbox_runtime: SandboxRuntime | None
+) -> None:
+    """Run patch path validation at the permission/sandbox boundary."""
+    for path in patch_paths(patch):
+        _protect_metadata_path(path, sandbox_runtime)
+        if sandbox_runtime is not None:
+            sandbox_runtime.resolve_path(path, write=True)
 
 
 def _protect_command(command: str) -> None:

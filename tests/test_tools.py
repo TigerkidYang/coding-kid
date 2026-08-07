@@ -43,7 +43,7 @@ def test_patch_replaces_one_exact_text_fragment(tmp_path: Path) -> None:
         {"path": str(path), "old_text": "41", "new_text": "42"},
     )
 
-    assert result == f"Patched {path}"
+    assert result == f"Patched {path} (1 replacement(s))"
     assert path.read_text(encoding="utf-8") == "answer = 42\n"
 
 
@@ -61,9 +61,27 @@ def test_patch_rejects_missing_or_ambiguous_text(tmp_path: Path) -> None:
     )
 
     assert missing.startswith("ERROR:")
-    assert "not found" in missing
+    assert "matched 0 times" in missing
     assert ambiguous.startswith("ERROR:")
-    assert "2 times" in ambiguous
+    assert "matched 2 times" in ambiguous
+
+
+def test_patch_replace_all_is_explicit_and_preserves_crlf(tmp_path: Path) -> None:
+    path = tmp_path / "example.txt"
+    path.write_bytes(b"same\r\nsame\r\n")
+
+    result = dispatch_tool(
+        "patch",
+        {
+            "path": str(path),
+            "old_text": "same\n",
+            "new_text": "new\n",
+            "replace_all": True,
+        },
+    )
+
+    assert "2 replacement(s)" in result
+    assert path.read_bytes() == b"new\r\nnew\r\n"
 
 
 def test_search_finds_file_names_and_text(tmp_path: Path) -> None:
@@ -174,7 +192,7 @@ def test_read_normalizes_crlf_for_a_followup_patch(tmp_path: Path) -> None:
     )
 
     assert original == "alpha\nbeta\n"
-    assert result == f"Patched {path}"
+    assert result == f"Patched {path} (1 replacement(s))"
     assert path.read_text(encoding="utf-8") == "updated\n"
 
 
@@ -339,6 +357,7 @@ def test_every_tool_has_model_visible_metadata() -> None:
         "write",
         "search",
         "patch",
+        "apply_patch",
         "delete",
         "todo",
         "task",

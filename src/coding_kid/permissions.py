@@ -278,6 +278,14 @@ def _mode_error(
 
 def approval_key(tool_name: str, effect: ToolEffect, arguments: dict[str, Any]) -> str:
     if effect in {ToolEffect.PROJECT_WRITE, ToolEffect.DESTRUCTIVE}:
+        if tool_name == "apply_patch":
+            try:
+                from coding_kid.patching import patch_paths
+
+                targets = ",".join(patch_paths(str(arguments.get("patch", ""))))
+            except (TypeError, ValueError):
+                targets = "invalid-patch"
+            return f"{tool_name}:paths:{targets.casefold()}"
         target = str(arguments.get("path", "")).strip()
         try:
             target = str(Path(target).resolve(strict=False))
@@ -342,6 +350,19 @@ def approval_summary(
             f"Reason: {arguments.get('reason') or 'not provided'}"
         )
     if effect in {ToolEffect.PROJECT_WRITE, ToolEffect.DESTRUCTIVE}:
+        if tool_name == "apply_patch":
+            try:
+                from coding_kid.patching import patch_paths
+
+                targets = ", ".join(
+                    patch_paths(str(arguments.get("patch", "")))
+                )
+            except (TypeError, ValueError):
+                targets = "invalid patch"
+            return (
+                f"Targets: {targets}\nPatch preview:\n"
+                f"{str(arguments.get('patch', ''))[:2_000]}"
+            )
         lines = [f"Target: {arguments.get('path', '')}"]
         if tool_name == "write":
             lines.append(
