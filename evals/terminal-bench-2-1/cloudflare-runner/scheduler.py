@@ -25,7 +25,7 @@ EVENTS_PATH = RUN_DIR / "events.jsonl"
 BASE = "https://coding-kid-terminal-bench-runner.runchangyang.workers.dev"
 HOST = "coding-kid-terminal-bench-runner.runchangyang.workers.dev"
 RESOLVE = f"{HOST}:443:104.21.77.50"
-MODEL_URL = "https://albert-downloadable-plenty-appreciate.trycloudflare.com/v1/models"
+MODEL_URL = "https://alien-nat-office-sir.trycloudflare.com/v1/models"
 POLL_SECONDS = 30
 MAX_ATTEMPTS = 5
 MAX_CONCURRENCY = int(os.environ.get("CODING_KID_BENCH_MAX_CONCURRENCY", "16"))
@@ -229,12 +229,18 @@ def model_transport_failure(status: dict[str, Any]) -> bool:
         "Error code: 520",
         "Error code: 522",
         "Error code: 524",
+        "ProviderProtocolError",
+        "Provider returned a null collection",
+        "Provider returned no streaming response object",
+        "Error: 'NoneType' object is not iterable",
     )
     return any(marker in log for marker in transport_markers)
 
 
 def benchmark_agent_failure(status: dict[str, Any]) -> bool:
     """Return true for an agent failure that is itself a benchmark outcome."""
+    if model_transport_failure(status):
+        return False
     diagnostics = status.get("trial_diagnostics")
     if not isinstance(diagnostics, list):
         return False
