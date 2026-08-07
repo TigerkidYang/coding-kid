@@ -565,7 +565,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the module and data flow.
 
 ## Teaching Versions
 
-Completed checkpoints V1–V15 are preserved under `versions/` and by matching
-annotated tags. Version 13 remains the living default implementation. The
-installed launcher bundles V1–V12 runtime source and shares one Python
+Completed checkpoints V1–V16 are preserved under `versions/` and by matching
+annotated tags. Version 16 remains the living default implementation. The
+installed launcher bundles V1–V15 runtime source and shares one Python
 environment and one set of third-party dependencies across all versions.

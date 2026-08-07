@@ -1,0 +1,687 @@
+from pathlib import Path
+import sys
+from types import SimpleNamespace
+from typing import Any
+
+from coding_kid.background_tasks import BackgroundTaskManager
+from coding_kid.tools import (
+    MAX_TODO_CONTENT_CHARS,
+    MAX_TODO_ITEMS,
+    MAX_TOOL_OUTPUT_CHARS,
+    TOOLS,
+    TodoState,
+    ToolRegistry,
+    build_tool_registry,
+    build_child_tool_registry,
+    dispatch_tool,
+    get_todos,
+)
+from coding_kid.terminal import CommandResult
+from coding_kid.events import CancellationToken
+from coding_kid.sandbox import SandboxConfig, SandboxMode, SandboxRuntime
+import coding_kid.tools as tools_module
+
+
+def test_write_and_read_file(tmp_path: Path) -> None:
+    path = tmp_path / "notes" / "lesson.txt"
+
+    write_result = dispatch_tool(
+        "write", {"path": str(path), "content": "first lesson"}
+    )
+    read_result = dispatch_tool("read", {"path": str(path)})
+
+    assert write_result == f"Wrote {path}"
+    assert read_result == "first lesson"
+
+
+def test_patch_replaces_one_exact_text_fragment(tmp_path: Path) -> None:
+    path = tmp_path / "example.py"
+    path.write_text("answer = 41\n", encoding="utf-8")
+
+    result = dispatch_tool(
+        "patch",
+        {"path": str(path), "old_text": "41", "new_text": "42"},
+    )
+
+    assert result == f"Patched {path} (1 replacement(s))"
+    assert path.read_text(encoding="utf-8") == "answer = 42\n"
+
+
+def test_patch_rejects_missing_or_ambiguous_text(tmp_path: Path) -> None:
+    path = tmp_path / "example.txt"
+    path.write_text("same same", encoding="utf-8")
+
+    missing = dispatch_tool(
+        "patch",
+        {"path": str(path), "old_text": "absent", "new_text": "new"},
+    )
+    ambiguous = dispatch_tool(
+        "patch",
+        {"path": str(path), "old_text": "same", "new_text": "new"},
+    )
+
+    assert missing.startswith("ERROR:")
+    assert "matched 0 times" in missing
+    assert ambiguous.startswith("ERROR:")
+    assert "matched 2 times" in ambiguous
+
+
+def test_patch_replace_all_is_explicit_and_preserves_crlf(tmp_path: Path) -> None:
+    path = tmp_path / "example.txt"
+    path.write_bytes(b"same\r\nsame\r\n")
+
+    result = dispatch_tool(
+        "patch",
+        {
+            "path": str(path),
+            "old_text": "same\n",
+            "new_text": "new\n",
+            "replace_all": True,
+        },
+    )
+
+    assert "2 replacement(s)" in result
+    assert path.read_bytes() == b"new\r\nnew\r\n"
+
+
+def test_search_finds_file_names_and_text(tmp_path: Path) -> None:
+    (tmp_path / "needle_name.py").write_text("nothing here\n", encoding="utf-8")
+    (tmp_path / "other.py").write_text("a needle in text\n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "FILE needle_name.py" in result
+    assert "TEXT other.py:1:a needle in text" in result
+
+
+def test_search_treats_an_empty_path_as_the_current_directory(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "module.py").write_text("needle\n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": ""})
+
+    assert "TEXT module.py:1:needle" in result
+
+
+def test_search_rejects_an_empty_query() -> None:
+    result = dispatch_tool("search", {"query": "", "path": "."})
+
+    assert result == "ERROR: ValueError: search query must not be empty"
+
+
+def test_search_truncates_large_results(tmp_path: Path) -> None:
+    path = tmp_path / "many.txt"
+    path.write_text(
+        "\n".join(f"match {number}" for number in range(150)), encoding="utf-8"
+    )
+
+    result = dispatch_tool("search", {"query": "match", "path": str(tmp_path)})
+
+    assert len(result.splitlines()) == 101
+    assert result.endswith("... search results truncated at 100 matches")
+
+
+def test_search_rejects_a_missing_path(tmp_path: Path) -> None:
+    result = dispatch_tool(
+        "search", {"query": "needle", "path": str(tmp_path / "missing")}
+    )
+
+    assert result.startswith("ERROR: FileNotFoundError:")
+
+
+def test_search_skips_generated_and_environment_directories(tmp_path: Path) -> None:
+    (tmp_path / "source.py").write_text("needle\n", encoding="utf-8")
+    hidden = tmp_path / ".venv"
+    hidden.mkdir()
+    (hidden / "dependency.py").write_text("needle\n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "source.py" in result
+    assert "dependency.py" not in result
+
+
+def test_dispatch_bounds_large_tool_results(tmp_path: Path) -> None:
+    path = tmp_path / "large.txt"
+    path.write_text("x" * (MAX_TOOL_OUTPUT_CHARS + 1_000), encoding="utf-8")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert "tool output truncated" in result
+    assert len(result) < MAX_TOOL_OUTPUT_CHARS + 200
+
+
+def test_read_rejects_binary_without_loading_it_as_text(tmp_path: Path) -> None:
+    path = tmp_path / "program.bin"
+    path.write_bytes(b"header\x00payload")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert result.startswith("ERROR: ValueError:")
+    assert "appears to be binary" in result
+    assert "execute" in result
+
+
+def test_read_rejects_invalid_utf8_without_nul(tmp_path: Path) -> None:
+    path = tmp_path / "invalid.txt"
+    path.write_bytes(b"plain prefix\xffsuffix")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert result.startswith("ERROR: ValueError:")
+    assert "not UTF-8 text" in result
+
+
+def test_read_directory_directs_model_to_execute(tmp_path: Path) -> None:
+    result = dispatch_tool("read", {"path": str(tmp_path)})
+
+    assert result.startswith("ERROR: IsADirectoryError:")
+    assert "targeted listing" in result
+
+
+def test_read_normalizes_crlf_for_a_followup_patch(tmp_path: Path) -> None:
+    path = tmp_path / "windows.txt"
+    path.write_bytes(b"alpha\r\nbeta\r\n")
+
+    original = dispatch_tool("read", {"path": str(path)})
+    result = dispatch_tool(
+        "patch",
+        {"path": str(path), "old_text": original, "new_text": "updated\n"},
+    )
+
+    assert original == "alpha\nbeta\n"
+    assert result == f"Patched {path} (1 replacement(s))"
+    assert path.read_text(encoding="utf-8") == "updated\n"
+
+
+def test_read_truncation_preserves_utf8_split_across_byte_boundary(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "unicode.txt"
+    path.write_bytes(b"a" * (MAX_TOOL_OUTPUT_CHARS - 1) + "€".encode() + b"tail")
+
+    result = dispatch_tool("read", {"path": str(path)})
+
+    assert not result.startswith("ERROR:")
+    assert "tool output truncated" in result
+
+
+def test_search_stops_at_file_budget(tmp_path: Path, monkeypatch: Any) -> None:
+    for index in range(3):
+        (tmp_path / f"file-{index}.txt").write_text("nothing\n", encoding="utf-8")
+    monkeypatch.setattr(tools_module, "MAX_SEARCH_FILES", 2)
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "search stopped at the 2 file budget" in result
+    assert "targeted find/rg" in result
+
+
+def test_search_stops_at_actual_total_byte_budget(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    (tmp_path / "first.txt").write_text("first\n", encoding="utf-8")
+    (tmp_path / "second.txt").write_text("second\n", encoding="utf-8")
+    monkeypatch.setattr(tools_module, "MAX_SEARCH_TOTAL_BYTES", 10)
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert "search stopped at the 10 byte budget" in result
+
+
+def test_search_discards_entire_file_with_late_invalid_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "binary.dat"
+    path.write_bytes(b"needle\n" + b"x" * 100 + b"\xff")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert result == "No matches found."
+
+
+def test_search_enforces_actual_bytes_if_file_grows_after_stat(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    path = tmp_path / "growing.txt"
+    path.write_text("needle\n" + "x" * 100, encoding="utf-8")
+    original_stat = Path.stat
+
+    def stale_stat(candidate: Path, *args: Any, **kwargs: Any) -> Any:
+        metadata = original_stat(candidate, *args, **kwargs)
+        if candidate == path:
+            return SimpleNamespace(st_size=1, st_mode=metadata.st_mode)
+        return metadata
+
+    monkeypatch.setattr(tools_module, "MAX_SEARCH_FILE_BYTES", 20)
+    monkeypatch.setattr(Path, "stat", stale_stat)
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert result == "No matches found."
+
+
+def test_search_preserves_trailing_spaces_in_matching_line(tmp_path: Path) -> None:
+    path = tmp_path / "spacing.txt"
+    path.write_text("needle   \n", encoding="utf-8")
+
+    result = dispatch_tool("search", {"query": "needle", "path": str(tmp_path)})
+
+    assert result.endswith("needle   ")
+
+
+def test_delete_removes_file(tmp_path: Path) -> None:
+    path = tmp_path / "temporary.txt"
+    path.write_text("temporary", encoding="utf-8")
+
+    result = dispatch_tool("delete", {"path": str(path)})
+
+    assert result == f"Deleted {path}"
+    assert not path.exists()
+
+
+def test_restricted_registry_confines_file_tools(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.WORKSPACE_WRITE, project, project),
+        docker_executable="docker",
+    )
+    registry = build_tool_registry(sandbox_runtime=sandbox)
+
+    allowed = registry.dispatch("write", {"path": "inside.txt", "content": "ok"})
+    denied_read = registry.dispatch("read", {"path": "../outside.txt"})
+    denied_metadata = registry.dispatch(
+        "write", {"path": ".git/config", "content": "bad"}
+    )
+
+    assert "inside.txt" in allowed
+    assert (project / "inside.txt").read_text(encoding="utf-8") == "ok"
+    assert "outside project" in denied_read
+    assert "protects workspace metadata" in denied_metadata
+    assert outside.read_text(encoding="utf-8") == "secret"
+
+
+def test_read_only_registry_rejects_mutation(tmp_path: Path) -> None:
+    sandbox = SandboxRuntime(
+        SandboxConfig(SandboxMode.READ_ONLY, tmp_path, tmp_path),
+        docker_executable="docker",
+    )
+    registry = build_tool_registry(sandbox_runtime=sandbox)
+
+    result = registry.dispatch("write", {"path": "blocked.txt", "content": "x"})
+
+    assert "sandbox is read-only" in result
+    assert not (tmp_path / "blocked.txt").exists()
+
+
+def test_execute_returns_exit_code_stdout_and_stderr() -> None:
+    command = (
+        "python -c \"import sys; print('hello'); "
+        "print('problem', file=sys.stderr); sys.exit(3)\""
+    )
+
+    result = dispatch_tool("execute", {"command": command})
+
+    assert "exit_code: 3" in result
+    assert "stdout:\nhello" in result
+    assert "stderr:\nproblem" in result
+
+
+def test_execute_timeout_returns_partial_model_readable_output(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        "coding_kid.tools.run_command",
+        lambda command, **kwargs: CommandResult(124, "partial", "", True, 120.0),
+    )
+
+    result = dispatch_tool("execute", {"command": "slow command"})
+
+    assert "exit_code: 124" in result
+    assert "timed_out: true" in result
+    assert "stdout:\npartial" in result
+
+
+def test_unknown_tool_and_bad_arguments_become_errors() -> None:
+    assert dispatch_tool("missing", {}).startswith("ERROR: Unknown tool")
+    assert dispatch_tool("read", {}).startswith("ERROR:")
+
+
+def test_every_tool_has_model_visible_metadata() -> None:
+    assert set(TOOLS) == {
+        "execute",
+        "read",
+        "write",
+        "search",
+        "patch",
+        "apply_patch",
+        "delete",
+        "todo",
+        "task",
+        "spawn_agent",
+        "agent",
+        "web_search",
+        "web_fetch",
+    }
+    for name, tool in TOOLS.items():
+        assert tool["description"]
+        assert tool["parameters"]["type"] == "object"
+        assert callable(tool["function"]), name
+    assert TOOLS["search"]["parameters"]["properties"]["query"]["minLength"] == 1
+    assert "literal" in TOOLS["search"]["description"]
+    assert "not a glob" in TOOLS["search"]["description"]
+    assert TOOLS["execute"]["parameters"]["properties"]["command"]["minLength"] == 1
+    assert (
+        TOOLS["execute"]["parameters"]["properties"]["background"]["default"] is False
+    )
+    for name in {"read", "write", "search", "patch", "delete"}:
+        assert TOOLS[name]["parameters"]["properties"]["path"]["minLength"] == 1
+    assert TOOLS["todo"]["parameters"]["required"] == ["todos"]
+    todo_items = TOOLS["todo"]["parameters"]["properties"]["todos"]
+    assert todo_items["maxItems"] == MAX_TODO_ITEMS
+    assert (
+        todo_items["items"]["properties"]["content"]["maxLength"]
+        == MAX_TODO_CONTENT_CHARS
+    )
+
+
+def test_every_strict_tool_requires_each_declared_property() -> None:
+    for definition in ToolRegistry().definitions():
+        if not definition["strict"]:
+            continue
+        parameters = definition["parameters"]
+        assert set(parameters["required"]) == set(parameters["properties"]), definition[
+            "name"
+        ]
+
+
+def test_only_builtin_read_and_search_are_parallel_safe() -> None:
+    registry = ToolRegistry()
+
+    assert registry.parallel_safe("read")
+    assert registry.parallel_safe("search")
+    assert not registry.parallel_safe("write")
+    assert not registry.parallel_safe("execute")
+    assert not registry.parallel_safe("missing")
+
+
+def test_background_execute_and_task_actions(tmp_path: Path) -> None:
+    script = tmp_path / "worker.py"
+    script.write_text("print('background result')\n", encoding="utf-8")
+    manager = BackgroundTaskManager(id_factory=lambda: "task_bound")
+    registry = build_tool_registry(manager)
+    try:
+        launched = registry.dispatch(
+            "execute",
+            {
+                "command": f'& "{sys.executable}" "{script}"',
+                "background": True,
+            },
+        )
+        waited = registry.dispatch(
+            "task",
+            {"action": "wait", "task_id": "task_bound", "timeout_seconds": 10},
+        )
+        listed = registry.dispatch("task", {"action": "list"})
+        stopped = registry.dispatch("task", {"action": "stop", "task_id": "task_bound"})
+    finally:
+        manager.close()
+
+    assert "task_id: task_bound" in launched
+    assert "status: completed" in waited
+    assert "background result" in waited
+    assert "task_bound  completed" in listed
+    assert "status: completed" in stopped
+
+
+def test_idle_management_tools_are_hidden_until_they_have_records(
+    tmp_path: Path,
+) -> None:
+    manager = BackgroundTaskManager(id_factory=lambda: "task_visible")
+    registry = build_tool_registry(manager)
+    try:
+        names = {item["name"] for item in registry.definitions()}
+        assert "task" not in names
+
+        script = tmp_path / "visible.py"
+        script.write_text("print('visible')\n", encoding="utf-8")
+        manager.start(f'"{sys.executable}" "{script}"')
+
+        names = {item["name"] for item in registry.definitions()}
+        assert "task" in names
+    finally:
+        manager.close()
+
+
+def test_empty_agent_manager_hides_management_and_uses_shared_default() -> None:
+    class EmptyAgents:
+        workspace_manager = None
+
+        def list(self) -> tuple[object, ...]:
+            return ()
+
+    registry = build_tool_registry(agent_manager=EmptyAgents())  # type: ignore[arg-type]
+    definitions = {item["name"]: item for item in registry.definitions()}
+
+    assert "agent" not in definitions
+    isolation = definitions["spawn_agent"]["parameters"]["properties"]["isolation"]
+    assert isolation["enum"] == ["shared"]
+    assert isolation["default"] == "shared"
+
+
+def test_background_tools_require_a_bound_runtime() -> None:
+    assert dispatch_tool(
+        "execute", {"command": "Write-Output hi", "background": True}
+    ).startswith("ERROR: RuntimeError:")
+    assert dispatch_tool("task", {"action": "list"}).startswith("ERROR: RuntimeError:")
+
+
+def test_todo_replaces_the_full_checklist() -> None:
+    first = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": "Inspect bug", "status": "in_progress"},
+                {"content": "Write fix", "status": "pending"},
+            ]
+        },
+    )
+    assert "1. [in_progress] Inspect bug" in first
+    assert "2. [pending] Write fix" in first
+    assert get_todos() == [
+        {"content": "Inspect bug", "status": "in_progress"},
+        {"content": "Write fix", "status": "pending"},
+    ]
+
+    second = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": "Inspect bug", "status": "completed"},
+                {"content": "Write fix", "status": "in_progress"},
+            ]
+        },
+    )
+    assert "1. [completed] Inspect bug" in second
+    assert get_todos()[1]["status"] == "in_progress"
+
+
+def test_explicit_todo_states_are_isolated() -> None:
+    root = TodoState([{"content": "Root", "status": "pending"}])
+    child = TodoState()
+    root_registry = build_tool_registry(todo_state=root)
+    child_registry = build_tool_registry(todo_state=child)
+    assert "todo" in root_registry.names
+
+    child_registry.dispatch(
+        "todo",
+        {"todos": [{"content": "Child", "status": "in_progress"}]},
+    )
+
+    assert root.items == [{"content": "Root", "status": "pending"}]
+    assert child.items == [{"content": "Child", "status": "in_progress"}]
+    assert get_todos() == []
+
+
+def test_agent_tools_bind_one_manager_and_use_strict_schemas() -> None:
+    calls: list[tuple[Any, ...]] = []
+
+    class FakeAgents:
+        def start(
+            self,
+            description: str,
+            prompt: str,
+            *,
+            isolation: str,
+            fork_turns: int,
+        ) -> Any:
+            calls.append(("start", description, prompt, isolation, fork_turns))
+            return SimpleNamespace(model_text=lambda: "agent_id: agent_1")
+
+        def status_text(self) -> str:
+            calls.append(("list",))
+            return "agent_1 running"
+
+        def poll(self, agent_id: str) -> Any:
+            calls.append(("poll", agent_id))
+            return SimpleNamespace(model_text=lambda: "status: completed")
+
+        def wait(self, agent_id: str, timeout: float, token: Any) -> Any:
+            calls.append(("wait", agent_id, timeout, token))
+            snapshot = SimpleNamespace(
+                model_text=lambda wait_timed_out=False: (
+                    f"wait_timed_out: {str(wait_timed_out).lower()}"
+                )
+            )
+            return snapshot, True
+
+        def followup(self, agent_id: str, message: str) -> Any:
+            calls.append(("followup", agent_id, message))
+            return SimpleNamespace(model_text=lambda: "status: starting")
+
+        def stop(self, agent_id: str, timeout: float) -> Any:
+            calls.append(("stop", agent_id, timeout))
+            return SimpleNamespace(model_text=lambda: "status: stopped")
+
+    token = CancellationToken()
+    registry = build_tool_registry(
+        todo_state=TodoState(),
+        cancellation_token=token,
+        agent_manager=FakeAgents(),
+    )
+
+    assert (
+        registry.dispatch(
+            "spawn_agent", {"description": "inspect", "prompt": "read it"}
+        )
+        == "agent_id: agent_1"
+    )
+    assert (
+        registry.dispatch(
+            "agent",
+            {
+                "action": "wait",
+                "agent_id": "agent_1",
+                "message": None,
+                "timeout_seconds": 3,
+            },
+        )
+        == "wait_timed_out: true"
+    )
+    definitions = {item["name"]: item for item in registry.definitions()}
+    assert definitions["spawn_agent"]["strict"] is True
+    assert definitions["agent"]["parameters"]["required"] == [
+        "action",
+        "agent_id",
+        "message",
+        "timeout_seconds",
+        "confirm_discard",
+    ]
+    assert calls == [
+        ("start", "inspect", "read it", "worktree", 0),
+        ("wait", "agent_1", 3, token),
+    ]
+
+
+def test_child_registry_excludes_agents_but_scopes_execution_sessions() -> None:
+    tasks = BackgroundTaskManager()
+    registry = build_child_tool_registry(TodoState(), CancellationToken(), tasks)
+
+    assert "spawn_agent" not in registry.names
+    assert "agent" not in registry.names
+    assert "task" in registry.names
+    execute = next(item for item in registry.definitions() if item["name"] == "execute")
+    assert "background" in execute["parameters"]["properties"]
+    assert "interactive" in execute["parameters"]["properties"]
+    tasks.close()
+
+
+def test_todo_can_clear_a_finished_checklist() -> None:
+    dispatch_tool(
+        "todo",
+        {"todos": [{"content": "Finished", "status": "completed"}]},
+    )
+
+    result = dispatch_tool("todo", {"todos": []})
+
+    assert result == "Cleared todos."
+    assert get_todos() == []
+
+
+def test_todo_rejects_invalid_updates() -> None:
+    two_active = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": "One", "status": "in_progress"},
+                {"content": "Two", "status": "in_progress"},
+            ]
+        },
+    )
+    assert two_active.startswith("ERROR:")
+    assert "at most one" in two_active
+    assert get_todos() == []
+
+    bad_status = dispatch_tool(
+        "todo",
+        {"todos": [{"content": "One", "status": "done"}]},
+    )
+    assert bad_status.startswith("ERROR:")
+    assert "status" in bad_status
+
+
+def test_todo_rejects_oversized_updates_without_changing_state() -> None:
+    dispatch_tool(
+        "todo",
+        {"todos": [{"content": "Keep me", "status": "pending"}]},
+    )
+
+    too_many = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {"content": f"Item {index}", "status": "pending"}
+                for index in range(MAX_TODO_ITEMS + 1)
+            ]
+        },
+    )
+    too_long = dispatch_tool(
+        "todo",
+        {
+            "todos": [
+                {
+                    "content": "x" * (MAX_TODO_CONTENT_CHARS + 1),
+                    "status": "pending",
+                }
+            ]
+        },
+    )
+
+    assert too_many.startswith("ERROR:")
+    assert f"at most {MAX_TODO_ITEMS}" in too_many
+    assert too_long.startswith("ERROR:")
+    assert f"at most {MAX_TODO_CONTENT_CHARS}" in too_long
+    assert get_todos() == [{"content": "Keep me", "status": "pending"}]

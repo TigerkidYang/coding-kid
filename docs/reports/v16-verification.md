@@ -45,8 +45,13 @@ installed dependencies and the wheel. After reinstalling the final wheel, all
 V1-V16 commands launched from an unrelated directory and exited before any
 provider request.
 
-The permanent standalone V16 teaching archive and annotated tag remain gated
-on the user's version-completion confirmation under `docs/VERSIONING.md`.
+The permanent standalone V16 teaching archive was independently verified. Its
+suite passes 410 tests with two Windows symlink skips, and Ruff check and format
+check pass over 62 Python files. Its wheel contains 35 entries, is 140,306
+bytes, includes `patching.py` and the standalone entry point, and contains no
+tests, evaluations, historical runtimes, launcher, caches, or bytecode. A fresh
+Python 3.11 environment installed the wheel and launched it from an unrelated
+directory without a provider request.
 
 ## Real Installed-Terminal Trials
 
@@ -88,7 +93,8 @@ ceiling, estimated spend remained below USD 0.30 and therefore below the USD
 
 ## Outcome
 
-V16 implementation, root verification, stress, packaging, installed CLI,
-real-model workflows, and real ConPTY checks pass. The implementation is ready
-for user completion confirmation; permanent archive creation, independent
-archive verification, annotated tag, and normal push follow that confirmation.
+V16 implementation, root and standalone verification, stress, packaging,
+installed CLI, real-model workflows, and real ConPTY checks pass. The user
+confirmed completion on 2026-08-07. The permanent archive is
+`versions/16-recoverable-autonomy/`, matched by annotated tag
+`version-16-recoverable-autonomy`.

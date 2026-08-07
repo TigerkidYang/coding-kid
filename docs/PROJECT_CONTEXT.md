@@ -64,8 +64,9 @@ without explicit permission.
 
 ## Current State
 
-- Version 16 Recoverable Autonomy is implemented and root verification is
-  complete, awaiting user confirmation before archive/tag/push.
+- Version 16 Recoverable Autonomy is complete and archived under
+  `versions/16-recoverable-autonomy/` with annotated tag
+  `version-16-recoverable-autonomy`.
   It preserves the explicit teaching architecture while adding required,
   best-effort, and off checkpoint policies; full/scoped/none recovery evidence;
   explicit partial rollback; externally isolated bypass; atomic multi-file
@@ -75,8 +76,10 @@ without explicit permission.
   of 485 collected tests with two Windows symlink skips, Ruff, ten stress
   rounds, final-wheel inspection, clean Python 3.11 installation, V1-V16
   launches, real Luna CLI workflows, a disposable Docker bypass workflow, and
-  a real Windows ConPTY TUI. No benchmark rerun is part of V16. See
-  `docs/reports/v16-verification.md`.
+  a real Windows ConPTY TUI. Its standalone archive passes 410 tests with two
+  Windows symlink skips, Ruff, a 35-entry wheel inspection, and clean Python
+  3.11 installation and launch from an unrelated directory. No benchmark rerun
+  is part of V16. See `docs/reports/v16-verification.md`.
 
 - Version 15 benchmark-driven hardening is complete. It packages the
   cross-cutting maintenance work exposed by Terminal-Bench rather than adding a

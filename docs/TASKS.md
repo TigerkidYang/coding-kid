@@ -2,8 +2,9 @@
 
 ## Current Core Version: 16 — Recoverable Autonomy
 
-Completion status: implementation and root verification complete; awaiting user
-completion confirmation before the permanent archive, annotated tag, and push.
+Completion status: complete and archived under
+`versions/16-recoverable-autonomy/` with annotated tag
+`version-16-recoverable-autonomy`.
 The user approved and delegated the complete implementation, deterministic
 verification, packaging, and bounded real terminal verification on 2026-08-07.
 
@@ -54,6 +55,5 @@ workflow gates.
 5. Run deterministic, stress, packaging, and bounded live verification before
    creating the standalone V16 archive.
 
-All five implementation steps and root/live verification are complete. See
-`docs/reports/v16-verification.md`. The standalone archive procedure is the
-remaining confirmation-gated action.
+All five implementation steps, root/live verification, and independent archive
+verification are complete. See `docs/reports/v16-verification.md`.
