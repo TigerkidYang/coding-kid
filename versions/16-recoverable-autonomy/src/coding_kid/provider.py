@@ -170,7 +170,10 @@ def generate_streaming(
     finally:
         close = getattr(stream, "close", None)
         if callable(close):
-            close()
+            try:
+                close()
+            except TypeError as error:
+                _raise_protocol_error(error)
 
     if cancellation_token is not None:
         cancellation_token.raise_if_cancelled()

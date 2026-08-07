@@ -52,3 +52,7 @@ Maintenance tag `version-16-recoverable-autonomy-fix1` additionally normalizes
 empty provider messages before protocol replay and translates null-collection
 Responses SDK failures into observable, bounded provider retries. The original
 tag remains unchanged.
+
+Maintenance tag `version-16-recoverable-autonomy-fix2` extends that correction
+to the SDK's stream-cleanup path after a terminal response. It remains a V16
+patch and does not change the version's feature scope.

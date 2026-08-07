@@ -216,6 +216,36 @@ def test_generate_streaming_rejects_missing_stream(monkeypatch: Any) -> None:
         provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
 
 
+def test_generate_streaming_translates_null_collection_during_close(
+    monkeypatch: Any,
+) -> None:
+    final_response = SimpleNamespace(output=[], usage=None)
+
+    class FakeStream:
+        def __iter__(self):
+            return iter(
+                [SimpleNamespace(type="response.completed", response=final_response)]
+            )
+
+        def close(self) -> None:
+            raise TypeError("'NoneType' object is not iterable")
+
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> FakeStream:
+            return FakeStream()
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(provider.ProviderProtocolError, match="null collection"):
+        provider.generate_streaming("system", [], [], on_text_delta=lambda _: None)
+
+
 def test_generate_streaming_accepts_openrouter_done_event(monkeypatch: Any) -> None:
     final_response = object()
 

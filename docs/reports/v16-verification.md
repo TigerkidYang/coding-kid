@@ -110,3 +110,10 @@ installed CLI, real-model workflows, and real ConPTY checks pass. The user
 confirmed completion on 2026-08-07. The permanent archive is
 `versions/16-recoverable-autonomy/`, matched by annotated tag
 `version-16-recoverable-autonomy`.
+
+Benchmark-maintenance corrections are recorded by tags
+`version-16-recoverable-autonomy-fix1` and
+`version-16-recoverable-autonomy-fix2`. They normalize null protocol
+collections during replay and translate the same OpenAI SDK defect during
+response creation, stream iteration, and stream cleanup into bounded,
+observable provider retries. The original completed-version tag is unchanged.
