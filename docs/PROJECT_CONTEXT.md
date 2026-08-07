@@ -64,13 +64,14 @@ without explicit permission.
 
 ## Current State
 
-- Post-completion evaluation integration is active without defining a new core
-  version. A thin Harbor adapter and optional OpenAI-compatible provider settings
-  connect frozen V14 behavior to Terminal-Bench 2.1. On 2026-08-06,
-  `terminal-bench/fix-git` passed one official Docker trial at reward 1.0 with
-  `gpt-5.6-luna` and `reasoning.effort=max`. The 156 MB task image came through
-  an explicit `docker.1ms.run` prefix and Python dependencies through Aliyun;
-  see `evals/terminal-bench-2-1/README.md`. No broader benchmark ran.
+- Post-completion evaluation is complete without defining a new core version.
+  Coding Kid V14 with `gpt-5.6-luna`, max reasoning, and one valid trial per
+  task scored 50/89 (56.18%) on Terminal-Bench 2.1. All 89 tasks reached valid
+  outcomes: 50 passes, nine Agent timeouts, 30 other verifier zeros, no exit
+  137, and no infrastructure failures. Resource bounds, runtime-aware tools,
+  non-Git checkpoints, resumable Cloudflare scheduling, and long-response JSON
+  keepalives were added before the final fresh run. See
+  `docs/reports/terminal-bench-2.1-k1.md`.
 
 - The project is named Coding Kid. Its repository/distribution identifier is
   `coding-kid`, and its Python package is `coding_kid`.
