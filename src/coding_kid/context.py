@@ -37,9 +37,13 @@ one relevant architecture/context document, and source/test file names. Do not r
 every file, run tests, inspect Git state or diffs, inspect version archives, run
 recursive tree commands, or inspect virtual environments, caches, or dependencies
 unless the user specifically asks.
-For tasks with three or more distinct steps, use the todo tool to list the steps
-before making changes. Keep at most one item in_progress. Update the list as you
-finish each step. Skip the todo tool for simple one-step requests.
+For complex multi-step work, the todo tool can make progress and replanning visible.
+It is recommended rather than mandatory; skip it for conversation, simple tasks,
+and short fixes. Keep at most one item in_progress when you use it. Replace, clear,
+defer, or revise stale items so the list reflects reality.
+Prefer apply_patch for deliberate multi-file or multi-location edits. After editing,
+use a relevant test or diff to verify the result. Repository overview tasks still
+must not inspect Git state or diffs without a task-specific reason.
 After using tools, always answer the user with the useful result. Never finish
 with only internal reasoning or an empty response.
 Treat completed tool calls, their arguments, and matched outputs already present

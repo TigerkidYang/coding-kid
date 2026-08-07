@@ -28,6 +28,7 @@ from coding_kid.events import (
     RetryScheduled,
     StallDetected,
     TodoItem,
+    TodoCompletionDeferred,
     TodoUpdated,
     StepStarted,
     ToolCompleted,
@@ -81,10 +82,10 @@ once to reconcile the checklist before answering."""
 
 TODO_RECONCILIATION = """
 
-Todo reconciliation required: One or more checklist items are incomplete.
-Before answering, call todo once to reflect the actual state and finish the
-remaining work. Do not give a final answer while any item is pending or
-in_progress."""
+Todo reconciliation suggestion: A checklist item is still in_progress. Choose
+whether to continue, replace or defer the plan, or explain why work is stopping.
+You may call todo once to reflect reality. You may also answer now; unfinished
+items will remain visible and can be resumed later."""
 
 OUTPUT_LIMIT_RECOVERY = """
 
@@ -107,6 +108,10 @@ MAX_EMPTY_RESPONSES = 2
 MAX_TOOL_CALLS_PER_TURN = 64
 MAX_PROVIDER_ATTEMPTS = 3
 MAX_OUTPUT_LIMIT_RECOVERIES = 2
+
+
+class _RecoveryBoundary(RuntimeError):
+    """Internal signal that converts a non-safety limit into a terminal result."""
 
 
 def _provider_request_with_retry(
@@ -226,7 +231,7 @@ def run_turn(
         recovery_count += 1
         emit(event_sink, TransitionSelected(reason.value))
         if recovery_count > configured_limits.max_recoveries:
-            raise RuntimeError("Turn recovery budget exhausted")
+            raise _RecoveryBoundary("Turn recovery budget exhausted")
 
     try:
         for step_number in range(1, max_steps + 1):
@@ -235,11 +240,13 @@ def run_turn(
                 > configured_limits.max_elapsed_seconds
             ):
                 emit(event_sink, BudgetWarning("Turn elapsed-time budget exhausted"))
-                emit(
+                return _controlled_incomplete_result(
+                    manager,
+                    compatibility_messages,
                     event_sink,
-                    TransitionSelected(TransitionReason.BUDGET_EXHAUSTED.value),
+                    "I stopped at the configured elapsed-time boundary. Completed "
+                    "work and tool results were retained; the task may be resumed.",
                 )
-                raise RuntimeError("Turn elapsed-time budget exhausted")
             emit(event_sink, StepStarted(step_number))
             if cancellation_token is not None:
                 cancellation_token.raise_if_cancelled()
@@ -366,27 +373,56 @@ def run_turn(
             round_items = _round_items(response, parsed.text, parsed.memory_citations)
 
             if stalled and parsed.tool_calls:
-                raise RuntimeError(
-                    "Model requested tools after the stall circuit breaker"
+                round_items.extend(
+                    {
+                        "type": "function_call_output",
+                        "call_id": tool_call.call_id,
+                        "output": (
+                            "Tool call skipped: the repeated-action circuit breaker "
+                            "is active. Return a controlled incomplete result."
+                        ),
+                    }
+                    for tool_call in parsed.tool_calls
+                )
+                manager.conversation.append_model_round(round_items)
+                return _controlled_incomplete_result(
+                    manager,
+                    compatibility_messages,
+                    event_sink,
+                    "I stopped because repeated tool actions produced no new "
+                    "evidence. Completed work and tool results were retained.",
+                    reason=TransitionReason.STALLED,
                 )
 
             if not parsed.tool_calls:
                 manager.conversation.append_model_round(round_items)
                 if parsed.text.strip():
                     todos = todo_state.items if todo_state is not None else get_todos()
-                    has_incomplete_todo = any(
-                        item["status"] != "completed" for item in todos
+                    has_in_progress = any(
+                        item["status"] == "in_progress" for item in todos
                     )
-                    if has_incomplete_todo and not todo_reconciliation_requested:
+                    if has_in_progress and not todo_reconciliation_requested:
                         todo_reconciliation_requested = True
-                        record_recovery(TransitionReason.COMPLETION_RETRY)
+                        emit(
+                            event_sink,
+                            TransitionSelected(TransitionReason.COMPLETION_RETRY.value),
+                        )
                         recovery_overlays = (TODO_RECONCILIATION,)
                         if tool_calls_executed >= max_tool_calls:
                             recovery_overlays += (TOOL_BUDGET_RECOVERY,)
                         continue
-                    if has_incomplete_todo:
-                        raise RuntimeError(
-                            "Model returned a final answer with unfinished todos"
+                    incomplete = tuple(
+                        TodoItem(item["content"], item["status"])
+                        for item in todos
+                        if item["status"] != "completed"
+                    )
+                    if incomplete:
+                        emit(
+                            event_sink,
+                            TodoCompletionDeferred(
+                                incomplete,
+                                reminder_sent=todo_reconciliation_requested,
+                            ),
                         )
                     if todos and all(item["status"] == "completed" for item in todos):
                         if todo_state is None:
@@ -414,7 +450,14 @@ def run_turn(
 
                 empty_responses += 1
                 if empty_responses >= MAX_EMPTY_RESPONSES:
-                    raise RuntimeError("Model returned repeated empty responses")
+                    return _controlled_incomplete_result(
+                        manager,
+                        compatibility_messages,
+                        event_sink,
+                        "The model returned repeated empty responses. Completed "
+                        "work and tool results were retained.",
+                        reason=TransitionReason.EMPTY_RESPONSE_RECOVERY,
+                    )
                 recovery_overlays = (EMPTY_RESPONSE_RECOVERY,)
                 record_recovery(TransitionReason.EMPTY_RESPONSE_RECOVERY)
                 if tool_calls_executed >= max_tool_calls:
@@ -631,11 +674,22 @@ def run_turn(
                     (TOOL_BUDGET_RECOVERY,) if tool_budget_reached else ()
                 )
 
-        emit(
+        emit(event_sink, BudgetWarning("Model/tool step boundary reached"))
+        return _controlled_incomplete_result(
+            manager,
+            compatibility_messages,
             event_sink,
-            TransitionSelected(TransitionReason.BUDGET_EXHAUSTED.value),
+            "I stopped at the configured model/tool step boundary. Completed "
+            "work and tool results were retained; the task may be resumed.",
         )
-        raise RuntimeError("Agent reached the maximum number of model/tool steps")
+    except _RecoveryBoundary as error:
+        return _controlled_incomplete_result(
+            manager,
+            compatibility_messages,
+            event_sink,
+            f"{error}. Completed work and tool results were retained; the task "
+            "may be resumed.",
+        )
     except TurnCancelled as error:
         if rollback_on_cancel:
             manager.restore(turn_snapshot)
@@ -671,7 +725,7 @@ def _round_items(
     memory_citations: tuple[str, ...],
 ) -> list[Any]:
     """Remove a valid machine-only citation footer from committed history."""
-    items = list(response.output)
+    items = list(getattr(response, "output", None) or ())
     if not memory_citations:
         return items
     normalized: list[Any] = []
@@ -689,3 +743,28 @@ def _round_items(
         else:
             normalized.append(item)
     return normalized
+
+
+def _controlled_incomplete_result(
+    manager: ContextManager,
+    compatibility_messages: list[Any] | None,
+    event_sink: EventSink | None,
+    message: str,
+    *,
+    reason: TransitionReason = TransitionReason.BUDGET_EXHAUSTED,
+) -> str:
+    """Commit a model-visible terminal result without treating a limit as fatal."""
+    manager.conversation.append_model_round(
+        [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": message}],
+            }
+        ]
+    )
+    if compatibility_messages is not None:
+        compatibility_messages[:] = manager.conversation.active_items()
+    emit(event_sink, TransitionSelected(reason.value))
+    emit(event_sink, TurnCompleted(message))
+    return message

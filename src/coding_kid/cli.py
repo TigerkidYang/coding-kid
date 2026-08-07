@@ -109,6 +109,8 @@ def format_tool_call(name: str, arguments: dict[str, Any]) -> str:
         rendered = f'[tool] search: "{query}" in {path}'
     elif name in {"read", "write", "patch", "delete"}:
         rendered = f"[tool] {name}: {arguments.get('path', '?')}"
+    elif name == "apply_patch":
+        rendered = "[tool] apply_patch"
     elif name == "todo":
         items = arguments.get("todos")
         if not isinstance(items, list):
@@ -746,6 +748,13 @@ def chat(
                 continue
 
         output_function(f"Coding Kid> {answer}")
+        incomplete_todos = [
+            item for item in todo_state.items if item["status"] != "completed"
+        ]
+        if incomplete_todos:
+            output_function(
+                f"[todo] {len(incomplete_todos)} unfinished item(s) retained for resume."
+            )
 
     if owns_agent_manager:
         agent_manager.close()

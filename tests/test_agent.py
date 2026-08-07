@@ -23,6 +23,7 @@ from coding_kid.events import (
     AssistantStreamReset,
     CancellationToken,
     TodoUpdated,
+    TodoCompletionDeferred,
     ToolCompleted,
     ToolStarted,
     TurnCancelled,
@@ -540,8 +541,16 @@ def test_run_turn_stops_after_maximum_steps() -> None:
     ) -> SimpleNamespace:
         return SimpleNamespace(output=[tool_call("again", "read", {"path": "x"})])
 
-    with pytest.raises(RuntimeError, match="maximum"):
-        run_turn([], endless_provider, max_steps=2)
+    messages: list[Any] = []
+    answer = run_turn(messages, endless_provider, max_steps=2)
+
+    assert "configured model/tool step boundary" in answer
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "message"
+        and "configured model/tool step boundary" in str(item)
+        for item in messages
+    )
 
 
 def test_run_turn_stops_executing_tools_at_the_per_turn_budget(
@@ -727,8 +736,10 @@ def test_run_turn_enforces_shared_recovery_budget() -> None:
     def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
         raise ProviderIncompleteError("max_output_tokens")
 
-    with pytest.raises(RuntimeError, match="recovery budget"):
-        run_turn([], provider, limits=TurnLimits(max_recoveries=1))
+    answer = run_turn([], provider, limits=TurnLimits(max_recoveries=1))
+
+    assert "recovery budget exhausted" in answer
+    assert "may be resumed" in answer
 
 
 def test_run_turn_stops_repeated_identical_tool_actions(
@@ -821,8 +832,8 @@ def test_run_turn_rejects_repeated_empty_model_responses() -> None:
             output=[SimpleNamespace(type="reasoning")], output_text=""
         )
 
-    with pytest.raises(RuntimeError, match="empty"):
-        run_turn([], empty_provider)
+    answer = run_turn([], empty_provider)
+    assert "repeated empty responses" in answer
 
 
 def test_run_turn_does_not_commit_partial_history_on_failure(
@@ -1004,12 +1015,12 @@ def test_run_turn_uses_todo_and_injects_current_list(
     assert provider_instructions[0].startswith(SYSTEM_PROMPT)
     assert "Current todos:" in provider_instructions[1]
     assert "[in_progress] Write hello.txt" in provider_instructions[1]
-    assert "Todo reconciliation required:" in provider_instructions[3]
+    assert "Todo reconciliation suggestion:" in provider_instructions[3]
     assert get_todos() == []
     assert (tmp_path / "hello.txt").read_text(encoding="utf-8") == "hello"
 
 
-def test_run_turn_rejects_a_second_final_answer_with_an_incomplete_todo() -> None:
+def test_run_turn_accepts_second_final_after_one_soft_in_progress_reminder() -> None:
     responses = iter(
         [
             SimpleNamespace(
@@ -1030,46 +1041,44 @@ def test_run_turn_rejects_a_second_final_answer_with_an_incomplete_todo() -> Non
         ]
     )
     messages = [{"role": "user", "content": "Finish the work"}]
+    todo_state = agent_module.TodoState()
+    events: list[Any] = []
 
-    with pytest.raises(RuntimeError, match="unfinished todos"):
-        run_turn(messages, lambda instructions, messages, tools: next(responses))
-
-    assert messages == [{"role": "user", "content": "Finish the work"}]
-
-
-def test_run_turn_requires_pending_todos_to_be_completed_before_final() -> None:
-    agent_module.dispatch_tool(
-        "todo",
-        {"todos": [{"content": "Continue later", "status": "pending"}]},
+    answer = run_turn(
+        messages,
+        lambda instructions, messages, tools: next(responses),
+        todo_state=todo_state,
+        tool_registry=build_tool_registry(todo_state=todo_state),
+        event_sink=events.append,
     )
-    responses = iter(
-        [
-            SimpleNamespace(output=[text_message("The remaining step is pending.")]),
-            SimpleNamespace(
-                output=[
-                    tool_call(
-                        "call-1",
-                        "todo",
-                        {
-                            "todos": [
-                                {"content": "Continue later", "status": "completed"}
-                            ]
-                        },
-                    )
-                ]
-            ),
-            SimpleNamespace(output=[text_message("The remaining step is complete.")]),
-        ]
+
+    assert answer == "Still finished."
+    assert todo_state.items == [{"content": "Finish work", "status": "in_progress"}]
+    deferred = [event for event in events if isinstance(event, TodoCompletionDeferred)]
+    assert len(deferred) == 1
+    assert deferred[0].reminder_sent is True
+
+
+def test_run_turn_allows_pending_todo_to_end_without_a_retry() -> None:
+    todo_state = agent_module.TodoState(
+        [{"content": "Continue later", "status": "pending"}]
     )
+    response = SimpleNamespace(output=[text_message("The remaining step is pending.")])
     provider_instructions: list[str] = []
+    events: list[Any] = []
 
     answer = run_turn(
         [{"role": "user", "content": "Pause here"}],
         lambda instructions, messages, tools: (
-            provider_instructions.append(instructions) or next(responses)
+            provider_instructions.append(instructions) or response
         ),
+        todo_state=todo_state,
+        event_sink=events.append,
     )
 
-    assert answer == "The remaining step is complete."
-    assert "Todo reconciliation required:" in provider_instructions[1]
-    assert get_todos() == []
+    assert answer == "The remaining step is pending."
+    assert len(provider_instructions) == 1
+    assert todo_state.items == [{"content": "Continue later", "status": "pending"}]
+    deferred = [event for event in events if isinstance(event, TodoCompletionDeferred)]
+    assert len(deferred) == 1
+    assert deferred[0].reminder_sent is False

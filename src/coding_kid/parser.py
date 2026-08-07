@@ -37,21 +37,30 @@ def parse_output(response: Any) -> ParsedOutput:
     text_parts: list[str] = []
     tool_calls: list[ToolCall] = []
 
-    for item in response.output:
-        if item.type == "message":
-            for content in item.content:
-                if content.type == "output_text":
-                    text_parts.append(content.text)
-        elif item.type == "function_call":
+    for item in getattr(response, "output", None) or ():
+        item_type = getattr(item, "type", None)
+        if item_type == "message":
+            for content in getattr(item, "content", None) or ():
+                if getattr(content, "type", None) == "output_text":
+                    text = getattr(content, "text", "")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+        elif item_type == "function_call":
             try:
-                arguments = json.loads(item.arguments)
+                arguments = json.loads(getattr(item, "arguments", None))
             except (json.JSONDecodeError, TypeError) as error:
                 raise ValueError(
-                    f"Tool {item.name!r} returned invalid JSON arguments"
+                    f"Tool {getattr(item, 'name', None)!r} returned invalid JSON arguments"
                 ) from error
             if not isinstance(arguments, dict):
-                raise ValueError(f"Tool {item.name!r} arguments must be an object")
-            tool_calls.append(ToolCall(item.call_id, item.name, arguments))
+                raise ValueError(
+                    f"Tool {getattr(item, 'name', None)!r} arguments must be an object"
+                )
+            call_id = getattr(item, "call_id", None)
+            name = getattr(item, "name", None)
+            if not isinstance(call_id, str) or not isinstance(name, str):
+                raise ValueError("Tool call is missing a string call_id or name")
+            tool_calls.append(ToolCall(call_id, name, arguments))
 
     text = "\n".join(text_parts)
     if not text:

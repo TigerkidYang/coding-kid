@@ -145,6 +145,14 @@ class TodoUpdated:
 
 
 @dataclass(frozen=True)
+class TodoCompletionDeferred:
+    """The turn ended normally while a visible checklist remains unfinished."""
+
+    items: tuple[TodoItem, ...]
+    reminder_sent: bool
+
+
+@dataclass(frozen=True)
 class CompactionStarted:
     trigger: str
 
@@ -211,6 +219,7 @@ TurnEvent: TypeAlias = (
     | ToolStarted
     | ToolCompleted
     | TodoUpdated
+    | TodoCompletionDeferred
     | CompactionStarted
     | CompactionCompleted
     | ContextWarning

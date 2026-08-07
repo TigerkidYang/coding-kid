@@ -72,6 +72,15 @@ def test_parse_output_uses_aggregate_text_as_a_fallback() -> None:
     assert parsed.text == "Recovered final answer."
 
 
+def test_parse_output_normalizes_missing_optional_collections() -> None:
+    assert parse_output(SimpleNamespace(output=None)).text == ""
+    response = SimpleNamespace(
+        output=[SimpleNamespace(type="message", content=None)],
+        output_text="fallback",
+    )
+    assert parse_output(response).text == "fallback"
+
+
 def test_parse_output_rejects_non_string_tool_arguments() -> None:
     response = SimpleNamespace(
         output=[

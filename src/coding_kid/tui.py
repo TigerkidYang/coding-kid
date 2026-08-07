@@ -37,6 +37,7 @@ from coding_kid.events import (
     InputQueued,
     InputRejected,
     TodoUpdated,
+    TodoCompletionDeferred,
     ToolCompleted,
     ToolStarted,
     TurnCompleted,
@@ -680,6 +681,14 @@ class CodingKidApp(App[None]):
             self._set_status("Working")
         elif isinstance(event, TodoUpdated):
             self._show_todo(event)
+        elif isinstance(event, TodoCompletionDeferred):
+            self._append_cell(
+                Static(
+                    f"[yellow]▲ Turn ended with {len(event.items)} unfinished todo "
+                    "item(s); the plan was retained for resume.[/]",
+                    classes="notice-cell",
+                )
+            )
         elif isinstance(event, CompactionStarted):
             self._set_status("Compacting conversation")
         elif isinstance(event, CompactionCompleted):
