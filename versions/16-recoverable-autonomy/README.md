@@ -46,4 +46,9 @@ This archive passes 410 tests with two Windows symlink skips, Ruff check and
 format check over 62 Python files, a 35-entry wheel inspection, and clean
 Python 3.11 installation and launch from an unrelated directory.
 
-Matching annotated Git tag: `version-16-recoverable-autonomy`.
+Original annotated Git tag: `version-16-recoverable-autonomy`.
+
+Maintenance tag `version-16-recoverable-autonomy-fix1` additionally normalizes
+empty provider messages before protocol replay and translates null-collection
+Responses SDK failures into observable, bounded provider retries. The original
+tag remains unchanged.

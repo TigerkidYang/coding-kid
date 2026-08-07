@@ -38,6 +38,24 @@ def normalize_protocol_value(value: Any) -> Any:
     return value
 
 
+def normalize_replay_items(items: list[Any]) -> list[Any]:
+    """Normalize provider items and omit empty messages unsafe for replay."""
+    normalized: list[Any] = []
+    for item in items:
+        value = normalize_protocol_value(item)
+        if value is None:
+            continue
+        if isinstance(value, dict) and value.get("type") == "message":
+            content = value.get("content")
+            if not isinstance(content, list):
+                continue
+            value["content"] = [part for part in content if part is not None]
+            if not value["content"]:
+                continue
+        normalized.append(value)
+    return normalized
+
+
 def _json_default(value: Any) -> Any:
     model_dump = getattr(value, "model_dump", None)
     if callable(model_dump):
@@ -132,9 +150,7 @@ class ConversationState:
         self.active.append(segment)
 
     def append_model_round(self, items: list[Any]) -> None:
-        segment = ConversationSegment(
-            "model", [normalize_protocol_value(item) for item in items]
-        )
+        segment = ConversationSegment("model", normalize_replay_items(items))
         self.transcript.append(segment.clone())
         self.active.append(segment)
 

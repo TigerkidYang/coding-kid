@@ -2,6 +2,18 @@
 
 Date: 2026-08-07
 
+## Maintenance Fix 1
+
+Post-release Terminal-Bench diagnostics exposed compatible-provider responses
+that could raise `TypeError: 'NoneType' object is not iterable` after a tool
+round. Fix 1 omits empty assistant messages from replay, translates the SDK's
+null-collection failure into a typed retryable provider protocol error, and
+adds deterministic coverage for both paths. The root suite remains at 485
+collected tests with 483 passes and two Windows symlink skips; the copied
+archive provider/Agent regression slice and Ruff checks pass. The original
+Version 16 tag is unchanged; the correction is tagged
+`version-16-recoverable-autonomy-fix1`.
+
 ## Scope
 
 Version 16 was verified as a general recoverable-autonomy release. No

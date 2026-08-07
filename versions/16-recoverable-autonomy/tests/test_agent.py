@@ -32,7 +32,7 @@ from coding_kid.events import (
     TurnStarted,
     RetryScheduled,
 )
-from coding_kid.provider import ProviderIncompleteError
+from coding_kid.provider import ProviderIncompleteError, ProviderProtocolError
 from coding_kid.tools import ToolRegistry, build_tool_registry, get_todos
 from coding_kid.turn_control import TurnLimits
 
@@ -713,6 +713,55 @@ def test_run_turn_retries_transient_provider_failure_observably(
     assert calls == 2
     assert len([event for event in events if isinstance(event, RetryScheduled)]) == 1
     assert any(isinstance(event, AssistantStreamReset) for event in events)
+
+
+def test_run_turn_retries_provider_protocol_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ProviderProtocolError("null collection")
+        return SimpleNamespace(output=[text_message("Recovered")], usage=None)
+
+    monkeypatch.setattr(agent_module, "provider_retry_delay", lambda error, attempt: 0)
+
+    assert run_turn([], provider) == "Recovered"
+    assert calls == 2
+
+
+def test_run_turn_omits_empty_provider_messages_before_tool_followup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return SimpleNamespace(
+                output=[
+                    SimpleNamespace(type="message", role="assistant", content=None),
+                    tool_call("call-1", "read", {"path": "module.py"}),
+                ],
+                usage=None,
+            )
+        empty_messages = [
+            item
+            for item in messages
+            if isinstance(item, dict)
+            and item.get("type") == "message"
+            and not item.get("content")
+        ]
+        assert empty_messages == []
+        return SimpleNamespace(output=[text_message("Finished")], usage=None)
+
+    monkeypatch.setattr(agent_module, "dispatch_tool", lambda name, arguments: "ok")
+
+    assert run_turn([], provider) == "Finished"
 
 
 def test_run_turn_recovers_from_output_limit_twice() -> None:
