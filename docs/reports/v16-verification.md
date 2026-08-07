@@ -113,7 +113,9 @@ confirmed completion on 2026-08-07. The permanent archive is
 
 Benchmark-maintenance corrections are recorded by tags
 `version-16-recoverable-autonomy-fix1` and
-`version-16-recoverable-autonomy-fix2`. They normalize null protocol
+`version-16-recoverable-autonomy-fix2`. A subsequent
+`version-16-recoverable-autonomy-fix3` correction resumes one complete model
+turn after the same defect escapes a lower SDK boundary. Together they normalize null protocol
 collections during replay and translate the same OpenAI SDK defect during
 response creation, stream iteration, and stream cleanup into bounded,
 observable provider retries. The original completed-version tag is unchanged.

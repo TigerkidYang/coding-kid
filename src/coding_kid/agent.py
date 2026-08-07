@@ -44,8 +44,10 @@ from coding_kid.events import (
 from coding_kid.parser import parse_output
 from coding_kid.permissions import PermissionBroker
 from coding_kid.provider import (
+    ProviderProtocolError,
     generate,
     is_context_window_error,
+    is_null_collection_error,
     is_output_limit_error,
     provider_retry_delay,
     retryable_provider_error,
@@ -171,7 +173,7 @@ def _manager_for_turn(
     return manager, conversation
 
 
-def run_turn(
+def _run_turn_once(
     conversation: list[Any] | ContextManager,
     call_provider: Provider = generate,
     *,
@@ -711,12 +713,97 @@ def run_turn(
         manager.conversation.restore_projection_preserving_new_transcript(
             turn_snapshot.conversation
         )
+        if isinstance(error, ProviderProtocolError):
+            raise
+        if is_null_collection_error(error):
+            raise ProviderProtocolError(
+                "Provider returned a null collection while processing a model round"
+            ) from error
         emit(
             event_sink,
             TransitionSelected(TransitionReason.FATAL_ERROR.value),
         )
         emit(event_sink, TurnFailed(str(error)))
         raise
+
+
+def run_turn(
+    conversation: list[Any] | ContextManager,
+    call_provider: Provider = generate,
+    *,
+    max_steps: int = 80,
+    on_tool: ToolObserver | None = None,
+    on_context: ContextObserver | None = None,
+    session_context: SessionContext | None = None,
+    stream_provider: StreamingProvider | None = None,
+    event_sink: EventSink | None = None,
+    cancellation_token: CancellationToken | None = None,
+    request_context: list[Any] | None = None,
+    on_memory_citations: MemoryCitationObserver | None = None,
+    tool_registry: ToolRegistry | None = None,
+    instruction_overlays: tuple[str, ...] = (),
+    background_tasks: BackgroundTaskManager | None = None,
+    todo_state: TodoState | None = None,
+    max_tool_calls: int = MAX_TOOL_CALLS_PER_TURN,
+    agent_manager: AgentManager | None = None,
+    rollback_on_cancel: bool = False,
+    limits: TurnLimits | None = None,
+    permission_broker: PermissionBroker | None = None,
+    workflow_state: WorkflowState | None = None,
+    workflow_runtime: WorkflowRuntime | None = None,
+) -> str:
+    """Run one turn, resuming once after a null-collection protocol failure."""
+    turn_conversation: list[Any] | ContextManager = conversation
+    compatibility_messages: list[Any] | None = None
+    compatibility_manager: ContextManager | None = None
+    if isinstance(conversation, list):
+        manager, compatibility_messages = _manager_for_turn(
+            conversation, session_context
+        )
+        turn_conversation = manager
+        compatibility_manager = manager
+    options = {
+        "max_steps": max_steps,
+        "on_tool": on_tool,
+        "on_context": on_context,
+        "session_context": session_context,
+        "stream_provider": stream_provider,
+        "event_sink": event_sink,
+        "cancellation_token": cancellation_token,
+        "request_context": request_context,
+        "on_memory_citations": on_memory_citations,
+        "tool_registry": tool_registry,
+        "instruction_overlays": instruction_overlays,
+        "background_tasks": background_tasks,
+        "todo_state": todo_state,
+        "max_tool_calls": max_tool_calls,
+        "agent_manager": agent_manager,
+        "rollback_on_cancel": rollback_on_cancel,
+        "limits": limits,
+        "permission_broker": permission_broker,
+        "workflow_state": workflow_state,
+        "workflow_runtime": workflow_runtime,
+    }
+    for attempt in range(1, 3):
+        try:
+            result = _run_turn_once(turn_conversation, call_provider, **options)
+            if compatibility_messages is not None and compatibility_manager is not None:
+                compatibility_messages[:] = (
+                    compatibility_manager.conversation.active_items()
+                )
+            return result
+        except ProviderProtocolError:
+            if attempt >= 2:
+                raise
+            delay = 0.5
+            emit(event_sink, AssistantStreamReset("model_round_protocol_retry"))
+            emit(event_sink, RetryScheduled("ProviderProtocolError", attempt, delay))
+            emit(event_sink, TransitionSelected(TransitionReason.PROVIDER_RETRY.value))
+            if cancellation_token is None:
+                time.sleep(delay)
+            elif cancellation_token.wait(delay):
+                cancellation_token.raise_if_cancelled()
+    raise AssertionError("model-round retry loop exhausted without returning")
 
 
 def _round_items(

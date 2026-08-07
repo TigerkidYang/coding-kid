@@ -32,10 +32,19 @@ class ProviderProtocolError(RuntimeError):
     """The compatible endpoint or SDK returned an unusable protocol shape."""
 
 
+def is_null_collection_error(error: BaseException) -> bool:
+    """Recognize the compatible Responses SDK's observed null iterable defect."""
+    rendered = str(error).casefold()
+    return (
+        isinstance(error, TypeError)
+        and "nonetype" in rendered
+        and "iterable" in rendered
+    )
+
+
 def _raise_protocol_error(error: TypeError) -> None:
     """Translate the observed null-collection SDK failure into a retryable error."""
-    rendered = str(error).casefold()
-    if "nonetype" not in rendered or "iterable" not in rendered:
+    if not is_null_collection_error(error):
         raise error
     raise ProviderProtocolError(
         "Provider returned a null collection where the Responses protocol requires "

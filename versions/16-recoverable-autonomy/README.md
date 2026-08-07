@@ -56,3 +56,8 @@ tag remains unchanged.
 Maintenance tag `version-16-recoverable-autonomy-fix2` extends that correction
 to the SDK's stream-cleanup path after a terminal response. It remains a V16
 patch and does not change the version's feature scope.
+
+Maintenance tag `version-16-recoverable-autonomy-fix3` adds one bounded
+whole-turn protocol resume. Completed tool rounds remain in the transcript and
+are not executed twice when a null-collection failure escapes a lower provider
+boundary.

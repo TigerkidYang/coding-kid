@@ -733,6 +733,53 @@ def test_run_turn_retries_provider_protocol_failure(
     assert calls == 2
 
 
+def test_run_turn_resumes_completed_tool_round_after_raw_null_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executions: list[str] = []
+    requests: list[list[Any]] = []
+    calls = 0
+    registry = ToolRegistry(
+        {
+            "record": {
+                "description": "Record one test value.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                    "additionalProperties": False,
+                },
+                "function": lambda value: executions.append(value) or "recorded",
+            }
+        }
+    )
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        requests.append(list(messages))
+        if calls == 1:
+            return SimpleNamespace(
+                output=[tool_call("call-1", "record", {"value": "once"})],
+                usage=None,
+            )
+        if calls == 2:
+            raise TypeError("'NoneType' object is not iterable")
+        return SimpleNamespace(output=[text_message("Recovered round")], usage=None)
+
+    monkeypatch.setattr(agent_module.time, "sleep", lambda _: None)
+
+    assert run_turn([], provider, tool_registry=registry) == "Recovered round"
+    assert executions == ["once"]
+    assert calls == 3
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "function_call_output"
+        and item.get("call_id") == "call-1"
+        for item in requests[2]
+    )
+
+
 def test_run_turn_omits_empty_provider_messages_before_tool_followup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
