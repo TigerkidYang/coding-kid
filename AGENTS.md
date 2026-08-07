@@ -226,7 +226,11 @@ In particular:
   capability. Coding Kid V15 with `gpt-5.6-luna`, max reasoning, and k=1 scored
   50/89 (56.18%) on Terminal-Bench 2.1: 50 passes, nine Agent timeouts, 30
   other verifier zeros, no exit 137, and no final infrastructure failure. V14
-  is frozen and the launcher selects V1-V15 with V15 default. It is archived
+  is frozen and the launcher selects V1-V15 with V15 default. The root passes
+  448 of 449 tests with one Windows symlink skip, Ruff, wheel inspection, and
+  clean Python 3.11 V1-V15 launches. The standalone archive passes 383 of 384
+  tests with the same skip, Ruff, wheel inspection, and clean installation. It
+  is archived
   under `versions/15-benchmark-driven-hardening/` with annotated tag
   `version-15-benchmark-driven-hardening`; see
   `docs/reports/terminal-bench-2.1-k1.md`.

@@ -73,7 +73,10 @@ without explicit permission.
   137, and no infrastructure failures. Resource bounds, runtime-aware tools,
   non-Git checkpoints, resumable Cloudflare scheduling, and long-response JSON
   keepalives were added before the final fresh run. V14 is frozen and the
-  launcher selects V1-V15 with V15 as default. See
+  launcher selects V1-V15 with V15 as default. The root passes 448 of 449 tests
+  with one Windows symlink skip; the standalone archive passes 383 of 384 with
+  the same skip. Both pass Ruff, wheel inspection, and clean Python 3.11
+  installation/launch checks. See
   `docs/reports/terminal-bench-2.1-k1.md`.
 
 - The project is named Coding Kid. Its repository/distribution identifier is

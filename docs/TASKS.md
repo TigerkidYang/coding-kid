@@ -2,7 +2,10 @@
 
 ## Current Core Version: 15 — Benchmark-Driven Hardening
 
-Completion status: final verification and archive in progress.
+Completion status: complete. The user requested version completion on
+2026-08-07. The standalone checkpoint is archived under
+`versions/15-benchmark-driven-hardening/` with annotated tag
+`version-15-benchmark-driven-hardening`.
 
 ### Goal
 
@@ -77,3 +80,18 @@ and long-running remote inference.
 
 See `docs/reports/terminal-bench-2.1-k1.md` for protocol, failure
 classification, fixes, and limitations.
+
+### Verification Result
+
+- Root project: 449 tests collected, 448 passed, and one Windows symlink test
+  skipped; Ruff lint and format checks passed over 305 Python files.
+- Root wheel: 278 entries, including frozen V1-V14 runtimes plus living V15,
+  with no tests, evaluation files, caches, or bytecode.
+- A clean Python 3.11 installation launched V1-V15 from an unrelated project;
+  V15 remained the latest default.
+- Standalone archive: 384 tests collected, 383 passed, and one Windows symlink
+  test skipped; Ruff lint and format checks passed over 60 Python files.
+- Standalone wheel: 34 entries with the archive-only entry point and no tests,
+  evaluation files, caches, or bytecode; a clean Python 3.11 install launched
+  V15 from an unrelated project.
+- No new model request or paid benchmark run was used for version packaging.

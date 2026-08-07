@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "coding-kid-terminal-bench-runner",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-06",
+  "containers": [
+    {
+      "class_name": "BenchmarkTrialContainer",
+      "image": "registry.cloudflare.com/1a3e86f9ef02feb107cb83e6c28435ea/coding-kid-terminal-bench-runner-benchmarktrialcontainer:nogitfix-20260807",
+      "instance_type": "standard-4",
+      "max_instances": 32,
+      "rollout_active_grace_period": 0,
+      "constraints": { "regions": ["APAC"] }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BENCHMARK_TRIAL",
+        "class_name": "BenchmarkTrialContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["BenchmarkTrialContainer"]
+    }
+  ],
+  "observability": { "enabled": true }
+}

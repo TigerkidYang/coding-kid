@@ -136,7 +136,7 @@ overfitting.
 
 ## Verification
 
-- Project regression suite: 436 passed, with one Windows symlink test skipped.
+- Final Version 15 root suite: 448 passed, with one Windows symlink test skipped.
 - Targeted checkpoint/tool/workflow tests and Ruff over changed maintained
   source passed.
 - Cloudflare container rollout: version 26, 7/7 healthy, 0 failed before the
