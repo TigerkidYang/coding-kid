@@ -162,6 +162,7 @@ def initial_state(tasks: list[str]) -> dict[str, Any]:
         "created_at": now(),
         "target_concurrency": INITIAL_CONCURRENCY,
         "last_ramp_at": time.time(),
+        "last_ramp_completed": 0,
         "last_backoff_at": 0.0,
         "tasks": {task: {"phase": "pending", "attempt": 0} for task in tasks},
     }
@@ -389,6 +390,9 @@ def main() -> int:
             1, min(MAX_CONCURRENCY, int(forced_concurrency))
         )
         state["last_ramp_at"] = time.time()
+        state["last_ramp_completed"] = sum(
+            entry["phase"] == "completed" for entry in state["tasks"].values()
+        )
         state["last_backoff_at"] = time.time()
 
     for task, entry in state["tasks"].items():
@@ -505,6 +509,9 @@ def main() -> int:
                 emit("container_state_lost", task=task, attempt=entry["attempt"])
                 stop_trial(task, entry)
 
+        completed = sum(
+            entry["phase"] == "completed" for entry in state["tasks"].values()
+        )
         if infrastructure_errors:
             state["last_backoff_at"] = time.time()
         if not forced_concurrency and (
@@ -513,21 +520,22 @@ def main() -> int:
             old = int(state["target_concurrency"])
             state["target_concurrency"] = max(4, old - 4)
             state["last_backoff_at"] = time.time()
+            state["last_ramp_completed"] = completed
             if state["target_concurrency"] != old:
                 emit("concurrency_backoff", old=old, new=state["target_concurrency"])
         elif (
             time.time() - float(state.get("last_ramp_at", 0)) >= 300
             and time.time() - float(state.get("last_backoff_at", 0)) >= 600
+            and completed - int(state.get("last_ramp_completed", 0))
+            >= max(2, int(state["target_concurrency"]) // 2)
             and int(state["target_concurrency"]) < MAX_CONCURRENCY
         ):
             old = int(state["target_concurrency"])
             state["target_concurrency"] = min(MAX_CONCURRENCY, old + 4)
             state["last_ramp_at"] = time.time()
+            state["last_ramp_completed"] = completed
             emit("concurrency_ramp", old=old, new=state["target_concurrency"])
 
-        completed = sum(
-            entry["phase"] == "completed" for entry in state["tasks"].values()
-        )
         exhausted = sum(
             entry["phase"] == "failed_infrastructure"
             for entry in state["tasks"].values()
