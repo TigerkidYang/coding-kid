@@ -17,6 +17,13 @@ and a full-screen terminal interface:
 > [detailed evaluation report](docs/reports/terminal-bench-2.1-k1-v16.md) for
 > the complete protocol, evidence, infrastructure controls, and comparability
 > limits.
+>
+> <sub>Methodology note: Coding Kid ran each task once; the official Codex
+> submission ran each task five times.</sub>
+>
+> <sub>Why only Luna—and why only one run per task? Because I am,
+> scientifically speaking, broke. We will keep improving the Agent, and when
+> the budget catches up, we will run a broader evaluation too.</sub>
 
 ```text
 session context + project instructions + Skill metadata + recalled memory
