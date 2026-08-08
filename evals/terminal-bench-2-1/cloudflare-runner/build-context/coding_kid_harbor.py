@@ -75,7 +75,7 @@ class CodingKidAgent(BaseInstalledAgent):
         python = self._REMOTE_VENV / "bin/python"
         return (
             f'{python} -c "from coding_kid.launcher import LATEST_VERSION; '
-            "assert LATEST_VERSION == 'v16'; print('v16-explicit-maintenance-fix3')\""
+            "assert LATEST_VERSION == 'v16'; print('v16-explicit-maintenance-fix4')\""
         )
 
     @with_prompt_template
@@ -105,7 +105,7 @@ class CodingKidAgent(BaseInstalledAgent):
         executable = self._REMOTE_VENV / "bin/coding-kid"
         single_turn_instruction = instruction.replace("\r", " ").replace("\n", " ")
         pipeline = (
-            "printf '%s\\n' 'CODING_KID_EXPLICIT_RUNTIME=v16-maintenance-fix3'; "
+            "printf '%s\\n' 'CODING_KID_EXPLICIT_RUNTIME=v16-maintenance-fix4'; "
             f"printf '%s\\n' {shlex.quote(single_turn_instruction)} | "
             f"{shlex.quote(executable.as_posix())} v16 --new "
             "--dangerously-bypass-approvals-and-sandbox "
@@ -157,10 +157,12 @@ class CodingKidPreflightAgent(CodingKidAgent):
             "import inspect; from coding_kid.launcher import LATEST_VERSION; "
             "from coding_kid import agent, provider; "
             "assert LATEST_VERSION == 'v16'; "
-            "assert inspect.getsource(provider.generate_streaming).count(" 
+            "assert inspect.getsource(provider.generate_streaming).count("
             "'_raise_protocol_error(error)') >= 3; "
+            "assert 'is_response_decode_error' in "
+            "inspect.getsource(provider._raise_protocol_error); "
             "assert 'model_round_protocol_retry' in inspect.getsource(agent.run_turn); "
-            "print('explicit-v16-fix3-ok')"
+            "print('explicit-v16-fix4-ok')"
         )
         await self.exec_as_agent(
             environment,

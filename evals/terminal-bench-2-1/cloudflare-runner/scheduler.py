@@ -204,7 +204,7 @@ def claim_scheduler() -> Path:
             try:
                 existing_pid = int(existing)
                 os.kill(existing_pid, 0)
-            except (OSError, ValueError):
+            except (OSError, SystemError, ValueError):
                 if claim_attempt == 0:
                     pid_path.unlink(missing_ok=True)
                     continue
@@ -278,7 +278,10 @@ def model_transport_failure(status: dict[str, Any]) -> bool:
         "ProviderProtocolError",
         "Provider returned a null collection",
         "Provider returned no streaming response object",
+        "Provider returned a response body that was not valid JSON",
+        "Provider returned an unusable response while processing a model round",
         "Error: 'NoneType' object is not iterable",
+        "Expecting value: line 1 column 4097",
     )
     return any(marker in log for marker in transport_markers)
 
@@ -563,7 +566,7 @@ def main() -> int:
                 (
                     (task, entry)
                     for task, entry in candidates
-                    if entry["phase"] == "retry_pending"
+                    if entry["phase"] == "pending"
                 ),
                 None,
             )
@@ -572,7 +575,7 @@ def main() -> int:
                     (
                         (task, entry)
                         for task, entry in state["tasks"].items()
-                        if entry["phase"] == "pending"
+                        if entry["phase"] == "retry_pending"
                     ),
                     None,
                 )

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import itertools
 import queue
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -14,6 +16,7 @@ UPSTREAM = "http://127.0.0.1:8787"
 LISTEN = ("127.0.0.1", 8788)
 HEARTBEAT = b": " + (b" " * 4094) + b"\n\n"
 JSON_HEARTBEAT = b" " * 4096
+REQUEST_IDS = itertools.count(1)
 HOP_HEADERS = {
     "connection",
     "content-length",
@@ -69,6 +72,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _proxy_json_keepalive(self, body: bytes) -> None:
         events: queue.Queue[tuple[str, Any]] = queue.Queue()
+        request_id = next(REQUEST_IDS)
+        started = time.monotonic()
+        heartbeat_count = 1
+        print(
+            f"json_keepalive_start id={request_id} path={self.path} bytes={len(body)}",
+            flush=True,
+        )
 
         def relay() -> None:
             try:
@@ -79,8 +89,19 @@ class Handler(BaseHTTPRequestHandler):
                     content=body,
                     timeout=None,
                 )
+                print(
+                    f"json_upstream_complete id={request_id} "
+                    f"status={response.status_code} bytes={len(response.content)} "
+                    f"elapsed={time.monotonic() - started:.1f}",
+                    flush=True,
+                )
                 events.put(("response", response.content))
             except Exception as error:
+                print(
+                    f"json_upstream_error id={request_id} "
+                    f"elapsed={time.monotonic() - started:.1f} error={error!r}",
+                    flush=True,
+                )
                 payload = json.dumps({"error": str(error)}).encode()
                 events.put(("response", payload))
 
@@ -103,9 +124,22 @@ class Handler(BaseHTTPRequestHandler):
                 if kind == "response":
                     self._write_chunk(value)
                     self._write_chunk(b"")
+                    print(
+                        f"json_client_complete id={request_id} "
+                        f"heartbeats={heartbeat_count} "
+                        f"elapsed={time.monotonic() - started:.1f}",
+                        flush=True,
+                    )
                     break
+                heartbeat_count += 1
                 self._write_chunk(JSON_HEARTBEAT)
             except (BrokenPipeError, ConnectionResetError):
+                print(
+                    f"json_client_disconnect id={request_id} "
+                    f"heartbeats={heartbeat_count} "
+                    f"elapsed={time.monotonic() - started:.1f}",
+                    flush=True,
+                )
                 break
 
     def _proxy_regular(self, body: bytes) -> None:
@@ -146,7 +180,9 @@ class Handler(BaseHTTPRequestHandler):
                     timeout=None,
                 ) as response:
                     if response.status_code >= 400:
-                        events.put(("error", response.read().decode("utf-8", "replace")))
+                        events.put(
+                            ("error", response.read().decode("utf-8", "replace"))
+                        )
                         return
                     for chunk in response.iter_raw():
                         if chunk:
