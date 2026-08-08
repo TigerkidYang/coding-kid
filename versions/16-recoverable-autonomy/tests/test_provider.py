@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -73,6 +74,23 @@ def test_generate_translates_null_collection_sdk_failure(monkeypatch: Any) -> No
     monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
 
     with pytest.raises(provider.ProviderProtocolError, match="null collection"):
+        provider.generate("system", [], [])
+
+
+def test_generate_translates_truncated_json_response(monkeypatch: Any) -> None:
+    class FakeResponses:
+        def create(self, **kwargs: Any) -> object:
+            raise json.JSONDecodeError("Expecting value", " " * 4096, 4096)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(provider, "OpenAI", FakeOpenAI)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("OPENROUTER_MODEL", "test/model")
+
+    with pytest.raises(provider.ProviderProtocolError, match="not valid JSON"):
         provider.generate("system", [], [])
 
 

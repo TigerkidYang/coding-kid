@@ -48,6 +48,7 @@ from coding_kid.provider import (
     generate,
     is_context_window_error,
     is_null_collection_error,
+    is_response_decode_error,
     is_output_limit_error,
     provider_retry_delay,
     retryable_provider_error,
@@ -715,9 +716,9 @@ def _run_turn_once(
         )
         if isinstance(error, ProviderProtocolError):
             raise
-        if is_null_collection_error(error):
+        if is_null_collection_error(error) or is_response_decode_error(error):
             raise ProviderProtocolError(
-                "Provider returned a null collection while processing a model round"
+                "Provider returned an unusable response while processing a model round"
             ) from error
         emit(
             event_sink,
@@ -752,7 +753,7 @@ def run_turn(
     workflow_state: WorkflowState | None = None,
     workflow_runtime: WorkflowRuntime | None = None,
 ) -> str:
-    """Run one turn, resuming once after a null-collection protocol failure."""
+    """Run one turn, resuming once after a recoverable protocol failure."""
     turn_conversation: list[Any] | ContextManager = conversation
     compatibility_messages: list[Any] | None = None
     compatibility_manager: ContextManager | None = None

@@ -780,6 +780,45 @@ def test_run_turn_resumes_completed_tool_round_after_raw_null_collection(
     )
 
 
+def test_run_turn_resumes_completed_tool_round_after_truncated_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executions: list[str] = []
+    calls = 0
+    registry = ToolRegistry(
+        {
+            "record": {
+                "description": "Record one test value.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                    "additionalProperties": False,
+                },
+                "function": lambda value: executions.append(value) or "recorded",
+            }
+        }
+    )
+
+    def provider(instructions: str, messages: list[Any], tools: list[Any]) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return SimpleNamespace(
+                output=[tool_call("call-1", "record", {"value": "once"})],
+                usage=None,
+            )
+        if calls == 2:
+            raise json.JSONDecodeError("Expecting value", " " * 4096, 4096)
+        return SimpleNamespace(output=[text_message("Recovered JSON")], usage=None)
+
+    monkeypatch.setattr(agent_module.time, "sleep", lambda _: None)
+
+    assert run_turn([], provider, tool_registry=registry) == "Recovered JSON"
+    assert executions == ["once"]
+    assert calls == 3
+
+
 def test_run_turn_omits_empty_provider_messages_before_tool_followup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

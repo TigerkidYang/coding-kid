@@ -42,14 +42,23 @@ def is_null_collection_error(error: BaseException) -> bool:
     )
 
 
-def _raise_protocol_error(error: TypeError) -> None:
-    """Translate the observed null-collection SDK failure into a retryable error."""
-    if not is_null_collection_error(error):
+def is_response_decode_error(error: BaseException) -> bool:
+    """Recognize a response body that ended before one JSON value arrived."""
+    return isinstance(error, json.JSONDecodeError)
+
+
+def _raise_protocol_error(error: Exception) -> None:
+    """Translate unusable compatible-endpoint responses into retryable errors."""
+    if is_null_collection_error(error):
+        message = (
+            "Provider returned a null collection where the Responses protocol "
+            "requires an iterable value"
+        )
+    elif is_response_decode_error(error):
+        message = "Provider returned a response body that was not valid JSON"
+    else:
         raise error
-    raise ProviderProtocolError(
-        "Provider returned a null collection where the Responses protocol requires "
-        "an iterable value"
-    ) from error
+    raise ProviderProtocolError(message) from error
 
 
 def required_environment(name: str) -> str:
@@ -116,7 +125,7 @@ def generate(
     request.update(_request_options(max_output_tokens))
     try:
         return client.responses.create(**request)
-    except TypeError as error:
+    except (TypeError, json.JSONDecodeError) as error:
         _raise_protocol_error(error)
 
 
@@ -147,7 +156,7 @@ def generate_streaming(
 
     try:
         stream = client.responses.create(**request)
-    except TypeError as error:
+    except (TypeError, json.JSONDecodeError) as error:
         _raise_protocol_error(error)
     if stream is None:
         raise ProviderProtocolError("Provider returned no streaming response object")
@@ -174,14 +183,14 @@ def generate_streaming(
                     raise ProviderIncompleteError(str(reason))
                 elif event_type in {"response.error", "response.failed"}:
                     raise RuntimeError(_stream_error_message(event))
-        except TypeError as error:
+        except (TypeError, json.JSONDecodeError) as error:
             _raise_protocol_error(error)
     finally:
         close = getattr(stream, "close", None)
         if callable(close):
             try:
                 close()
-            except TypeError as error:
+            except (TypeError, json.JSONDecodeError) as error:
                 _raise_protocol_error(error)
 
     if cancellation_token is not None:
