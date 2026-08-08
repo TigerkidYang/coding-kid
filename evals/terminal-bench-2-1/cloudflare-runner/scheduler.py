@@ -25,12 +25,20 @@ EVENTS_PATH = RUN_DIR / "events.jsonl"
 BASE = "https://coding-kid-terminal-bench-runner.runchangyang.workers.dev"
 HOST = "coding-kid-terminal-bench-runner.runchangyang.workers.dev"
 RESOLVE = f"{HOST}:443:104.21.77.50"
-MODEL_URL = "https://alien-nat-office-sir.trycloudflare.com/v1/models"
+MODEL_URL = os.environ.get(
+    "CODING_KID_BENCH_MODEL_URL",
+    "https://alien-nat-office-sir.trycloudflare.com/v1/models",
+)
 POLL_SECONDS = 30
 MAX_ATTEMPTS = 5
 MAX_CONCURRENCY = int(os.environ.get("CODING_KID_BENCH_MAX_CONCURRENCY", "16"))
 if not 1 <= MAX_CONCURRENCY <= 16:
     raise ValueError("CODING_KID_BENCH_MAX_CONCURRENCY must be between 1 and 16")
+INITIAL_CONCURRENCY = int(os.environ.get("CODING_KID_BENCH_INITIAL_CONCURRENCY", "4"))
+if not 1 <= INITIAL_CONCURRENCY <= MAX_CONCURRENCY:
+    raise ValueError(
+        "CODING_KID_BENCH_INITIAL_CONCURRENCY must be between 1 and the maximum"
+    )
 TRIAL_PREFIX = os.environ.get("CODING_KID_BENCH_TRIAL_PREFIX", "k1sf2")
 if (
     not TRIAL_PREFIX
@@ -152,7 +160,7 @@ def trial_id(task: str, attempt: int) -> str:
 def initial_state(tasks: list[str]) -> dict[str, Any]:
     return {
         "created_at": now(),
-        "target_concurrency": 4,
+        "target_concurrency": INITIAL_CONCURRENCY,
         "last_ramp_at": time.time(),
         "last_backoff_at": 0.0,
         "tasks": {task: {"phase": "pending", "attempt": 0} for task in tasks},
@@ -181,6 +189,43 @@ def save(state: dict[str, Any]) -> None:
             if attempt == 19:
                 raise
             time.sleep(0.05)
+
+
+def claim_scheduler() -> Path:
+    """Claim this run directory and expose the real scheduler process ID."""
+    pid_path = RUN_DIR / "scheduler.pid"
+    for claim_attempt in range(2):
+        try:
+            descriptor = os.open(pid_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            break
+        except FileExistsError as error:
+            existing = pid_path.read_text(encoding="ascii", errors="ignore").strip()
+            try:
+                existing_pid = int(existing)
+                os.kill(existing_pid, 0)
+            except (OSError, ValueError):
+                if claim_attempt == 0:
+                    pid_path.unlink(missing_ok=True)
+                    continue
+            raise RuntimeError(
+                f"scheduler ownership already exists for {RUN_ID}: "
+                f"pid={existing or 'unknown'}"
+            ) from error
+    else:  # pragma: no cover - the loop either claims or raises
+        raise RuntimeError(f"unable to claim scheduler ownership for {RUN_ID}")
+    with os.fdopen(descriptor, "w", encoding="ascii") as stream:
+        stream.write(str(os.getpid()))
+        stream.flush()
+        os.fsync(stream.fileno())
+    return pid_path
+
+
+def release_scheduler(pid_path: Path) -> None:
+    try:
+        if pid_path.read_text(encoding="ascii").strip() == str(os.getpid()):
+            pid_path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def reward(status: dict[str, Any]) -> float | None:
@@ -547,5 +592,14 @@ def main() -> int:
         time.sleep(POLL_SECONDS)
 
 
+def run() -> int:
+    RUN_DIR.mkdir(parents=True, exist_ok=True)
+    pid_path = claim_scheduler()
+    try:
+        return main()
+    finally:
+        release_scheduler(pid_path)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run())

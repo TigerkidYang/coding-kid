@@ -28,5 +28,12 @@ CODING_KID_BENCH_RUN_ID
 CODING_KID_BENCH_TRIAL_PREFIX
 CODING_KID_BENCH_USE_BOOTSTRAP
 CODING_KID_BENCH_FORCE_CONCURRENCY
+CODING_KID_BENCH_INITIAL_CONCURRENCY
 CODING_KID_BENCH_MAX_CONCURRENCY
+CODING_KID_BENCH_MODEL_URL
 ```
+
+The scheduler writes its real Python process ID to
+`runs/<run-id>/scheduler.pid` and refuses a second owner for the same run. Stop
+that exact process before terminating its parent terminal so a detached child
+cannot continue launching trials.
