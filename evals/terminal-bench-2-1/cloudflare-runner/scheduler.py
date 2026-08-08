@@ -527,7 +527,8 @@ def main() -> int:
             if state["target_concurrency"] != old:
                 emit("concurrency_backoff", old=old, new=state["target_concurrency"])
         elif (
-            time.time() - float(state.get("last_ramp_at", 0)) >= 300
+            not forced_concurrency
+            and time.time() - float(state.get("last_ramp_at", 0)) >= 300
             and time.time() - float(state.get("last_backoff_at", 0)) >= 600
             and completed - int(state.get("last_ramp_completed", 0))
             >= max(2, int(state["target_concurrency"]) // 2)
