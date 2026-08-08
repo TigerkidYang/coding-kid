@@ -299,6 +299,22 @@ def benchmark_agent_failure(status: dict[str, Any]) -> bool:
             continue
         if exception.get("exception_type") == "AgentTimeoutError":
             return True
+        traceback = str(exception.get("exception_traceback") or "")
+        if (
+            exception.get("exception_type") == "RuntimeError"
+            and str(exception.get("exception_message") or "").startswith(
+                "Command timed out after "
+            )
+            and "_run_agent_phase" in traceback
+            and "exec_as_agent" in traceback
+            and status.get("agent_log_tail")
+            and isinstance(item.get("agent_info"), dict)
+            and item["agent_info"].get("version") not in {None, "unknown"}
+        ):
+            # Harbor can hit its outer installed-agent command timeout before
+            # raising AgentTimeoutError. The traceback and an attributable
+            # agent log distinguish that benchmark outcome from runner setup.
+            return True
         if (
             exception.get("exception_type") == "NonZeroAgentExitCodeError"
             and status.get("agent_log_tail")

@@ -16,6 +16,8 @@ UPSTREAM = "http://127.0.0.1:8787"
 LISTEN = ("127.0.0.1", 8788)
 HEARTBEAT = b": " + (b" " * 4094) + b"\n\n"
 JSON_HEARTBEAT = b" " * 4096
+UPSTREAM_RETRY_STATUSES = {502, 503, 504}
+UPSTREAM_MAX_ATTEMPTS = 3
 REQUEST_IDS = itertools.count(1)
 HOP_HEADERS = {
     "connection",
@@ -82,16 +84,30 @@ class Handler(BaseHTTPRequestHandler):
 
         def relay() -> None:
             try:
-                response = httpx.request(
-                    self.command,
-                    f"{UPSTREAM}{self.path}",
-                    headers=self._headers(),
-                    content=body,
-                    timeout=None,
-                )
+                for attempt in range(1, UPSTREAM_MAX_ATTEMPTS + 1):
+                    response = httpx.request(
+                        self.command,
+                        f"{UPSTREAM}{self.path}",
+                        headers=self._headers(),
+                        content=body,
+                        timeout=None,
+                    )
+                    if (
+                        response.status_code not in UPSTREAM_RETRY_STATUSES
+                        or attempt == UPSTREAM_MAX_ATTEMPTS
+                    ):
+                        break
+                    print(
+                        f"json_upstream_retry id={request_id} "
+                        f"status={response.status_code} attempt={attempt} "
+                        f"elapsed={time.monotonic() - started:.1f}",
+                        flush=True,
+                    )
+                    time.sleep(2)
                 print(
                     f"json_upstream_complete id={request_id} "
-                    f"status={response.status_code} bytes={len(response.content)} "
+                    f"status={response.status_code} attempt={attempt} "
+                    f"bytes={len(response.content)} "
                     f"elapsed={time.monotonic() - started:.1f}",
                     flush=True,
                 )
