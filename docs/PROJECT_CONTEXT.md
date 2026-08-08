@@ -78,8 +78,11 @@ without explicit permission.
   launches, real Luna CLI workflows, a disposable Docker bypass workflow, and
   a real Windows ConPTY TUI. Its standalone archive passes 410 tests with two
   Windows symlink skips, Ruff, a 35-entry wheel inspection, and clean Python
-  3.11 installation and launch from an unrelated directory. No benchmark rerun
-  is part of V16. See `docs/reports/v16-verification.md`.
+  3.11 installation and launch from an unrelated directory. A later authorized
+  V16 fix 4 Terminal-Bench 2.1 k=1 evaluation completed 89 valid outcomes and
+  scored 61/89 (68.54%) with no final infrastructure failure. See
+  `docs/reports/v16-verification.md` and
+  `docs/reports/terminal-bench-2.1-k1-v16.md`.
 
 - Version 15 benchmark-driven hardening is complete. It packages the
   cross-cutting maintenance work exposed by Terminal-Bench rather than adding a

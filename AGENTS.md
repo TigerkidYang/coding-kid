@@ -232,9 +232,16 @@ In particular:
   rounds, final wheel/clean Python 3.11/V1-V16 launches, real Luna required and
   best-effort workflows, a disposable Docker bypass, cross-session todo
   convergence, and a real Windows ConPTY TUI. Estimated live spend stayed below
-  USD 0.30; no benchmark ran. Its standalone archive passes 410 tests with two
+  USD 0.30; no benchmark ran during the original V16 completion. Its standalone
+  archive passes 410 tests with two
   Windows symlink skips, Ruff, a 35-entry wheel inspection, and clean Python
-  3.11 installation and launch. See `docs/reports/v16-verification.md`.
+  3.11 installation and launch. A later authorized Terminal-Bench 2.1 k=1 run
+  of the maintained V16 fix 4 runtime with `gpt-5.6-luna` at max reasoning
+  scored 61/89 (68.54%): 61 passes, 12 zero-reward Agent time-boundary
+  outcomes, 16 other verifier zeros, and no final infrastructure failure. All
+  89 final trajectories identify `v16-explicit-maintenance-fix4`; see
+  `docs/reports/v16-verification.md` and
+  `docs/reports/terminal-bench-2.1-k1-v16.md`.
 - Version 15 is complete as a benchmark-driven maintenance release. It hardens
   bounded and binary-aware inspection, runtime-aware tool exposure, command
   guidance, non-Git checkpoints, OpenAI-compatible provider behavior, and

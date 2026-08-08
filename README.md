@@ -64,6 +64,12 @@ files atomically after complete validation, `diff` shares the same bounded
 review evidence as `/changes`, and unfinished todos are visible resumable state
 rather than a fatal completion gate.
 
+The authorized Terminal-Bench 2.1 k=1 evaluation of the maintained V16 fix 4
+runtime, using `gpt-5.6-luna` at max reasoning, completed all 89 tasks with no
+final infrastructure failure and scored 61/89 (68.54%). See
+`docs/reports/terminal-bench-2.1-k1-v16.md` for the protocol, cohort-reset
+policy, result composition, and k=1 comparability limits.
+
 ## Version 15 Maintenance Release
 
 Version 15 packages reliability fixes found through a complete Terminal-Bench
