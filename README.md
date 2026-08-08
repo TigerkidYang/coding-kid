@@ -8,6 +8,16 @@ turn loop, a session todo checklist, a permission-governed change workflow, a
 fail-closed local sandbox, bounded conversation context, streamed model output,
 and a full-screen terminal interface:
 
+> [!IMPORTANT]
+> **Terminal-Bench 2.1: Coding Kid achieves 68.54%, compared with 75.7% for
+> Codex using the same `gpt-5.6-luna` model and max reasoning effort.**
+>
+> That is **about 90.5% of Codex's benchmark score** from a deliberately small,
+> educational implementation. See the
+> [detailed evaluation report](docs/reports/terminal-bench-2.1-k1-v16.md) for
+> the complete protocol, evidence, infrastructure controls, and comparability
+> limits.
+
 ```text
 session context + project instructions + Skill metadata + recalled memory
   + explicit Skill bodies + user input
@@ -64,11 +74,10 @@ files atomically after complete validation, `diff` shares the same bounded
 review evidence as `/changes`, and unfinished todos are visible resumable state
 rather than a fatal completion gate.
 
-The authorized Terminal-Bench 2.1 k=1 evaluation of the maintained V16 fix 4
-runtime, using `gpt-5.6-luna` at max reasoning, completed all 89 tasks with no
-final infrastructure failure and scored 61/89 (68.54%). See
-`docs/reports/terminal-bench-2.1-k1-v16.md` for the protocol, cohort-reset
-policy, result composition, and k=1 comparability limits.
+The authorized Terminal-Bench 2.1 evaluation of the maintained V16 fix 4
+runtime completed all 89 tasks with no final infrastructure failure and scored
+61/89 (68.54%). The detailed report linked above records the full methodology
+and its limitations.
 
 ## Version 15 Maintenance Release
 
@@ -76,7 +85,7 @@ Version 15 packages reliability fixes found through a complete Terminal-Bench
 2.1 evaluation rather than introducing a new headline feature. It bounds broad
 inspection in minimal containers, exposes only currently usable tools, supports
 guarded checkpoints outside Git repositories, and improves slow
-OpenAI-compatible Responses endpoints. The authorized k=1 run with
+OpenAI-compatible Responses endpoints. The authorized evaluation with
 `gpt-5.6-luna` at max reasoning completed all 89 tasks and scored 50/89
 (56.18%), with no exit-137 or final infrastructure failure. See
 `docs/reports/terminal-bench-2.1-k1.md` for the exact protocol and limitations.
